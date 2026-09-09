@@ -443,7 +443,6 @@ body {
     border: none;
     cursor: pointer;
     transition: 0.3s;
-    white-space: nowrap;
 }
 .btn-nav:hover {
     background: var(--primary-dark);
@@ -510,7 +509,6 @@ body {
     font-weight: 800;
     margin-bottom: 20px;
     line-height: 1.2;
-    white-space: nowrap;
 }
 
 .hero-desc {
@@ -894,7 +892,7 @@ footer {
         padding: 15px 3%;
     }
 
-    .hero h1   { font-size: 2.2rem; }
+    .hero h1   { font-size: 1.8rem; }
 
     .timeline::before { left: 20px; }
     .step-number      { left: 20px; transform: none; }
@@ -1241,6 +1239,7 @@ body:has(.auth-wrapper) {
 }
 
 @media (max-width: 480px) {
+    .hero h1 { font-size: 1.5rem; }
     .auth-left h1 { font-size: 2.6rem; }
     .auth-left .subtitle { font-size: 0.88rem; }
     .auth-right { padding: 32px 20px; }
