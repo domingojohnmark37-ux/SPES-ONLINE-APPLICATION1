@@ -63,4 +63,4 @@ RUN chmod +x /usr/local/bin/start.sh \
     && chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 10000
-ENTRYPOINT ["/usr/local/bin/start.sh"]# trigger rebuild
+ENTRYPOINT ["/usr/local/bin/start.sh"]
