@@ -40,9 +40,9 @@
             <a href="#process">Process</a>
         </div>
           <div class="nav-auth">
-             <a href="{{ url('/login') }}" class="btn-login">Login</a>
+             <a href="{{ route('login') }}" class="btn-login">Login</a>
         {{-- Auth Buttons (Always visible) --}}
-        <a href="{{ url('/register') }}" class="btn-nav">Sign Up</a>
+        <a href="{{ route('register') }}" class="btn-nav">Sign Up</a>
           </div>
     </nav>
 
@@ -221,7 +221,7 @@
         <div class="cta-content fade-in-up">
             <h2>Start Your Journey Today</h2>
             <p>Be part of the nation-building workforce. Earn while you learn.</p>
-            <a href="{{ url('/register') }}" class="btn-giant">
+            <a href="{{ route('register') }}" class="btn-giant">
                 Apply for SPES Now <i class="fa-solid fa-arrow-right"></i>
             </a>
         </div>
