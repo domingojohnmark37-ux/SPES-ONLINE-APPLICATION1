@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <div class="nav-section">Settings</div>
         <a href="{{ route('admin.settings') }}"
            class="nav-link {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
-            <i class="fa-solid fa-calendar-days"></i> Due Date
+            <i class="fa-solid fa-calendar-days"></i> Schedule
         </a>
         <a href="{{ route('admin.applications.index') }}"
            class="nav-link {{ request()->routeIs('admin.applications.index') && request()->has('export') ? 'active' : '' }}">
@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', function(){
         </a>
         <a href="{{ route('admin.masterlist.index') }}"
            class="nav-link {{ request()->routeIs('admin.masterlist.*') ? 'active' : '' }}">
-            <i class="fa-solid fa-list-check"></i> Master List
+            <i class="fa-solid fa-list-check"></i> Approve Candidate
         </a>
         <a href="{{ route('admin.news.index') }}"
            class="nav-link {{ request()->routeIs('admin.news.*') ? 'active' : '' }}">
