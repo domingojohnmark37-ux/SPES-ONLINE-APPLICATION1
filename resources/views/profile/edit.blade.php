@@ -73,6 +73,11 @@
         <a href="{{ auth()->user()->applications()->where('status', 'denied')->exists() ? route('applications.edit') : route('applications.create') }}" class="nav-link {{ request()->routeIs(['applications.create', 'applications.store', 'applications.edit']) ? 'active' : '' }}">
             <i class="fa-solid {{ auth()->user()->applications()->where('status', 'denied')->exists() ? 'fa-rotate-right' : 'fa-file-circle-plus' }}"></i> {{ auth()->user()->applications()->where('status', 'denied')->exists() ? 'Reapply' : 'Apply Now' }}
         </a>
+        @if(auth()->user()->applications()->where('status', 'approved')->exists())
+            <a href="{{ route('updates') }}" class="nav-link {{ request()->routeIs('updates') ? 'active' : '' }}">
+                <i class="fa-solid fa-newspaper"></i> Updates
+            </a>
+        @endif
     </nav>
     <div class="sidebar-footer">
         <form method="POST" action="{{ route('logout') }}">

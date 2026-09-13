@@ -27,7 +27,7 @@ class ApplicationFactory extends Factory
             'age' => (int) abs(now()->diffInYears($birthday)),
             'barangay' => fake()->randomElement(['Alibago', 'Bical', 'Centro Norte', 'Centro Sur', 'Dungeg']),
             'civil_status' => fake()->randomElement(['Single', 'Married', 'Widowed', 'Separated']),
-            'parent_status' => fake()->randomElement(['Both Parents', 'Single Parent', 'Orphan', 'Guardian']),
+            'parent_status' => fake()->randomElement(['Both Parents Living Together', 'Single Parent', 'Orphan', 'Guardian']),
             'education' => fake()->randomElement(['Senior High School Graduate', 'College (Currently Enrolled)', 'College Graduate']),
             'spes_status' => fake()->randomElement(['new', 'baby']),
             'mother_name' => fake()->name('female'),

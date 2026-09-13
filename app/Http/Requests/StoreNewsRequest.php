@@ -22,6 +22,7 @@ class StoreNewsRequest extends FormRequest
         return [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
+            'display_on' => 'required|in:landing,portal,both',
         ];
     }
 

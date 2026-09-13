@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Models\Application;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class ApplicationTest extends TestCase
@@ -25,6 +26,35 @@ class ApplicationTest extends TestCase
             'full_name' => 'Juan Dela Cruz',
             'status' => 'pending',
         ]);
+    }
+
+    /** @test */
+    public function application_requires_birth_and_enrollment_certificates()
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->post(route('applications.store'), $this->validApplicationPayload([
+            'resume' => null,
+            'certificate_enrollment' => null,
+        ]));
+
+        $response->assertSessionHasErrors(['resume', 'certificate_enrollment']);
+        $this->assertDatabaseMissing('applications', ['user_id' => $user->id]);
+    }
+
+    /** @test */
+    public function application_rejects_a_standalone_middle_name_initial()
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->post(route('applications.store'), $this->validApplicationPayload([
+            'middle_name' => 'A.',
+        ]));
+
+        $response->assertSessionHasErrors('middle_name');
+        $this->assertDatabaseMissing('applications', ['user_id' => $user->id]);
     }
 
     /** @test */
@@ -139,13 +169,15 @@ class ApplicationTest extends TestCase
             'age' => 20,
             'barangay' => 'Bical',
             'civil_status' => 'Single',
-            'parent_status' => 'Both Parents',
+            'parent_status' => 'Both Parents Living Together',
             'education' => 'College (Currently Enrolled)',
             'spes_status' => 'new',
             'mother_name' => 'Maria Dela Cruz',
             'father_guardian_name' => 'Pedro Dela Cruz',
             'contact_no' => '09123456789',
             'messenger' => 'juan.dela.cruz',
+            'resume' => UploadedFile::fake()->create('birth-certificate.pdf', 100, 'application/pdf'),
+            'certificate_enrollment' => UploadedFile::fake()->create('certificate-of-enrollment.pdf', 100, 'application/pdf'),
         ], $overrides);
     }
 }

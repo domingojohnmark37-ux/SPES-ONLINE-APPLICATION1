@@ -493,15 +493,8 @@
                     $parentStatusOptions = [
                         'Living Together',
                         'Solo Parent',
-                        'Separated',
-                        'Persons with Disability',
-                        'Senior Citizen',
-                        'Sugar Plantation Worker',
-                        'Indigenous People',
-                        'Displaced Worker',
-                        '4Ps Beneficiary',
-                        'LOCAL (2)',
-                        'OFW',
+                        'Orphan',
+                        'Guardian',
                     ];
                     $selectedParentStatus = old('parent_status_details', optional($profile)->parent_status_details ?? $user->parent_status_details ?? []);
                 @endphp

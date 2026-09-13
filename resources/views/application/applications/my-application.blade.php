@@ -146,6 +146,9 @@
         <a href="{{ route('applications.myApplication') }}" class="nav-link {{ request()->routeIs(['applications.myApplication', 'applications.form2', 'applications.form2.store']) ? 'active' : '' }}"><i class="fa-solid fa-file-lines"></i> My Application</a>
         <a href="{{ route('profile.edit') }}" class="nav-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}"><i class="fa-solid fa-user-pen"></i> Edit Profile</a>
         <a href="{{ $application && $application->status === 'denied' ? route('applications.edit') : route('applications.create') }}" class="nav-link {{ request()->routeIs(['applications.create', 'applications.store', 'applications.edit']) ? 'active' : '' }}"><i class="fa-solid {{ $application && $application->status === 'denied' ? 'fa-rotate-right' : 'fa-file-circle-plus' }}"></i> {{ $application && $application->status === 'denied' ? 'Reapply' : 'Apply Now' }}</a>
+        @if($application && $application->status === 'approved')
+            <a href="{{ route('updates') }}" class="nav-link {{ request()->routeIs('updates') ? 'active' : '' }}"><i class="fa-solid fa-newspaper"></i> Updates</a>
+        @endif
     </nav>
     <div class="sidebar-footer">
         <form method="POST" action="{{ route('logout') }}">
@@ -220,101 +223,11 @@
             <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
                 @if($application->status === 'denied')
                     <a href="{{ route('applications.edit') }}" class="btn-form btn-form-fill" style="padding:10px 16px;"> <i class="fa-solid fa-rotate-right"></i> Reapply</a>
-                @else
-                    <a href="{{ route('applications.edit') }}" class="btn-form btn-form-edit" style="padding:10px 16px;"> <i class="fa-solid fa-pen"></i> Edit Application</a>
                 @endif
                 <span class="badge badge-{{ $application->status }}">{{ ucfirst($application->status) }}</span>
             </div>
         </div>
     </div>
-
-    <div class="card">
-        <div class="card-header"><h2><i class="fa-solid fa-circle-info"></i> Next Step</h2></div>
-        <div class="card-body" style="font-size:.95rem; line-height:1.6;">
-            @if($application->status === 'approved')
-                @if($application->forms_step >= 1)
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <i class="fa-solid fa-check-circle" style="color:#2e7d32;font-size:1.3rem;"></i>
-                        <div>Your SPES Form 2 is complete. You may still edit it if needed.</div>
-                    </div>
-                @else
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <i class="fa-solid fa-arrow-right" style="color:#1565c0;font-size:1.3rem;"></i>
-                        <div>Your application has been approved. Please complete <strong>SPES Form 2</strong> to proceed.</div>
-                    </div>
-                    <div style="margin-top:14px;">
-                        <a href="{{ route('applications.form2') }}" class="btn-form btn-form-fill" style="padding:10px 16px;"> <i class="fa-solid fa-arrow-right"></i> Complete Form 2</a>
-                    </div>
-                @endif
-            @elseif($application->status === 'pending')
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <i class="fa-solid fa-clock" style="color:#e65100;font-size:1.3rem;"></i>
-                    <div>Your application is under review. Form 2 will unlock once the admin approves your application.</div>
-                </div>
-            @else
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <i class="fa-solid fa-ban" style="color:#c62828;font-size:1.3rem;"></i>
-                    <div>Your application was denied. Update your details and reapply when ready.</div>
-                </div>
-            @endif
-        </div>
-    </div>
-
-    {{-- ── POST-APPROVAL FORMS (only shown when approved) ─────────────── --}}
-    @if($application->status === 'approved')
-    @php $step = (int)$application->forms_step; @endphp
-    <div class="card">
-        <div class="card-header">
-            <h2><i class="fa-solid fa-clipboard-list"></i> Employment Forms</h2>
-            @if($step === 1)
-                <span class="badge badge-done"><i class="fa-solid fa-check-double"></i> Completed</span>
-            @else
-                <span class="badge badge-pending"><i class="fa-solid fa-pen-to-square"></i> {{ $step }}/1 Done</span>
-            @endif
-        </div>
-
-        {{-- Progress Steps --}}
-        <div class="steps-wrapper">
-            <div class="steps-heading">Your Progress</div>
-            <div class="steps-track">
-                <div class="step {{ $step >= 1 ? 'done' : 'active' }}">
-                    <div class="step-circle">{{ $step >= 1 ? '✓' : '1' }}</div>
-                    <div class="step-label">SPES Form 2<br>Application Form</div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Form rows --}}
-        <div class="forms-list">
-            {{-- Form 2 --}}
-            <div class="form-row {{ $step >= 1 ? 'done' : 'active' }}">
-                <div class="form-row-left">
-                    <div class="form-row-icon"><i class="fa-solid fa-file-pen"></i></div>
-                    <div>
-                        <div class="form-row-title">SPES Form 2 — Application Form</div>
-                        <div class="form-row-desc">Extended personal & educational information required by DOLE</div>
-                    </div>
-                </div>
-                @if($step >= 1)
-                    <a href="{{ route('applications.form2') }}" class="btn-form btn-form-edit"><i class="fa-solid fa-pen"></i> Edit</a>
-                @else
-                    <a href="{{ route('applications.form2') }}" class="btn-form btn-form-fill"><i class="fa-solid fa-arrow-right"></i> Fill Out</a>
-                @endif
-            </div>
-
-            {{-- All done banner (only when form 2 is completed) --}}
-            @if($step >= 1)
-        <div class="all-done-banner">
-            <i class="fa-solid fa-party-horn"></i>
-            <div>
-                <h4>Employment Form Completed!</h4>
-                <p>Your SPES employment document has been submitted. Please wait for further instructions from PESO.</p>
-            </div>
-        </div>
-        @endif
-    </div>
-    @endif
-    {{-- ── END POST-APPROVAL FORMS ──────────────────────────────────────── --}}
 
     {{-- Application Info --}}
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">

@@ -141,6 +141,9 @@
         <a href="{{ route('applications.myApplication') }}" class="nav-link {{ request()->routeIs(['applications.myApplication', 'applications.form2', 'applications.form2.store']) ? 'active' : '' }}"><i class="fa-solid fa-file-lines"></i> My Application</a>
         <a href="{{ route('profile.edit') }}" class="nav-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}"><i class="fa-solid fa-user-pen"></i> Edit Profile</a>
         <a href="{{ $application && $application->status === 'denied' ? route('applications.edit') : route('applications.create') }}" class="nav-link {{ request()->routeIs(['applications.create', 'applications.store', 'applications.edit']) ? 'active' : '' }}"><i class="fa-solid {{ $application && $application->status === 'denied' ? 'fa-rotate-right' : 'fa-file-circle-plus' }}"></i> {{ $application && $application->status === 'denied' ? 'Reapply' : 'Apply Now' }}</a>
+        @if($application && $application->status === 'approved')
+            <a href="{{ route('updates') }}" class="nav-link {{ request()->routeIs('updates') ? 'active' : '' }}"><i class="fa-solid fa-newspaper"></i> Updates</a>
+        @endif
     </nav>
     <div class="sidebar-footer">
         <form method="POST" action="{{ route('logout') }}">
@@ -224,7 +227,7 @@
                         <label>Middle Name <span class="req">*</span></label>
                         <input type="text" name="middle_name" id="middle_name" value="{{ $getDefault('middle_name') }}" placeholder="Middle Name" required>
                         @error('middle_name')<div class="error">{{ $message }}</div>@enderror
-                        <div id="middle_name_warning" class="error" style="display:none; margin-top:5px;">Please enter the full middle name, not just initials.</div>
+                        <div id="middle_name_warning" class="error" style="display:none; margin-top:5px;">Please enter your complete middle name. Single initials such as A or A. are not accepted.</div>
                     </div>
                 </div>
                 <div class="form-row">
@@ -274,7 +277,7 @@
                         <label>Parent Status <span class="req">*</span></label>
                         <select name="parent_status" required>
                             <option value="">-- Select --</option>
-                            @foreach(['Both Parents','Solo Parent','Orphan','Guardian'] as $ps)
+                            @foreach(['Both Parents Living','Solo Parent','Orphan','Guardian'] as $ps)
                                 <option value="{{ $ps }}" {{ $getDefault('parent_status')===$ps ? 'selected' : '' }}>{{ $ps }}</option>
                             @endforeach
                         </select>
@@ -326,37 +329,37 @@
             <div class="form-card-body">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Mother's Name <span class="req">*</span></label>
-                        <input type="text" name="mother_name" value="{{ $getDefault('mother_name') }}" placeholder="Full name" required>
+                        <label>Mother's Name <span class="req" data-family-required>*</span></label>
+                        <input type="text" name="mother_name" value="{{ $getDefault('mother_name') }}" placeholder="Full name" data-family-field>
                         @error('mother_name')<div class="error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
-                        <label>Father's Name / Guardian's Name <span class="req">*</span></label>
-                        <input type="text" name="father_guardian_name" value="{{ $getDefault('father_guardian_name') }}" placeholder="Full name" required>
+                        <label>Father's Name / Guardian's Name <span class="req" data-family-required>*</span></label>
+                        <input type="text" name="father_guardian_name" value="{{ $getDefault('father_guardian_name') }}" placeholder="Full name" data-family-field>
                         @error('father_guardian_name')<div class="error">{{ $message }}</div>@enderror
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Mother's Occupation <span class="req">*</span></label>
-                        <input type="text" name="mother_occupation" value="{{ $getDefault('mother_occupation') }}" placeholder="Enter occupation" required>
+                        <label>Mother's Occupation <span class="req" data-family-required>*</span></label>
+                        <input type="text" name="mother_occupation" value="{{ $getDefault('mother_occupation') }}" placeholder="Enter occupation" data-family-field>
                         @error('mother_occupation')<div class="error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
-                        <label>Father's Occupation <span class="req">*</span></label>
-                        <input type="text" name="father_occupation" value="{{ $getDefault('father_occupation') }}" placeholder="Enter occupation" required>
+                        <label>Father's Occupation <span class="req" data-family-required>*</span></label>
+                        <input type="text" name="father_occupation" value="{{ $getDefault('father_occupation') }}" placeholder="Enter occupation" data-family-field>
                         @error('father_occupation')<div class="error">{{ $message }}</div>@enderror
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Mother's Contact Number <span class="req">*</span></label>
-                        <input type="text" name="mother_contact_no" value="{{ $getDefault('mother_contact_no') }}" placeholder="09XXXXXXXXX" maxlength="20" required>
+                        <label>Mother's Contact Number <span class="req" data-family-required>*</span></label>
+                        <input type="text" name="mother_contact_no" value="{{ $getDefault('mother_contact_no') }}" placeholder="09XXXXXXXXX" maxlength="20" data-family-field>
                         @error('mother_contact_no')<div class="error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
-                        <label>Father's Contact Number <span class="req">*</span></label>
-                        <input type="text" name="father_contact_no" value="{{ $getDefault('father_contact_no') }}" placeholder="09XXXXXXXXX" maxlength="20" required>
+                        <label>Father's Contact Number <span class="req" data-family-required>*</span></label>
+                        <input type="text" name="father_contact_no" value="{{ $getDefault('father_contact_no') }}" placeholder="09XXXXXXXXX" maxlength="20" data-family-field>
                         @error('father_contact_no')<div class="error">{{ $message }}</div>@enderror
                     </div>
                 </div>
@@ -374,7 +377,7 @@
         <div class="form-card">
             <div class="form-card-header">
                 <i class="fa-solid fa-folder-open"></i>
-                <h3>Documentary Requirements <span style="font-weight:400;font-size:.85rem;">(Optional but recommended)</span></h3>
+                <h3>Documentary Requirements <span style="font-weight:400;font-size:.85rem;">(Required for application verification)</span></h3>
             </div>
             <div class="form-card-body">
                 <p style="font-size:.83rem;color:var(--text-muted);margin-bottom:14px;">
@@ -452,17 +455,46 @@ document.querySelector('input[name="birthday"]').addEventListener('change', func
     document.getElementById('ageField').value = age > 0 ? age : '';
 });
 
-// Validate middle name - must be full name, not just initial
-document.getElementById('middle_name').addEventListener('blur', function () {
+// Validate middle name - standalone initials are not accepted.
+function validateMiddleName(input) {
     const middleNameWarning = document.getElementById('middle_name_warning');
-    const middleName = this.value.trim();
-    
-    if (middleName.length === 1) {
+    const middleName = input.value.trim();
+    const isStandaloneInitial = /^[A-Za-z]\.?$/.test(middleName);
+
+    if (isStandaloneInitial) {
         middleNameWarning.style.display = 'block';
+        input.setCustomValidity('Please enter your complete middle name. Single initials such as A or A. are not accepted.');
     } else {
         middleNameWarning.style.display = 'none';
+        input.setCustomValidity('');
     }
+}
+
+const middleNameInput = document.getElementById('middle_name');
+middleNameInput.addEventListener('input', function () {
+    validateMiddleName(this);
 });
+middleNameInput.addEventListener('blur', function () {
+    validateMiddleName(this);
+});
+
+// Only Both Parents Living requires every Family & Contact field.
+function updateFamilyContactRequirements() {
+    const parentStatus = document.querySelector('select[name="parent_status"]').value;
+    const isFamilyRequired = parentStatus === 'Both Parents Living';
+
+    document.querySelectorAll('[data-family-field]').forEach(field => {
+        field.required = isFamilyRequired;
+    });
+
+    document.querySelectorAll('[data-family-required]').forEach(marker => {
+        marker.style.display = isFamilyRequired ? 'inline' : 'none';
+    });
+}
+
+const parentStatusInput = document.querySelector('select[name="parent_status"]');
+parentStatusInput.addEventListener('change', updateFamilyContactRequirements);
+updateFamilyContactRequirements();
 
 // Prevent double-submit
 document.getElementById('appForm').addEventListener('submit', function () {

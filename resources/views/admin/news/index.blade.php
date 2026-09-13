@@ -25,7 +25,7 @@
                     <tr>
                         <th>Title</th>
                         <th>Status</th>
-                        <th>Author</th>
+                        <th>Display On</th>
                         <th>Published</th>
                         <th>Created</th>
                         <th>Actions</th>
@@ -46,7 +46,15 @@
                                 {{ $item->is_published ? 'Published' : 'Draft' }}
                             </span>
                         </td>
-                        <td>{{ $item->author->name ?? 'N/A' }}</td>
+                        <td>
+                            @if(($item->display_on ?? 'both') === 'landing')
+                                Landing Page
+                            @elseif(($item->display_on ?? 'both') === 'portal')
+                                SPES Portal
+                            @else
+                                Both
+                            @endif
+                        </td>
                         <td style="font-size:.78rem;color:var(--text-muted)">
                             {{ $item->published_at ? $item->published_at->format('M d, Y H:i') : '—' }}
                         </td>

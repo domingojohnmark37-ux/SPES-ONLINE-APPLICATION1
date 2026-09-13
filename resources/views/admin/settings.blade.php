@@ -55,20 +55,4 @@
     </div>
 </div>
 
-{{-- Quick Actions Dropdown in Sidebar --}}
-<div class="card">
-    <div class="card-header">
-        <h2><i class="fa-solid fa-bars"></i> Quick Actions</h2>
-    </div>
-    <div class="card-body">
-        <p style="margin: 0; color: #6b7680; font-size: .95rem;">Quick action buttons are available in the sidebar under Settings menu:</p>
-        <ul style="margin-top: 12px; padding-left: 20px; color: #6b7680; font-size: .95rem;">
-            <li style="margin-bottom: 8px;"><strong>Schedule:</strong> Manage application submission period</li>
-            <li style="margin-bottom: 8px;"><strong>Download Excel:</strong> Export applications to Excel format</li>
-            <li style="margin-bottom: 8px;"><strong>Approve Candidate:</strong> Create and manage finalized approved candidates</li>
-            <li><strong>News:</strong> Manage announcements and news for the public portal</li>
-        </ul>
-    </div>
-</div>
-
 @endsection

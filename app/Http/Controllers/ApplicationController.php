@@ -100,29 +100,33 @@ class ApplicationController extends Controller
         $validated = $request->validate([
             'surname'             => 'required|string|max:255',
             'first_name'          => 'required|string|max:255',
-            'middle_name'         => 'required|string|min:2|max:255',
+            'middle_name'         => ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'],
             'sex'                 => 'required|in:Male,Female',
             'birthday'            => 'required|date|before:today',
             'age'                 => 'required|integer|min:15|max:30',
             'barangay'            => 'required|string|max:100',
             'civil_status'        => 'required|in:Single,Married,Widowed,Separated',
-            'parent_status'       => 'required|in:Both Parents,Single Parent,Orphan,Guardian',
+            'parent_status'       => 'required|in:Both Parents Living,Solo Parent,Orphan,Guardian',
             'education'           => 'required|string|max:100',
             'spes_status'         => 'required|in:new,baby',
-            'mother_name'         => 'required|string|max:255',
-            'mother_occupation'   => 'required|string|max:255',
-            'mother_contact_no'   => 'required|string|max:20',
-            'father_guardian_name'=> 'required|string|max:255',
-            'father_occupation'   => 'required|string|max:255',
-            'father_contact_no'   => 'required|string|max:20',
+            'mother_name'         => 'nullable|string|max:255',
+            'mother_occupation'   => 'nullable|string|max:255',
+            'mother_contact_no'   => 'nullable|string|max:20',
+            'father_guardian_name'=> 'nullable|string|max:255',
+            'father_occupation'   => 'nullable|string|max:255',
+            'father_contact_no'   => 'nullable|string|max:20',
             'messenger'           => 'nullable|string|max:255',
             'facebook'            => 'nullable|string|max:255',
-            'resume'              => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
-            'certificate_enrollment' => 'nullable|file|mimes:pdf|max:5120',
+            'resume'              => 'required|file|mimes:pdf|max:5120',
+            'certificate_enrollment' => 'required|file|mimes:pdf|max:5120',
             'certificate_grade'     => 'nullable|file|mimes:pdf|max:5120',
             'application_letter'  => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
             'indigency'           => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
+        ], [
+            'middle_name.not_regex' => 'Please enter your complete middle name. Single initials such as A or A. are not accepted.',
         ]);
+
+        $this->validateFamilyContact($request);
 
         // Handle file uploads
         $resumePath  = null;
@@ -187,32 +191,45 @@ class ApplicationController extends Controller
     {
         $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
 
+        $documentRules = [
+            'resume' => $application->resume && Storage::disk('public')->exists($application->resume)
+                ? 'nullable|file|mimes:pdf|max:5120'
+                : 'required|file|mimes:pdf|max:5120',
+            'certificate_enrollment' => $application->certificate_enrollment && Storage::disk('public')->exists($application->certificate_enrollment)
+                ? 'nullable|file|mimes:pdf|max:5120'
+                : 'required|file|mimes:pdf|max:5120',
+        ];
+
         $validated = $request->validate([
             'surname'             => 'required|string|max:255',
             'first_name'          => 'required|string|max:255',
-            'middle_name'         => 'required|string|min:2|max:255',
+            'middle_name'         => ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'],
             'sex'                 => 'required|in:Male,Female',
             'birthday'            => 'required|date|before:today',
             'age'                 => 'required|integer|min:15|max:30',
             'barangay'            => 'required|string|max:100',
             'civil_status'        => 'required|in:Single,Married,Widowed,Separated',
-            'parent_status'       => 'required|in:Both Parents,Single Parent,Orphan,Guardian',
+            'parent_status'       => 'required|in:Both Parents Living,Solo Parent,Orphan,Guardian',
             'education'           => 'required|string|max:100',
             'spes_status'         => 'required|in:new,baby',
-            'mother_name'         => 'required|string|max:255',
-            'mother_occupation'   => 'required|string|max:255',
-            'mother_contact_no'   => 'required|string|max:20',
-            'father_guardian_name'=> 'required|string|max:255',
-            'father_occupation'   => 'required|string|max:255',
-            'father_contact_no'   => 'required|string|max:20',
+            'mother_name'         => 'nullable|string|max:255',
+            'mother_occupation'   => 'nullable|string|max:255',
+            'mother_contact_no'   => 'nullable|string|max:20',
+            'father_guardian_name'=> 'nullable|string|max:255',
+            'father_occupation'   => 'nullable|string|max:255',
+            'father_contact_no'   => 'nullable|string|max:20',
             'messenger'           => 'nullable|string|max:255',
             'facebook'            => 'nullable|string|max:255',
-            'resume'              => 'nullable|file|mimes:pdf|max:5120',
-            'certificate_enrollment' => 'nullable|file|mimes:pdf|max:5120',
+            'resume'              => $documentRules['resume'],
+            'certificate_enrollment' => $documentRules['certificate_enrollment'],
             'certificate_grade'     => 'nullable|file|mimes:pdf|max:5120',
             'application_letter'  => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
             'indigency'           => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
+        ], [
+            'middle_name.not_regex' => 'Please enter your complete middle name. Single initials such as A or A. are not accepted.',
         ]);
+
+        $this->validateFamilyContact($request);
 
         if ($request->hasFile('resume')) {
             if ($application->resume) {
@@ -266,6 +283,28 @@ class ApplicationController extends Controller
 
         return redirect()->route('applications.myApplication')
             ->with('success', $message);
+    }
+
+    /**
+     * Only Both Parents Living requires every family/contact field.
+     * Solo Parent, Orphan, and Guardian may leave the entire section blank.
+     */
+    private function validateFamilyContact(Request $request): void
+    {
+        if ($request->input('parent_status') !== 'Both Parents Living') {
+            return;
+        }
+
+        validator($request->all(), [
+            'mother_name' => 'required',
+            'mother_contact_no' => 'required',
+            'mother_occupation' => 'required',
+            'father_guardian_name' => 'required',
+            'father_contact_no' => 'required',
+            'father_occupation' => 'required',
+        ], [
+            '*.required' => 'This Family & Contact Information field is required when both parents are living.',
+        ])->validate();
     }
 
     /**

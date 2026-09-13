@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Route;
 
 // Public
 Route::get('/', function () {
-    $news = \App\Models\News::published()->take(5)->get();
+    $news = \App\Models\News::published()->whereIn('display_on', ['landing', 'both'])->take(5)->get();
     return view('welcome', compact('news'));
 })->name('home');
 
@@ -33,6 +33,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/updates', function () {
+        if (!auth()->user()->applications()->where('status', 'approved')->exists()) {
+            return redirect()->route('dashboard')->with('info', 'Updates are available after your application is approved.');
+        }
+
+        $updates = \App\Models\News::published()->whereIn('display_on', ['portal', 'both'])->get();
+        return view('updates', compact('updates'));
+    })->name('updates');
 
     // Application
     Route::get('/apply',           [ApplicationController::class, 'create'])->name('applications.create');

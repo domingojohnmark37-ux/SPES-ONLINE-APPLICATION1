@@ -38,7 +38,6 @@
                     </div>
                 </div>
                 <div class="detail-item"><div class="detail-label">Facebook Profile</div><div class="detail-value">{{ $application->facebook ?? '—' }}</div></div>
-                <div class="detail-item"><div class="detail-label">Messenger Account</div><div class="detail-value">{{ $application->messenger ?? '—' }}</div></div>
                 <div class="detail-item"><div class="detail-label">Mother's Name</div><div class="detail-value">{{ $application->mother_name }}</div></div>
                 <div class="detail-item"><div class="detail-label">Mother's Occupation</div><div class="detail-value">{{ $application->mother_occupation }}</div></div>
                 <div class="detail-item"><div class="detail-label">Mother's Contact Number</div><div class="detail-value">{{ $application->mother_contact_no }}</div></div>

@@ -47,10 +47,28 @@
                     <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><i class="fa-solid fa-circle-exclamation"></i> {{ $message }}</div>
                 @enderror
                 <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+                    Share your ideas freely. Don’t worry about mistakes.The article will be saved as a draft first.
+                </small>
+                <small style="color: var(--text-muted); display: block; margin-top: 6px;">
                     Status: <strong>{{ $news->is_published ? 'Published' : 'Draft' }}</strong>
                     {{ $news->published_at ? '(Published on ' . $news->published_at->format('M d, Y H:i') . ')' : '' }}
                 </small>
             </div>
+
+                {{-- Announcement Destination Field --}}
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--text); font-size: .95rem;">
+                        Show Announcement On <span style="color: var(--danger);">*</span>
+                    </label>
+                    <select name="display_on" style="width: 100%; padding: 10px 13px; border: 1.5px solid {{ $errors->has('display_on') ? 'var(--danger)' : 'var(--border)' }}; border-radius: 7px; font-size: .95rem; background: #fff;">
+                        <option value="both" {{ old('display_on', $news->display_on ?? 'both') === 'both' ? 'selected' : '' }}>Web Page and Student Portal</option>
+                        <option value="landing" {{ old('display_on', $news->display_on ?? 'both') === 'landing' ? 'selected' : '' }}>Web Page Only</option>
+                        <option value="portal" {{ old('display_on', $news->display_on ?? 'both') === 'portal' ? 'selected' : '' }}>Student Portal Only</option>
+                    </select>
+                    @error('display_on')
+                        <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><i class="fa-solid fa-circle-exclamation"></i> {{ $message }}</div>
+                    @enderror
+                </div>
 
             {{-- Form Actions --}}
             <div style="display: flex; gap: 12px; align-items: center;">

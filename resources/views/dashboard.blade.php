@@ -211,6 +211,11 @@
         <a href="{{ $application && $application->status === 'denied' ? route('applications.edit') : route('applications.create') }}" class="nav-link {{ request()->routeIs(['applications.create', 'applications.store', 'applications.edit']) ? 'active' : '' }}">
             <i class="fa-solid {{ $application && $application->status === 'denied' ? 'fa-rotate-right' : 'fa-file-circle-plus' }}"></i> {{ $application && $application->status === 'denied' ? 'Reapply' : 'Apply Now' }}
         </a>
+        @if($application && $application->status === 'approved')
+            <a href="{{ route('updates') }}" class="nav-link {{ request()->routeIs('updates') ? 'active' : '' }}">
+                <i class="fa-solid fa-newspaper"></i> Updates
+            </a>
+        @endif
     </nav>
     <div class="sidebar-user">
         <img src="{{ Auth::user()->profile_photo_url ?? asset('images/avatar.png') }}" alt="{{ Auth::user()->name }}">
@@ -383,17 +388,6 @@ document.addEventListener('DOMContentLoaded', function(){
         </div>
 
         <div>
-            <div class="card">
-                <div class="card-header"><h2>Quick Actions</h2></div>
-                <div class="card-body">
-                    <div class="quick-actions">
-                        <a class="qa" href="{{ route('applications.create') }}"><i class="fa-solid fa-paper-plane"></i><div style="font-size:.82rem;margin-top:6px;">Apply Now</div></a>
-                        <a class="qa" href="{{ route('applications.myApplication') }}"><i class="fa-solid fa-file-lines"></i><div style="font-size:.82rem;margin-top:6px;">My Application</div></a>
-                        <a class="qa" href="{{ route('profile.edit') }}"><i class="fa-solid fa-user-pen"></i><div style="font-size:.82rem;margin-top:6px;">Edit Profile</div></a>
-                    </div>
-                </div>
-            </div>
-
             <div class="card" style="margin-top:12px;">
                 <div class="card-header"><h2>How to Apply</h2></div>
                 <div class="card-body">
