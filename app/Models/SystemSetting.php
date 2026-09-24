@@ -32,8 +32,12 @@ class SystemSetting extends Model
         $timezone = config('app.timezone', 'UTC');
         $now = now()->setTimezone($timezone);
 
+        if ($this->application_start_date === null && $this->application_end_date === null) {
+            return true; // Default to open when no application window is configured.
+        }
+
         if ($this->application_start_date === null || $this->application_end_date === null) {
-            return false; // Both dates must be set
+            return false; // Partial configuration means the window is not valid yet.
         }
 
         $start = $this->application_start_date->setTimezone($timezone);

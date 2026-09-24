@@ -679,6 +679,24 @@ body {
 .card h3 { font-size: 1.5rem; margin-bottom: 15px; }
 .card p  { opacity: 0.9; font-size: 0.95rem; }
 
+.news-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 30px;
+}
+
+.news-card {
+    min-width: 0;
+}
+
+.news-content {
+    margin-bottom: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.7;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
 /* Requirements box */
 .requirements-box {
     background: white;

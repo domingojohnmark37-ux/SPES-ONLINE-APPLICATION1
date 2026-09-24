@@ -192,19 +192,19 @@
             </div>
 
             @if($news && $news->count() > 0)
-            <div class="grid-3">
+            <div class="news-grid">
                 @foreach($news as $item)
-                <div class="card fade-in" style="display: flex; flex-direction: column;">
+                <article class="card news-card fade-in">
                     <div style="flex: 1;">
                         <h3 style="margin-bottom: 8px;">{{ $item->title }}</h3>
-                        <p style="margin-bottom: 12px; color: rgba(255,255,255,0.8);">
-                            {{ Str::limit(strip_tags($item->content), 100, '...') }}
+                        <p class="news-content">
+                            {{ strip_tags($item->content) }}
                         </p>
                     </div>
                     <div style="font-size: .85rem; color: rgba(255,255,255,0.6); border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
                         <i class="fa-solid fa-calendar-days"></i> {{ $item->published_at->format('F d, Y') }}
                     </div>
-                </div>
+                </article>
                 @endforeach
             </div>
             @else

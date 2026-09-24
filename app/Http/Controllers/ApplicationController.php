@@ -78,6 +78,8 @@ class ApplicationController extends Controller
      */
     public function store(Request $request)
     {
+        $this->normalizeLegacyApplicationData($request);
+
         // Check if application window is open
         $settings = SystemSetting::current();
         if (!$settings->isApplicationOpen()) {
@@ -151,7 +153,11 @@ class ApplicationController extends Controller
             $indigencyPath = $request->file('indigency')->store('applications/indigency', 'public');
         }
 
-        $fullName = $validated['surname'] . ', ' . $validated['first_name'] . ', ' . $validated['middle_name'];
+        $fullName = trim(implode(' ', array_filter([
+            $validated['first_name'],
+            str_replace('N/A', '', $validated['middle_name'] ?? ''),
+            $validated['surname'],
+        ], fn ($part) => !empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
 
         Application::create([
             'user_id'              => Auth::id(),
@@ -189,6 +195,7 @@ class ApplicationController extends Controller
 
     public function update(Request $request)
     {
+        $this->normalizeLegacyApplicationData($request);
         $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
 
         $documentRules = [
@@ -258,7 +265,11 @@ class ApplicationController extends Controller
             $application->indigency = $request->file('indigency')->store('applications/indigency', 'public');
         }
 
-        $fullName = $validated['surname'] . ', ' . $validated['first_name'] . ', ' . $validated['middle_name'];
+        $fullName = trim(implode(' ', array_filter([
+            $validated['first_name'],
+            str_replace('N/A', '', $validated['middle_name'] ?? ''),
+            $validated['surname'],
+        ], fn ($part) => !empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
 
         $updates = array_merge($validated, [
             'full_name'          => $fullName,
@@ -283,6 +294,58 @@ class ApplicationController extends Controller
 
         return redirect()->route('applications.myApplication')
             ->with('success', $message);
+    }
+
+    /**
+     * Normalize legacy payloads that send old values or only full_name into the newer split-name structure.
+     */
+    private function normalizeLegacyApplicationData(Request $request): void
+    {
+        $statusMap = [
+            'Both Parents' => 'Both Parents Living',
+            'Both Parents Living Together' => 'Both Parents Living',
+            'Single Parent' => 'Solo Parent',
+        ];
+
+        if ($request->filled('parent_status')) {
+            $status = trim((string) $request->input('parent_status'));
+            if (isset($statusMap[$status])) {
+                $request->merge(['parent_status' => $statusMap[$status]]);
+            }
+        }
+
+        if (
+            $request->filled('surname') || $request->filled('first_name') || $request->filled('middle_name')
+        ) {
+            return;
+        }
+
+        if (!$request->filled('full_name')) {
+            return;
+        }
+
+        $fullName = trim((string) $request->input('full_name'));
+        $parts = preg_split('/\s+/', $fullName, -1, PREG_SPLIT_NO_EMPTY);
+
+        if (count($parts) >= 3) {
+            $request->merge([
+                'surname' => array_pop($parts),
+                'first_name' => array_shift($parts),
+                'middle_name' => implode(' ', $parts) ?: 'N/A',
+            ]);
+        } elseif (count($parts) === 2) {
+            $request->merge([
+                'surname' => $parts[1],
+                'first_name' => $parts[0],
+                'middle_name' => 'N/A',
+            ]);
+        } else {
+            $request->merge([
+                'surname' => $fullName,
+                'first_name' => $fullName,
+                'middle_name' => 'N/A',
+            ]);
+        }
     }
 
     /**

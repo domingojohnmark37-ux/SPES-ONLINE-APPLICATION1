@@ -115,8 +115,11 @@ class ApplicationTest extends TestCase
     public function user_document_preview_uses_birth_certificate_name()
     {
         $user = User::factory()->create();
+        $path = 'applications/resumes/sample.pdf';
+        \Illuminate\Support\Facades\Storage::disk('public')->put($path, 'sample pdf');
+
         $application = Application::factory()->for($user)->create([
-            'resume' => 'applications/resumes/sample.pdf',
+            'resume' => $path,
         ]);
 
         $this->actingAs($user);
@@ -169,12 +172,16 @@ class ApplicationTest extends TestCase
             'age' => 20,
             'barangay' => 'Bical',
             'civil_status' => 'Single',
-            'parent_status' => 'Both Parents Living Together',
+            'parent_status' => 'Both Parents Living',
             'education' => 'College (Currently Enrolled)',
             'spes_status' => 'new',
             'mother_name' => 'Maria Dela Cruz',
+            'mother_occupation' => 'Teacher',
+            'mother_contact_no' => '09123456789',
             'father_guardian_name' => 'Pedro Dela Cruz',
-            'contact_no' => '09123456789',
+            'father_occupation' => 'Driver',
+            'father_contact_no' => '09987654321',
+            'facebook' => 'https://facebook.com/juan',
             'messenger' => 'juan.dela.cruz',
             'resume' => UploadedFile::fake()->create('birth-certificate.pdf', 100, 'application/pdf'),
             'certificate_enrollment' => UploadedFile::fake()->create('certificate-of-enrollment.pdf', 100, 'application/pdf'),
