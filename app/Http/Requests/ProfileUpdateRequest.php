@@ -39,7 +39,11 @@ class ProfileUpdateRequest extends FormRequest
             'contact_number' => ['nullable', 'string', 'max:50'],
             'present_address' => ['nullable', 'string', 'max:500'],
             'permanent_address' => ['nullable', 'string', 'max:500'],
-            'applicant_category' => ['nullable', 'string', 'max:255'],
+            'applicant_category' => ['nullable', Rule::in([
+                'student',
+                'out_of_school_youth',
+                'working_student',
+            ])],
             'education_history' => ['nullable', 'array'],
             'education_history.*.level' => ['required_with:education_history', 'string', 'max:255'],
             'education_history.*.school' => ['nullable', 'string', 'max:255'],
@@ -53,7 +57,12 @@ class ProfileUpdateRequest extends FormRequest
             'mother_contact_number' => ['nullable', 'string', 'max:50'],
             'mother_occupation' => ['nullable', 'string', 'max:255'],
             'parent_status_details' => ['nullable', 'array'],
-            'parent_status_details.*' => ['string', 'max:255'],
+            'parent_status_details.*' => ['string', Rule::in([
+                'Living Together',
+                'Solo Parent',
+                'Orphan',
+                'Guardian',
+            ])],
             'special_skills' => ['nullable', 'string', 'max:500'],
         ];
     }

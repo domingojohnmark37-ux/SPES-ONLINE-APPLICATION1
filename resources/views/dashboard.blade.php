@@ -189,6 +189,59 @@
             .sidebar { transform: translateX(-100%); transition: transform .24s; }
             .sidebar.open { transform: translateX(0); }
         }
+        @media(max-width:767.98px) {
+            .topbar { height: 60px; padding: 0 12px; gap: 8px; }
+            .topbar .brand { min-width: 0; flex: 1; gap: 8px; }
+            .topbar h1 { overflow: hidden; font-size: .95rem; text-overflow: ellipsis; white-space: nowrap; }
+            .topbar p { display: none; }
+            .hamburger { flex: 0 0 auto; margin-right: 0; }
+            .topbar-right { flex: 0 0 auto; gap: 8px; }
+            .user-pill { display: none; }
+            .page-wrapper { padding-top: 60px; }
+            .page-content { min-width: 0; padding: 14px; }
+            .stats-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+            .stat-card { min-width: 0; padding: 14px; }
+            .stat-card > div:last-child { min-width: 0; }
+            .layout-grid, .layout-grid > div { min-width: 0; }
+            .layout-grid { gap: 14px; }
+            .hero {
+                display: grid;
+                grid-template-columns: 52px minmax(0, 1fr);
+                gap: 12px;
+                padding: 16px;
+            }
+            .hero-ill { width: 52px; height: 52px; }
+            .hero h3 { font-size: 1rem; }
+            .hero p { font-size: .9rem; line-height: 1.45; overflow-wrap: anywhere; }
+            .hero > div:nth-child(2) { min-width: 0; }
+            .hero > div:last-child {
+                grid-column: 1 / -1;
+                min-width: 0 !important;
+                width: 100%;
+                display: grid !important;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px !important;
+            }
+            .hero > div:last-child .qa { min-width: 0; padding: 10px 6px; font-size: .82rem; }
+            .progress { min-width: 0; padding: 14px; }
+            .progress .card-body { padding: 14px 0 0; }
+            .progress-track {
+                justify-content: flex-start;
+                overflow-x: auto;
+                overscroll-behavior-x: contain;
+                padding-bottom: 8px;
+            }
+            .progress-step { flex: 0 0 112px; }
+            .progress-step > div:last-child { font-size: .78rem !important; }
+            body > footer {
+                margin-left: 0 !important;
+                padding: 14px 16px !important;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            body > footer > span:last-child { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+            body > footer a { overflow-wrap: anywhere; }
+        }
     </style>
 </head>
 <body>
@@ -414,5 +467,6 @@ document.addEventListener('DOMContentLoaded', function(){
         <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><i class="fa-solid fa-envelope"></i> lgulalloinformationoffice@gmail.com</a>
     </span>
 </footer>
+<x-portal-help-chat />
 </body>
 </html>

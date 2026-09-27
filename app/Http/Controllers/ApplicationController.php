@@ -496,9 +496,28 @@ class ApplicationController extends Controller
      */
     public function users()
     {
-        $users = User::where('role', 'user')->latest()->paginate(20);
+        $users = User::with([
+            'profile',
+            'applications' => fn ($query) => $query->latest('created_at'),
+        ])->where('role', 'user')->latest()->paginate(20);
         $totalUsers = User::where('role', 'user')->count();
         return view('admin.users', compact('users', 'totalUsers'));
+    }
+
+    /**
+     * Admin: view a registered user's profile and application history.
+     */
+    public function showUser(Request $request, User $user)
+    {
+        $user->load([
+            'profile',
+            'applications' => fn ($query) => $query->latest('created_at'),
+        ]);
+
+        return view('admin.user-profile', [
+            'user' => $user,
+            'returnSearch' => $request->query('search'),
+        ]);
     }
 
     /**

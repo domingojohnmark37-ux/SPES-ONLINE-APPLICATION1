@@ -395,10 +395,10 @@
         <div class="mb-3">
             <label class="block text-xs font-semibold text-gray-600 mb-1">APPLICANT'S CATEGORY</label>
             <select id="applicant_category" name="applicant_category" class="compact-md px-2 py-2 text-sm rounded border border-gray-300 bg-white">
-                <option value="">Select</option>
-                <option value="Student" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'Student' ? 'selected' : '' }}>Student</option>
-                <option value="OFW" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'OFW' ? 'selected' : '' }}>OFW</option>
-                <option value="Unemployed" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'Unemployed' ? 'selected' : '' }}>Unemployed</option>
+                <option value="" disabled {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) ? '' : 'selected' }}>Select</option>
+                <option value="student" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'student' ? 'selected' : '' }}>Student</option>
+                <option value="out_of_school_youth" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'out_of_school_youth' ? 'selected' : '' }}>Out-of-School Youth</option>
+                <option value="working_student" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'working_student' ? 'selected' : '' }}>Working Student</option>
             </select>
         </div>
 
@@ -497,11 +497,17 @@
                         'Guardian',
                     ];
                     $selectedParentStatus = old('parent_status_details', optional($profile)->parent_status_details ?? $user->parent_status_details ?? []);
+                    $selectedParentStatus = is_array($selectedParentStatus) ? $selectedParentStatus : [];
                 @endphp
 
                 @foreach ($parentStatusOptions as $statusOption)
+                    @php
+                        $isParentStatusSelected = array_is_list($selectedParentStatus)
+                            ? in_array($statusOption, $selectedParentStatus, true)
+                            : (bool) ($selectedParentStatus[$statusOption] ?? false);
+                    @endphp
                     <label>
-                        <input type="checkbox" name="parent_status_details[]" value="{{ $statusOption }}" class="w-4 h-4 border border-gray-300 rounded" {{ in_array($statusOption, $selectedParentStatus) ? 'checked' : '' }}>
+                        <input type="checkbox" name="parent_status_details[]" value="{{ $statusOption }}" class="w-4 h-4 border border-gray-300 rounded" {{ $isParentStatusSelected ? 'checked' : '' }}>
                         <span class="ml-1">{{ $statusOption }}</span>
                     </label>
                 @endforeach

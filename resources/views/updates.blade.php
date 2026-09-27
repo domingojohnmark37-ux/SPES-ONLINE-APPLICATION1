@@ -51,6 +51,40 @@
             .topbar, .page-wrapper { margin-left: 0; left: 0; }
             .page-content { padding: 18px; }
         }
+        @media (max-width: 767.98px) {
+            .sidebar {
+                position:fixed;
+                inset:62px 0 auto;
+                width:100%;
+                height:auto;
+                transform:none;
+                overflow-x:auto;
+                overflow-y:hidden;
+                background:var(--primary-dark);
+            }
+            .sidebar-brand, .sidebar-footer { display:none; }
+            .sidebar-nav {
+                display:flex;
+                gap:6px;
+                width:max-content;
+                padding:8px 10px;
+            }
+            .nav-link {
+                flex:0 0 auto;
+                margin:0;
+                padding:10px 12px;
+                font-size:.82rem;
+                white-space:nowrap;
+            }
+            .topbar { height:56px; padding:0 14px; }
+            .topbar h1 { font-size:1rem; }
+            .topbar p { display:none; }
+            .page-wrapper { padding-top:112px; }
+            .page-content { padding:14px; }
+            .page-heading h2 { font-size:1.2rem; }
+            .update-card { padding:16px; }
+            .update-content { overflow-wrap:anywhere; }
+        }
     </style>
 </head>
 <body>

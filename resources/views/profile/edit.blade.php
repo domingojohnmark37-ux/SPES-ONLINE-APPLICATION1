@@ -51,6 +51,15 @@
         @media(max-width:768px) { .sidebar { transform:translateX(-100%); transition:transform .3s; } .sidebar.open { transform:translateX(0); } .topbar, .page-wrapper { margin-left:0; left:0; } }
         .hamburger { display:none; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--primary); margin-right:10px; }
         @media(max-width:768px) { .hamburger { display:block; } }
+        @media(max-width:767.98px) {
+            .topbar { padding:0 14px; }
+            .topbar > div { min-width:0; flex:1; }
+            .topbar h1 { overflow:hidden; font-size:1rem; text-overflow:ellipsis; white-space:nowrap; }
+            .topbar > span { display:none; }
+            .page-content { padding:14px; }
+            .page-title h1 { font-size:1.3rem; }
+            .page-title p { line-height:1.45; }
+        }
     </style>
 </head>
 <body>

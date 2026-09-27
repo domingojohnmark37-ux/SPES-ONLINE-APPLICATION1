@@ -16,7 +16,7 @@ Route::get('/', function () {
 })->name('home');
 
 // Authenticated users
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', \App\Http\Middleware\TrackUserActivity::class])->group(function () {
 
     Route::get('/dashboard', function () {
         if (auth()->user()->role === 'admin') {
@@ -61,7 +61,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 // Admin
-Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'admin', \App\Http\Middleware\TrackUserActivity::class])->prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/dashboard', function () {
         $stats = [
@@ -128,6 +128,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/applications/{application}/deny',    [ApplicationController::class, 'deny'])->name('applications.deny');
     Route::post('/applications/{application}/comment', [ApplicationController::class, 'addComment'])->name('applications.comment');
     Route::get('/users', [ApplicationController::class, 'users'])->name('users');
+    Route::get('/users/{user}', [ApplicationController::class, 'showUser'])->name('users.show');
     Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
     

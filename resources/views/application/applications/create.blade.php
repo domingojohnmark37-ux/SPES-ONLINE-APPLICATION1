@@ -127,6 +127,24 @@
         }
         .hamburger { display:none; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--primary); margin-right:10px; }
         @media(max-width:768px) { .hamburger { display:block; } }
+        @media(max-width:767.98px) {
+            .topbar { left:0; padding:0 14px; }
+            .topbar > div { min-width:0; }
+            .topbar h1 { overflow:hidden; font-size:1rem; text-overflow:ellipsis; white-space:nowrap; }
+            .page-content { padding:14px; }
+            .form-card-header { padding:14px 16px; }
+            .form-card-body { padding:16px; }
+            .progress-bar { justify-content:flex-start; overflow-x:auto; }
+            .progress-step { flex:0 0 84px; padding:10px 6px; }
+            body > footer {
+                margin-left:0 !important;
+                padding:14px 16px !important;
+                flex-direction:column;
+                align-items:flex-start;
+            }
+            body > footer > span:last-child { display:flex; flex-wrap:wrap; gap:10px 14px; }
+            body > footer a { overflow-wrap:anywhere; }
+        }
     </style>
 </head>
 <body>

@@ -209,6 +209,35 @@
             .detail-grid { grid-template-columns: 1fr; }
             .detail-item:nth-child(odd) { border-right: none; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
+            .topbar {
+                height: 60px;
+                padding: 0 12px;
+                gap: 8px;
+            }
+            .topbar > div:first-child { min-width: 0; gap: 10px !important; }
+            .topbar-left { min-width: 0; }
+            .topbar-left h1 {
+                overflow: hidden;
+                font-size: .95rem;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .topbar-left p, .topbar-date-pill, .topbar-user { display: none; }
+            .topbar-right { flex-shrink: 0; gap: 8px; }
+            .page-wrapper { padding-top: 60px; }
+            .page-content { padding: 16px 14px 24px; }
+            body > footer {
+                margin-left: 0 !important;
+                padding: 14px 16px !important;
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            body > footer > span:last-child {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px 14px;
+            }
+            body > footer a { overflow-wrap: anywhere; }
         }
     </style>
     @yield('styles')

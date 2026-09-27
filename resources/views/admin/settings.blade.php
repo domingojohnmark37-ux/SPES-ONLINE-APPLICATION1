@@ -4,6 +4,23 @@
 @section('page-title', 'Settings')
 @section('page-sub', 'Manage admin preferences and portal settings')
 
+@section('styles')
+<style>
+    @media (max-width: 600px) {
+        .card-body form > div[style*="grid-template-columns"] {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 14px !important;
+        }
+        .card-body form input[type="datetime-local"] {
+            display: block;
+            min-width: 0;
+            max-width: 100%;
+            font-size: .9rem !important;
+        }
+    }
+</style>
+@endsection
+
 @section('content')
 
 {{-- Application Period Settings --}}

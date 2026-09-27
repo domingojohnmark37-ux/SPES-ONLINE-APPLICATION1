@@ -96,6 +96,12 @@ class ProfileController extends Controller
             'special_skills',
         ])->toArray();
 
+        $parentStatusOptions = ['Living Together', 'Solo Parent', 'Orphan', 'Guardian'];
+        $selectedParentStatuses = $data['parent_status_details'] ?? [];
+        $profileData['parent_status_details'] = collect($parentStatusOptions)
+            ->mapWithKeys(fn ($status) => [$status => in_array($status, $selectedParentStatuses, true)])
+            ->all();
+
         $user->profile()->updateOrCreate(
             ['user_id' => $user->id],
             $profileData

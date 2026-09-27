@@ -111,6 +111,35 @@
     @media (max-width: 1080px) {
         .dashboard-panel { grid-template-columns: 1fr; }
     }
+    @media (max-width: 600px) {
+        .dashboard-cards {
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .dashboard-card {
+            gap: 14px;
+            padding: 16px;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
+        }
+        .dashboard-card .stat-icon {
+            width: 46px;
+            height: 46px;
+            flex: 0 0 46px;
+            border-radius: 13px;
+        }
+        .dashboard-card > div:last-child { min-width: 0; }
+        .dashboard-panel { gap: 14px; }
+        .panel-card { border-radius: 14px; }
+        .panel-header { gap: 12px; padding: 16px; }
+        .panel-header > div { min-width: 0; }
+        .panel-header p { line-height: 1.4; }
+        .view-all-link { flex: 0 0 auto; white-space: nowrap; }
+        .activity-item { gap: 12px; padding: 14px 16px; }
+        .activity-title { line-height: 1.35; }
+        .activity-meta { line-height: 1.45; overflow-wrap: anywhere; }
+    }
 </style>
 @endsection
 

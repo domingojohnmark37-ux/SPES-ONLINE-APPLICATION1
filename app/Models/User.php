@@ -24,6 +24,7 @@ class User extends Authenticatable
         'username',
         'password',
         'role',
+        'last_active_at',
         'profile_photo',
         'last_name',
         'first_name',
@@ -69,6 +70,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_active_at' => 'datetime',
             'password' => 'hashed',
             'date_of_birth' => 'date',
             'education_history' => 'array',
@@ -92,5 +94,39 @@ class User extends Authenticatable
     public function profile()
     {
         return $this->hasOne(UserProfile::class);
+    }
+
+    public function activityStatus(): string
+    {
+        return $this->last_active_at && $this->last_active_at->greaterThanOrEqualTo(now()->subYear())
+            ? 'Active'
+            : 'Inactive';
+    }
+
+    public function displayStatus(?string $applicationStatus = null): string
+    {
+        return strtolower((string) $applicationStatus) === 'pending'
+            ? 'Pending'
+            : $this->activityStatus();
+    }
+
+    public static function applicantCategoryLabel(?string $category): ?string
+    {
+        return match ($category) {
+            'student' => 'Student',
+            'out_of_school_youth' => 'Out-of-School Youth',
+            'working_student' => 'Working Student',
+            default => $category,
+        };
+    }
+
+    public function activityDescription(): string
+    {
+        if (!$this->last_active_at) {
+            return 'Never active';
+        }
+
+        return ($this->activityStatus() === 'Active' ? 'Active ' : 'Logged out ')
+            . $this->last_active_at->diffForHumans();
     }
 }
