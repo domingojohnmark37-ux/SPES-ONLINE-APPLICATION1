@@ -53,7 +53,7 @@
     $personalRows = [
         ['Full Name', $fullName],
         ['Sex', $profile?->sex ?: $user->sex],
-        ['Birthday', $dateOfBirth ? \Illuminate\Support\Carbon::parse($dateOfBirth)->format('M d, Y') . ($age !== null ? " ({$age} years old)" : '') : null],
+        ['Birthday', $dateOfBirth ? app(\App\Support\AdminDateFormatter::class)->format($dateOfBirth) . ($age !== null ? " ({$age} years old)" : '') : null],
         ['Place of Birth', $profile?->place_of_birth ?: $user->place_of_birth],
         ['Civil Status', $profile?->status ?: $user->status],
         ['Citizenship', $profile?->citizenship ?: $user->citizenship],
@@ -172,7 +172,7 @@
             </div>
             <div class="user-profile-meta">
                 <div><i class="fa-solid fa-fingerprint"></i><span>User ID: #USR-{{ str_pad((string) $user->id, 3, '0', STR_PAD_LEFT) }}</span></div>
-                <div><i class="fa-solid fa-calendar-days"></i><span>Registered {{ $user->created_at->format('M d, Y') }}</span></div>
+                <div><i class="fa-solid fa-calendar-days"></i><span>Registered @adminDate($user->created_at)</span></div>
                 <div><i class="fa-solid fa-phone"></i><span>{{ filled($phone) ? $phone : 'No phone provided' }}</span></div>
                 <div><i class="fa-solid fa-location-dot"></i><span>{{ filled($address) ? $address : 'No address provided' }}</span></div>
                 <div><i class="fa-solid fa-clock"></i><span>{{ $user->activityDescription() }}</span></div>
@@ -298,7 +298,7 @@
                         <span class="profile-history-dot"></span>
                         <div>
                             <div class="profile-history-title">Application {{ ucfirst($historyItem->status) }}</div>
-                            <div class="profile-history-date">{{ $historyItem->created_at->format('M d, Y · h:i A') }}</div>
+                            <div class="profile-history-date">@adminDate($historyItem->created_at, true)</div>
                         </div>
                         <span class="profile-history-status">{{ ucfirst($historyItem->status) }}</span>
                     </div>

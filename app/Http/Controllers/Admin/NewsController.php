@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreNewsRequest;
 use App\Http\Requests\UpdateNewsRequest;
 use App\Models\News;
+use App\Notifications\ApplicantPortalUpdate;
+use App\Services\ApplicantNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -57,10 +59,18 @@ class NewsController extends Controller
     /**
      * Update the specified news
      */
-    public function update(UpdateNewsRequest $request, News $news)
+    public function update(
+        UpdateNewsRequest $request,
+        News $news,
+        ApplicantNotificationService $notifications,
+    )
     {
         $validated = $request->validated();
         $news->update($validated);
+
+        if ($news->is_published && $news->wasChanged(['title', 'content'])) {
+            $this->notifyApplicantsAboutAnnouncement($news, $notifications);
+        }
 
         return redirect()->route('admin.news.index')
             ->with('success', 'News article updated successfully.');
@@ -80,7 +90,7 @@ class NewsController extends Controller
     /**
      * Toggle publish status of a news article
      */
-    public function togglePublish(News $news)
+    public function togglePublish(News $news, ApplicantNotificationService $notifications)
     {
         if ($news->is_published) {
             $news->update([
@@ -93,10 +103,23 @@ class NewsController extends Controller
                 'is_published' => true,
                 'published_at' => now(),
             ]);
+            $this->notifyApplicantsAboutAnnouncement($news, $notifications);
             $message = 'News article published.';
         }
 
         return redirect()->route('admin.news.index')
             ->with('success', $message);
+    }
+
+    private function notifyApplicantsAboutAnnouncement(
+        News $news,
+        ApplicantNotificationService $notifications,
+    ): void {
+        $notifications->notifyApplicants(new ApplicantPortalUpdate(
+            'notify_announcements',
+            'New SPES announcement',
+            "A new SPES announcement, \"{$news->title}\", is now available. Sign in to the SPES Portal to read it.",
+            ['news_id' => $news->id],
+        ));
     }
 }

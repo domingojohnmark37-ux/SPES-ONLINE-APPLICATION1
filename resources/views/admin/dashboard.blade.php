@@ -198,7 +198,7 @@
                     <div class="activity-avatar">{{ strtoupper(substr($application->user->name, 0, 1)) }}</div>
                     <div class="activity-content">
                         <div class="activity-title">{{ $application->user->name }}</div>
-                        <div class="activity-meta">Submitted {{ $application->created_at->format('M j, Y') }} · {{ $application->created_at->format('h:i A') }}</div>
+                        <div class="activity-meta">Submitted @adminDate($application->created_at, true)</div>
                         <div class="activity-action">
                             <a href="{{ route('admin.applications.show', $application) }}" class="btn btn-sm btn-outline">Review</a>
                         </div>

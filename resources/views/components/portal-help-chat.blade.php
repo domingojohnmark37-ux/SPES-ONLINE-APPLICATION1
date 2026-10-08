@@ -10,26 +10,38 @@
         display:flex;
         align-items:center;
         gap:10px;
-        padding:10px 16px 10px 10px;
-        border:0;
+        min-height:58px;
+        padding:9px 18px 9px 10px;
+        border:2px solid #FFD700;
         border-radius:999px;
-        background:var(--primary);
+        background:#660000;
         color:#fff;
-        box-shadow:0 8px 24px rgba(102,0,0,.28);
+        box-shadow:0 4px 14px rgba(0,0,0,.28);
         cursor:pointer;
         font:inherit;
-        font-size:.85rem;
-        font-weight:700;
+        font-size:.95rem;
+        font-weight:800;
+        transition:background .18s, transform .18s, box-shadow .18s;
+    }
+    .portal-help-toggle:hover {
+        transform:translateY(-2px);
+        background:#8B0000;
+        box-shadow:0 6px 18px rgba(0,0,0,.32);
+    }
+    .portal-help-toggle:focus-visible {
+        outline:3px solid #FFD700;
+        outline-offset:3px;
     }
     .portal-help-toggle-icon {
         display:grid;
         place-items:center;
-        width:38px;
-        height:38px;
+        width:40px;
+        height:40px;
         border-radius:50%;
-        background:#fff;
-        color:var(--primary);
-        font-size:1rem;
+        background:#FFD700;
+        color:#660000;
+        font-size:1.1rem;
+        box-shadow:inset 0 0 0 1px rgba(102,0,0,.15);
     }
     .portal-help-panel {
         position:absolute;
@@ -138,7 +150,7 @@
     }
 </style>
 
-<aside class="portal-help" data-portal-help>
+<aside class="portal-help" id="help-support" data-portal-help>
     <section class="portal-help-panel" id="portalHelpPanel" aria-label="SPES help topics" aria-hidden="true">
         <header class="portal-help-header">
             <div>
@@ -157,14 +169,13 @@
                 <h3 class="portal-help-topic-title" id="helpTopicApplication">Application</h3>
                 <div class="portal-help-question-list">
                     <button class="portal-help-question" type="button" data-question="How do I apply?" data-answer="Choose Apply Now in the portal, complete the application form, attach the required documents, then submit it for review.">How do I apply?</button>
-                    <button class="portal-help-question" type="button" data-question="How can I check my application status?" data-answer="Open My Application from the portal menu to review your current status and any feedback from the PESO officer.">Check application status</button>
                     <button class="portal-help-question" type="button" data-question="Can I edit my application?" data-answer="You can update and re-submit an application when it has been denied. Open My Application and choose the edit or reapply option shown there.">Edit or reapply</button>
                 </div>
             </section>
             <section class="portal-help-topic" aria-labelledby="helpTopicDocuments">
                 <h3 class="portal-help-topic-title" id="helpTopicDocuments">Documents</h3>
                 <div class="portal-help-question-list">
-                    <button class="portal-help-question" type="button" data-question="What documents should I prepare?" data-answer="Prepare your resume, application letter, and certificate of indigency. The application form shows which uploads are required for your submission.">Required documents</button>
+                    <button class="portal-help-question" type="button" data-question="What documents should I prepare?" data-answer="Prepare your birth certificate, application letter, and certificate of indigency. The application form shows which uploads are required for your submission.">Required documents</button>
                     <button class="portal-help-question" type="button" data-question="What file types and sizes are accepted?" data-answer="Upload PDF documents. Each file must be 5 MB or smaller.">File type and size</button>
                     <button class="portal-help-question" type="button" data-question="Where can I update my personal information?" data-answer="Open Edit Profile in the portal menu, update your details, and select Save Profile & Continue.">Update profile details</button>
                 </div>
@@ -180,7 +191,7 @@
     </section>
     <button class="portal-help-toggle" type="button" aria-expanded="false" aria-controls="portalHelpPanel" data-help-toggle>
         <span class="portal-help-toggle-icon"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
-        <span>Need Help? Chat with Us</span>
+        <span>FAQs</span>
     </button>
 </aside>
 

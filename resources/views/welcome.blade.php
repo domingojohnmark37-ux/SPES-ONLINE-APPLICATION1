@@ -49,7 +49,7 @@
     {{-- ===== HERO SECTION ===== --}}
     <section class="hero" >
         <div class="hero-overlay"></div>
-        <div class="hero-content fade-in-up">
+        <div class="hero-content">
             <span class="badge">Department of Labor and Employment</span>
             <h1>Special Program for Employment of Students (SPES)</h1>
             <p class="hero-desc">
@@ -162,7 +162,7 @@
                     <div class="step-number">02</div>
                     <div class="step-content">
                         <h4>Submit Application Form</h4>
-                        <p>Fill out the SPES Form 2 digitally. Upload clear scanned copies of your requirements (Birth Cert, Grades, ITR/Indigence).</p>
+                        <p>Complete the online SPES application and upload clear copies of your requirements (Birth Certificate, Certificate of Enrollment, and other required documents).</p>
                     </div>
                 </div>
                 <div class="timeline-item slide-in-left">

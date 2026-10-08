@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use Illuminate\Auth\Events\Registered;
+use App\Mail\RegistrationVerificationCode;
+use App\Models\PendingRegistration;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -30,32 +31,67 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        $email = mb_strtolower(trim((string) $request->input('email')));
+        $request->merge(['email' => $email]);
+
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'password' => ['required', 'string', Password::defaults(), 'confirmed'],
+            'terms_accepted' => ['accepted'],
+        ], [
+            'password.min' => 'The password must be at least 12 characters.',
+            'password.numbers' => 'The password must contain at least one number.',
+            'password.uppercase' => 'The password must contain at least one uppercase letter.',
+            'password.symbols' => 'The password must contain at least one symbol.',
+            'password.uncompromised' => 'This password has appeared in a data breach. Please choose a different password.',
+            'terms_accepted.accepted' => 'Please agree to the Terms and Conditions before continuing.',
         ]);
 
-        $usernameBase = Str::slug($request->name, '_') ?: 'user';
-        $username = $usernameBase;
-        $usernameSuffix = 1;
+        PendingRegistration::where('expires_at', '<=', now())->delete();
 
-        while (User::where('username', $username)->exists()) {
-            $username = $usernameBase.'_'.$usernameSuffix++;
+        $pending = PendingRegistration::where('email', $validated['email'])
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (! $pending) {
+            if (! $this->verificationMailerIsSafe()) {
+                return back()
+                    ->withInput($request->except(['password', 'password_confirmation']))
+                    ->withErrors(['email' => 'Email verification is unavailable. Please try again later.']);
+            }
+
+            $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $pending = PendingRegistration::create([
+                'token' => (string) Str::uuid(),
+                'email' => $validated['email'],
+                'password_hash' => Hash::make($validated['password']),
+                'pin_hash' => Hash::make($pin),
+                'pin_expires_at' => now()->addMinutes(10),
+                'expires_at' => now()->addDay(),
+                'last_sent_at' => now(),
+            ]);
+
+            Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
         }
 
-        $user = User::create([
-            'name' => $request->name,
-            'username' => $username,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'user',
+        $request->session()->put([
+            'pending_registration_token' => $pending->token,
+            'pending_registration_email' => $pending->email,
         ]);
 
-        event(new Registered($user));
+        return redirect()->route('registration.verify');
+    }
 
-        Auth::login($user);
+    private function verificationMailerIsSafe(): bool
+    {
+        if (app()->environment('testing')) {
+            return true;
+        }
 
-        return redirect(route('dashboard', absolute: false));
+        $mailer = (string) config('mail.default');
+        $fallbackMailers = config("mail.mailers.{$mailer}.mailers", []);
+
+        return ! in_array($mailer, ['log', 'array'], true)
+            && ! in_array('log', $fallbackMailers, true);
     }
 }

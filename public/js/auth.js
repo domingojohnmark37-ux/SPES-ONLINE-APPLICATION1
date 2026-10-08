@@ -3,10 +3,31 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
     
     if (form) {
+        const submitBtn = form.querySelector('.btn-submit');
+        const termsCheckbox = form.querySelector('#terms_accepted');
+        const termsError = document.getElementById('terms-error');
+
+        if (termsCheckbox && submitBtn) {
+            submitBtn.disabled = !termsCheckbox.checked;
+
+            termsCheckbox.addEventListener('change', function() {
+                submitBtn.disabled = !this.checked;
+                if (this.checked && termsError) {
+                    termsError.hidden = true;
+                }
+            });
+
+            termsCheckbox.addEventListener('invalid', function() {
+                if (termsError) {
+                    termsError.hidden = false;
+                    termsError.textContent = 'Please agree to the Terms and Conditions before continuing.';
+                }
+            });
+        }
+
         // Form submission handler
         form.addEventListener('submit', function(e) {
             // Disable submit button to prevent double submission
-            const submitBtn = form.querySelector('.btn-submit');
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.style.opacity = '0.7';
@@ -21,8 +42,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             input.addEventListener('input', function() {
-                if (this.classList.contains('error')) {
+                if (this.type === 'password' || this.classList.contains('error')) {
                     validateField(this);
+                }
+
+                if (this.name === 'password') {
+                    const confirmation = form.querySelector('input[name="password_confirmation"]');
+                    if (confirmation && confirmation.value !== '') {
+                        validateField(confirmation);
+                    }
                 }
             });
         });
@@ -31,16 +59,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Validate individual field
 function validateField(field) {
-    const value = field.value.trim();
+    const value = field.type === 'password' ? field.value : field.value.trim();
     let isValid = false;
 
     if (field.type === 'email') {
         isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    } else if (field.type === 'password') {
-        isValid = value.length >= 6;
     } else if (field.name === 'password_confirmation') {
         const password = document.querySelector('input[name="password"]');
-        isValid = value === password.value;
+        isValid = value !== '' && value === password.value;
+        field.setCustomValidity(value !== '' && !isValid ? 'Passwords do not match.' : '');
+    } else if (field.name === 'password') {
+        const length = Array.from(value).length;
+        const requirements = [
+            [length >= 12, 'The password must be at least 12 characters.'],
+            [/\p{Lu}/u.test(value), 'The password must contain at least one uppercase letter.'],
+            [/\p{N}/u.test(value), 'The password must contain at least one number.'],
+            [/[\p{S}\p{P}]/u.test(value), 'The password must contain at least one symbol.']
+        ];
+        const failedRequirement = requirements.find(([passes]) => !passes);
+        isValid = !failedRequirement;
+        field.setCustomValidity(failedRequirement?.[1] ?? '');
     } else if (field.name === 'name') {
         isValid = value.length >= 2;
     } else {
@@ -108,6 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const navbar = document.querySelector('.navbar');
 
     window.addEventListener('scroll', () => {
+        if (!navbar) return;
+
         navbar.style.boxShadow = window.scrollY > 50
             ? '0 5px 20px rgba(0, 0, 0, 0.1)'
             : '0 2px 10px rgba(0, 0, 0, 0.05)';
@@ -120,10 +160,10 @@ document.addEventListener('DOMContentLoaded', () => {
     ------------------------------------------------------------------ */
     const hamburgerBtn = document.getElementById('hamburger-btn');
     const mobileMenu = document.getElementById('mobile-menu');
-    const mobileLinks = mobileMenu.querySelectorAll('a');
+    const mobileLinks = mobileMenu ? mobileMenu.querySelectorAll('a') : [];
 
     // Toggle menu on hamburger click
-    if (hamburgerBtn) {
+    if (hamburgerBtn && mobileMenu) {
         hamburgerBtn.addEventListener('click', () => {
             hamburgerBtn.classList.toggle('active');
             mobileMenu.classList.toggle('active');
@@ -140,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Close menu when clicking outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.navbar')) {
+        if (hamburgerBtn && mobileMenu && !e.target.closest('.navbar')) {
             hamburgerBtn.classList.remove('active');
             mobileMenu.classList.remove('active');
         }

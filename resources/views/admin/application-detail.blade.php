@@ -24,12 +24,13 @@
             <div class="detail-grid">
                 <div class="detail-item"><div class="detail-label">Full Name</div><div class="detail-value">{{ $application->full_name }}</div></div>
                 <div class="detail-item"><div class="detail-label">Sex</div><div class="detail-value">{{ $application->sex }}</div></div>
-                <div class="detail-item"><div class="detail-label">Birthday</div><div class="detail-value">{{ $application->birthday->format('F d, Y') }}</div></div>
+                <div class="detail-item"><div class="detail-label">Birthday</div><div class="detail-value">@adminDate($application->birthday)</div></div>
                 <div class="detail-item"><div class="detail-label">Age</div><div class="detail-value">{{ $application->age }} years old</div></div>
                 <div class="detail-item"><div class="detail-label">Barangay</div><div class="detail-value">{{ $application->barangay }}</div></div>
                 <div class="detail-item"><div class="detail-label">Civil Status</div><div class="detail-value">{{ $application->civil_status }}</div></div>
                 <div class="detail-item"><div class="detail-label">Parent Status</div><div class="detail-value">{{ $application->parent_status }}</div></div>
                 <div class="detail-item"><div class="detail-label">Educational Attainment</div><div class="detail-value">{{ $application->education }}</div></div>
+                <div class="detail-item"><div class="detail-label">Grade/Year Level</div><div class="detail-value">{{ $application->grade_year_level ?? '—' }}</div></div>
                 <div class="detail-item"><div class="detail-label">SPES Beneficiary Type</div>
                     <div class="detail-value">
                         <span class="badge {{ $application->spes_status === 'new' ? 'badge-new' : 'badge-baby' }}">
@@ -59,13 +60,28 @@
                         <div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
                             <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;">{{ $doc['label'] }}</div>
                             @if($application->{$doc['key']})
-                                <button type="button" onclick="openDocumentModal('{{ route('applications.document.view', ['application' => $application->id, 'document' => $doc['key']]) }}', '{{ $doc['label'] }}')"
+                                @if($application->document_original_names[$doc['key']] ?? false)
+                                    <div style="margin-bottom:8px;color:var(--text-muted);font-size:.75rem;overflow-wrap:anywhere;">
+                                        {{ $application->document_original_names[$doc['key']] }}
+                                    </div>
+                                @endif
+                                <button type="button" onclick="openDocumentModal('{{ route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) }}', '{{ $doc['label'] }}')"
                                    class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
                                     View
                                 </button>
                             @else
                                 <span style="font-size:.78rem;color:var(--text-muted);">Not uploaded</span>
                             @endif
+                        </div>
+                    @endforeach
+                    @foreach($application->additionalRequirementSubmissions as $submission)
+                        <div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+                            <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;">{{ $submission->requirement->name }}</div>
+                            <div style="margin-bottom:8px;color:var(--text-muted);font-size:.75rem;">{{ $submission->original_name }}</div>
+                            <a href="{{ route('applications.additional-requirements.document', ['application' => $application->id, 'additionalRequirement' => $submission->additional_requirement_id]) }}"
+                               target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+                                View
+                            </a>
                         </div>
                     @endforeach
                 </div>
@@ -131,8 +147,28 @@
             <div class="card-header"><h2><i class="fa-solid fa-info-circle"></i> Submission Info</h2></div>
             <div class="card-body" style="font-size:.875rem;">
                 <p><strong>Reference ID:</strong><br><code>{{ $application->ref_id }}</code></p>
-                <p style="margin-top:10px;"><strong>Submitted:</strong><br>{{ $application->created_at->format('F d, Y \a\t g:i A') }}</p>
+                <p style="margin-top:10px;"><strong>Submitted:</strong><br>@adminDate($application->created_at, true)</p>
                 <p style="margin-top:10px;"><strong>Applicant Email:</strong><br>{{ $application->user->email ?? '—' }}</p>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><h2><i class="fa-solid fa-circle-question"></i> Possible Applicant Errors</h2></div>
+            <div class="card-body" style="font-size:.84rem;">
+                <p style="color:var(--text-muted);margin-bottom:12px;">
+                    These FAQ-style suggestions point out possible mistakes in the submitted application. Select a question to see what to check. They are not confirmed errors; open the application and documents to verify.
+                </p>
+                @forelse($reviewSuggestions as $suggestion)
+                    <details style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;background:#f8fafb;overflow:hidden;">
+                        <summary style="padding:11px 12px;cursor:pointer;font-weight:600;color:var(--text);">
+                            <i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);margin-right:6px;" aria-hidden="true"></i>
+                            {{ $suggestion['title'] }}
+                        </summary>
+                        <p style="padding:0 12px 12px 34px;color:var(--text-muted);">{{ $suggestion['message'] }}</p>
+                    </details>
+                @empty
+                    <p style="color:var(--text-muted);">No possible errors were detected by the automatic checks. Please still review the submitted documents.</p>
+                @endforelse
             </div>
         </div>
 
@@ -141,27 +177,36 @@
         <div class="card" style="margin-bottom:16px;">
             <div class="card-header"><h2><i class="fa-solid fa-gavel"></i> Decision</h2></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
-                <form method="POST" action="{{ route('admin.applications.approve', $application) }}">
-                    @csrf
-                    <button type="submit" class="btn btn-success" style="width:100%;" onclick="return confirm('Approve this application?')">
-                        <i class="fa-solid fa-circle-check"></i> Approve Application
+                @if($approvalCapacity['limit'])
+                    <div class="alert {{ $approvalCapacity['full'] ? 'alert-danger' : 'alert-info' }}" role="status">
+                        <i class="fa-solid {{ $approvalCapacity['full'] ? 'fa-lock' : 'fa-chart-simple' }}" aria-hidden="true"></i>
+                        <span>{{ $approvalCapacity['approved'] }} of {{ $approvalCapacity['limit'] }} approved this season.
+                            @if($approvalCapacity['full'])
+                                The limit is full; approval is disabled.
+                            @else
+                                {{ $approvalCapacity['limit'] - $approvalCapacity['approved'] }} approval slot(s) remaining.
+                            @endif
+                        </span>
+                    </div>
+                @endif
+                @if(!$approvalCapacity['full'])
+                    <form method="POST" action="{{ route('admin.applications.approve', $application) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-success" style="width:100%;" onclick="return confirm('Approve this application?')">
+                            <i class="fa-solid fa-circle-check"></i> Approve Application
+                        </button>
+                    </form>
+                @else
+                    <button type="button" class="btn btn-success" style="width:100%;" disabled aria-disabled="true">
+                        <i class="fa-solid fa-lock" aria-hidden="true"></i> Approval limit reached
                     </button>
-                </form>
+                @endif
                 <form method="POST" action="{{ route('admin.applications.deny', $application) }}">
                     @csrf
                     <button type="submit" class="btn btn-danger" style="width:100%;" onclick="return confirm('Deny this application?')">
                         <i class="fa-solid fa-circle-xmark"></i> Deny Application
                     </button>
                 </form>
-            </div>
-        </div>
-        @elseif($application->status === 'approved')
-        <div class="card" style="margin-bottom:16px;">
-            <div class="card-header"><h2><i class="fa-solid fa-file-circle-check"></i> Employment Forms</h2></div>
-            <div class="card-body">
-                <a href="{{ route('admin.applications.forms', $application) }}" class="btn btn-primary" style="width:100%;text-align:center;">
-                    <i class="fa-solid fa-eye"></i> View Application Forms
-                </a>
             </div>
         </div>
         @endif

@@ -29,7 +29,7 @@
 
 ### User Workflow
 1. User logs in and goes to `/apply`
-2. Fills out the SPES Form 2 with:
+2. Completes the online SPES application with:
    - Personal info (name, birth date, address, etc.)
    - Contact details
    - Optional file attachments

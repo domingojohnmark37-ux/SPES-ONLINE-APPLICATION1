@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\Application;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ApplicationTest extends TestCase
@@ -24,8 +27,50 @@ class ApplicationTest extends TestCase
         $this->assertDatabaseHas('applications', [
             'user_id' => $user->id,
             'full_name' => 'Juan Dela Cruz',
+            'parent_status' => 'Both Parents Living',
+            'grade_year_level' => '2nd year',
             'status' => 'pending',
         ]);
+        $application = Application::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame('2nd year', $application->grade_year_level);
+        $this->assertSame('birth-certificate.pdf', $application->document_original_names['resume']);
+        $this->assertSame('certificate-of-enrollment.pdf', $application->document_original_names['certificate_enrollment']);
+    }
+
+    /** @test */
+    public function post_approval_form_routes_and_fields_are_removed()
+    {
+        $this->assertFalse(Route::has('applications.form2'));
+        $this->assertFalse(Route::has('applications.form2.store'));
+        $this->assertFalse(Route::has('admin.applications.forms'));
+        $this->assertFalse(Schema::hasColumn('applications', 'forms_step'));
+        $this->assertFalse(Schema::hasColumn('applications', 'f2_consent_accepted'));
+    }
+
+    /** @test */
+    public function application_form_asks_for_applicant_education_before_parent_status()
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('applications.create'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Your Educational Attainment',
+                'name="education"',
+                'Grade/Year Level',
+                'name="grade_year_level"',
+                'Grade 7',
+                'Grade 8',
+                'Grade 9',
+                'Grade 10',
+                'Grade 11',
+                'Grade 12',
+                '1st year',
+                '2nd year',
+                '4th year',
+                '5th year',
+                'Parent Status',
+                'name="parent_status"',
+            ], false);
     }
 
     /** @test */
@@ -64,7 +109,6 @@ class ApplicationTest extends TestCase
         $application = Application::factory()->for($user)->create([
             'status' => 'denied',
             'admin_comment' => 'Please update your information.',
-            'forms_step' => 2,
         ]);
 
         $this->actingAs($user);
@@ -78,8 +122,117 @@ class ApplicationTest extends TestCase
         $application->refresh();
         $this->assertSame('pending', $application->status);
         $this->assertNull($application->admin_comment);
-        $this->assertSame(0, $application->forms_step);
         $this->assertSame('Juan Updated', $application->full_name);
+    }
+
+    public function test_reapplication_keeps_submitted_documents_unless_replaced(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $birthCertificate = 'applications/resumes/birth-certificate-old.pdf';
+        $enrollmentCertificate = 'applications/enrollment/enrollment-old.pdf';
+        $gradeCertificate = 'applications/grades/grades.pdf';
+        Storage::disk('public')->put($birthCertificate, 'original birth certificate');
+        Storage::disk('public')->put($enrollmentCertificate, 'original enrollment certificate');
+        Storage::disk('public')->put($gradeCertificate, 'original grades');
+        $application = Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'resume' => $birthCertificate,
+            'certificate_enrollment' => $enrollmentCertificate,
+            'certificate_grade' => $gradeCertificate,
+            'mother_name' => 'Existing Mother Name',
+            'document_original_names' => [
+                'resume' => 'birth-certificate-old.pdf',
+                'certificate_enrollment' => 'enrollment-old.pdf',
+                'certificate_grade' => 'grades.pdf',
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('applications.edit'))
+            ->assertOk()
+            ->assertSee('Your previously submitted information and documents will stay on your application.')
+            ->assertSee('birth-certificate-old.pdf')
+            ->assertSee('enrollment-old.pdf')
+            ->assertSee('Choose a replacement PDF (optional)');
+
+        $formResponse = $this->get(route('applications.edit'));
+        preg_match('/<input[^>]*name="resume"[^>]*>/', $formResponse->getContent(), $resumeInput);
+        preg_match('/<input[^>]*name="certificate_enrollment"[^>]*>/', $formResponse->getContent(), $enrollmentInput);
+        $this->assertNotEmpty($resumeInput);
+        $this->assertNotEmpty($enrollmentInput);
+        $this->assertStringNotContainsString('required', $resumeInput[0]);
+        $this->assertStringNotContainsString('required', $enrollmentInput[0]);
+
+        $this->put(route('applications.update'), $this->validApplicationPayload([
+            'resume' => null,
+            'certificate_enrollment' => null,
+            'mother_name' => 'Existing Mother Name',
+        ]))->assertRedirect(route('applications.myApplication'));
+
+        $application->refresh();
+        $this->assertSame('pending', $application->status);
+        $this->assertSame($birthCertificate, $application->resume);
+        $this->assertSame($enrollmentCertificate, $application->certificate_enrollment);
+        $this->assertSame($gradeCertificate, $application->certificate_grade);
+        $this->assertSame('Existing Mother Name', $application->mother_name);
+        $this->assertSame('birth-certificate-old.pdf', $application->document_original_names['resume']);
+        Storage::disk('public')->assertExists($birthCertificate);
+        Storage::disk('public')->assertExists($enrollmentCertificate);
+        Storage::disk('public')->assertExists($gradeCertificate);
+    }
+
+    public function test_applicant_can_replace_a_previously_submitted_document_when_reapplying(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $birthCertificate = 'applications/resumes/birth-certificate-old.pdf';
+        $enrollmentCertificate = 'applications/enrollment/enrollment-old.pdf';
+        Storage::disk('public')->put($birthCertificate, 'original birth certificate');
+        Storage::disk('public')->put($enrollmentCertificate, 'original enrollment certificate');
+        $application = Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'resume' => $birthCertificate,
+            'certificate_enrollment' => $enrollmentCertificate,
+            'document_original_names' => [
+                'resume' => 'birth-certificate-old.pdf',
+                'certificate_enrollment' => 'enrollment-old.pdf',
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('applications.update'), $this->validApplicationPayload([
+                'resume' => UploadedFile::fake()->create('birth-certificate-replacement.pdf', 100, 'application/pdf'),
+                'certificate_enrollment' => null,
+            ]))
+            ->assertRedirect(route('applications.myApplication'));
+
+        $application->refresh();
+        $this->assertSame('pending', $application->status);
+        $this->assertNotSame($birthCertificate, $application->resume);
+        $this->assertSame('birth-certificate-replacement.pdf', $application->document_original_names['resume']);
+        Storage::disk('public')->assertMissing($birthCertificate);
+        Storage::disk('public')->assertExists($application->resume);
+        Storage::disk('public')->assertExists($enrollmentCertificate);
+        $this->assertSame($enrollmentCertificate, $application->certificate_enrollment);
+    }
+
+    public function test_reapplication_still_requires_documents_that_are_not_on_file(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'resume' => null,
+            'certificate_enrollment' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('applications.update'), $this->validApplicationPayload([
+                'resume' => null,
+                'certificate_enrollment' => null,
+            ]))
+            ->assertSessionHasErrors(['resume', 'certificate_enrollment']);
     }
 
     /** @test */
@@ -108,25 +261,161 @@ class ApplicationTest extends TestCase
 
         $this->get(route('applications.myApplication'))
             ->assertOk()
+            ->assertSee('Birth Certificate')
+            ->assertDontSee('Resume')
             ->assertSee('View');
+    }
+
+    /** @test */
+    public function applicant_requirements_page_only_shows_documents_requested_by_admin()
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        Application::factory()->for($user)->create([
+            'resume' => 'applications/resumes/sample.pdf',
+            'certificate_enrollment' => 'applications/enrollment/sample.pdf',
+        ]);
+
+        $this->get(route('applicant.requirements'))
+            ->assertOk()
+            ->assertSee('View and manage your application requirements')
+            ->assertSee('0 of 0 requested documents submitted')
+            ->assertSee('No additional documents have been requested by PESO.')
+            ->assertDontSee('Certificate of Enrollment')
+            ->assertDontSee('Certificate of Grades')
+            ->assertDontSee('Certificate of Indigency')
+            ->assertSee(route('applicant.requirements'));
+    }
+
+    /** @test */
+    public function requirements_page_is_only_available_to_applicants()
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->get(route('applicant.requirements'))
+            ->assertForbidden();
+    }
+
+    public function test_applicant_page_hides_status_but_keeps_denied_application_feedback_and_reapply(): void
+    {
+        $user = User::factory()->create();
+        Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'admin_comment' => 'Please provide a clearer certificate.',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertDontSee('Current Status')
+            ->assertDontSee('Your application was Denied')
+            ->assertSee('Application Status')
+            ->assertSee('Please provide a clearer certificate.')
+            ->assertSee('Reapply');
+    }
+
+    public function test_approved_applicant_sees_the_proposed_applicant_next_steps(): void
+    {
+        $user = User::factory()->create();
+        Application::factory()->for($user)->create(['status' => 'approved']);
+
+        $this->actingAs($user)
+            ->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee('You are a proposed SPES applicant')
+            ->assertSee('not yet final confirmation of program participation')
+            ->assertSee('complete and sign them as instructed')
+            ->assertSee('as soon as possible')
+            ->assertSee(route('applicant.requirements'));
+    }
+
+    public function test_applicant_navigation_is_shared_across_application_pages_and_updates(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $this->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertDontSee('Current Status')
+            ->assertSee('Application Status')
+            ->assertSee('FAQs')
+            ->assertSee('Need Help &amp; Support', false)
+            ->assertSee('id="applicant-support-submenu"', false)
+            ->assertSee('Contact Us')
+            ->assertSee('data-open-portal-help', false);
+
+        $this->get(route('applications.create'))
+            ->assertOk()
+            ->assertSee('Application Status')
+            ->assertSee('FAQs')
+            ->assertSee('Need Help &amp; Support', false)
+            ->assertSee('id="applicant-support-submenu"', false)
+            ->assertSee('Contact Us')
+            ->assertSee('data-open-portal-help', false);
+
+        Application::factory()->for($user)->create(['status' => 'approved']);
+
+        $this->get(route('updates'))
+            ->assertOk()
+            ->assertSee('Application Status')
+            ->assertSee('Updates')
+            ->assertSee('FAQs')
+            ->assertSee('data-open-portal-help', false);
     }
 
     /** @test */
     public function user_document_preview_uses_birth_certificate_name()
     {
+        Storage::fake('public');
         $user = User::factory()->create();
         $path = 'applications/resumes/sample.pdf';
-        \Illuminate\Support\Facades\Storage::disk('public')->put($path, 'sample pdf');
+        $enrollmentPath = 'applications/enrollment/enrollment.pdf';
+        Storage::disk('public')->put($path, 'sample pdf');
+        Storage::disk('public')->put($enrollmentPath, 'sample enrollment pdf');
 
         $application = Application::factory()->for($user)->create([
             'resume' => $path,
+            'certificate_enrollment' => $enrollmentPath,
+            'status' => 'denied',
+            'document_original_names' => [
+                'resume' => 'birth-certificate.pdf',
+                'certificate_enrollment' => 'enrollment-certificate.pdf',
+            ],
         ]);
 
         $this->actingAs($user);
 
-        $this->get(route('applications.document.view', ['application' => $application->id, 'document' => 'resume']))
+        $this->get(route('applications.myApplication'))
             ->assertOk()
-            ->assertHeader('content-disposition', 'inline; filename="birth-certificate.pdf"');
+            ->assertSee(route('applications.document.preview', ['application' => $application, 'document' => 'resume']), false)
+            ->assertSee(route('applications.document.preview', ['application' => $application, 'document' => 'certificate_enrollment']), false)
+            ->assertDontSee('openDocumentModal');
+
+        $this->get(route('applications.document.preview', ['application' => $application, 'document' => 'resume']))
+            ->assertOk()
+            ->assertSee('Back to application')
+            ->assertSee(route('applications.edit'), false)
+            ->assertSee(route('applications.document.stream', ['application' => $application, 'document' => 'resume']), false)
+            ->assertSee('Birth Certificate')
+            ->assertSee('birth-certificate.pdf');
+
+        $this->get(route('applications.document.preview', ['application' => $application, 'document' => 'certificate_enrollment']))
+            ->assertOk()
+            ->assertSee('Back to application')
+            ->assertSee(route('applications.edit'), false)
+            ->assertSee(route('applications.document.stream', ['application' => $application, 'document' => 'certificate_enrollment']), false)
+            ->assertSee('Certificate of Enrollment')
+            ->assertSee('enrollment-certificate.pdf');
+
+        $this->get(route('applications.document.stream', ['application' => $application, 'document' => 'resume']))
+            ->assertOk()
+            ->assertHeader('content-disposition', 'inline; filename=birth-certificate.pdf');
+
+        $this->get(route('applications.document.stream', ['application' => $application, 'document' => 'certificate_enrollment']))
+            ->assertOk()
+            ->assertHeader('content-disposition', 'inline; filename=enrollment-certificate.pdf');
     }
 
     /** @test */
@@ -155,11 +444,11 @@ class ApplicationTest extends TestCase
 
         $this->actingAs($admin);
         $this->post(route('admin.applications.approve', $application))
-             ->assertRedirect();
+            ->assertRedirect();
         $this->assertEquals('approved', $application->fresh()->status);
 
         $this->post(route('admin.applications.deny', $application))
-             ->assertRedirect();
+            ->assertRedirect();
         $this->assertEquals('denied', $application->fresh()->status);
     }
 
@@ -174,6 +463,7 @@ class ApplicationTest extends TestCase
             'civil_status' => 'Single',
             'parent_status' => 'Both Parents Living',
             'education' => 'College (Currently Enrolled)',
+            'grade_year_level' => '2nd year',
             'spes_status' => 'new',
             'mother_name' => 'Maria Dela Cruz',
             'mother_occupation' => 'Teacher',

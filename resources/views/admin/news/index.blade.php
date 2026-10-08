@@ -56,9 +56,9 @@
                             @endif
                         </td>
                         <td style="font-size:.78rem;color:var(--text-muted)">
-                            {{ $item->published_at ? $item->published_at->format('M d, Y H:i') : '—' }}
+                            @adminDate($item->published_at, true)
                         </td>
-                        <td style="font-size:.78rem;color:var(--text-muted)">{{ $item->created_at->format('M d, Y') }}</td>
+                        <td style="font-size:.78rem;color:var(--text-muted)">@adminDate($item->created_at)</td>
                         <td>
                             <div style="display: flex; gap: 6px;">
                                 <a href="{{ route('admin.news.edit', $item) }}" class="btn btn-info btn-sm">

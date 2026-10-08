@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>SPES Form 2 Application Form - View</title>
+    <title>SPES Application Form - View</title>
     <link rel="stylesheet" href="{{ asset('css/form.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -239,7 +239,7 @@
 <body>
 
 <div class="document">
-    <div class="spes-form-id">SPES Form 2</div>
+    <div class="spes-form-id">SPES Application Form</div>
     <div class="header-section">
         <img src="{{ asset('images/left-logo1.png') }}" alt="Left Logo">
         <div class="header-text">

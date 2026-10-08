@@ -251,7 +251,7 @@
         </div>
     </div>
 
-    <div class="spes-form-id">SPES Form 2</div>
+    <div class="spes-form-id">SPES Application Form</div>
     <div class="header-section">
         <img src="{{ asset('images/left-logo1.png') }}" alt="Dole logo" class="logo">
         <div class="header-text">

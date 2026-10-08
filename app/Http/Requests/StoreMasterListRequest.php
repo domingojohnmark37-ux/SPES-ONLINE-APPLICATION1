@@ -20,10 +20,17 @@ class StoreMasterListRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:255',
+            'name' => 'nullable|string|max:255',
             'barangay' => 'nullable|string|max:100',
             'spes_status' => 'nullable|in:new,baby',
+            'search' => 'nullable|string|max:255',
             'sort' => 'nullable|in:name_asc,name_desc',
+            'placement' => 'nullable|array',
+            'placement.*' => 'array:nature_of_work,place_of_assignment,wage_rate,company_share',
+            'placement.*.nature_of_work' => 'nullable|string|max:255',
+            'placement.*.place_of_assignment' => 'nullable|string|max:255',
+            'placement.*.wage_rate' => 'nullable|integer|min:1',
+            'placement.*.company_share' => 'nullable|integer|min:1',
         ];
     }
 }

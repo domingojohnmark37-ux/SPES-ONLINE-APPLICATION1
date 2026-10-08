@@ -13,13 +13,13 @@ class EmailVerificationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_email_verification_screen_can_be_rendered(): void
+    public function test_unverified_users_are_not_blocked_by_a_verification_screen(): void
     {
         $user = User::factory()->unverified()->create();
 
         $response = $this->actingAs($user)->get('/verify-email');
 
-        $response->assertStatus(200);
+        $response->assertRedirect(route('dashboard', absolute: false));
     }
 
     public function test_email_can_be_verified(): void

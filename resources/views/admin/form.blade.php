@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>SPES Form 2 Application Form</title>
+    <title>SPES Application Form</title>
     <style>
    
         body { font-family: "Arial Narrow", Arial, sans-serif; font-size: 11px; display: flex; justify-content: center; background: #999; padding: 20px; }
@@ -65,7 +65,7 @@
 <body>
 
 <div class="document">
-    <div class="spes-form-id">SPES Form 2</div>
+    <div class="spes-form-id">SPES Application Form</div>
     <div class="header-section">
           <img src="{{ asset('images/left-logo1.png') }}" alt="Dole logo" class="logo">
         <div class="header-text">

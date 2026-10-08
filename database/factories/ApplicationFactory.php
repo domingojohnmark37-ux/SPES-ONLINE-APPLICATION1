@@ -35,6 +35,7 @@ class ApplicationFactory extends Factory
             'civil_status' => fake()->randomElement(['Single', 'Married', 'Widowed', 'Separated']),
             'parent_status' => fake()->randomElement(['Both Parents Living', 'Solo Parent', 'Orphan', 'Guardian']),
             'education' => fake()->randomElement(['Senior High School Graduate', 'College (Currently Enrolled)', 'College Graduate']),
+            'grade_year_level' => fake()->randomElement(['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', '1st year', '2nd year', '4th year', '5th year']),
             'spes_status' => fake()->randomElement(['new', 'baby']),
             'mother_name' => fake()->name('female'),
             'father_guardian_name' => fake()->name('male'),
@@ -45,7 +46,6 @@ class ApplicationFactory extends Factory
             'indigency' => null,
             'status' => 'pending',
             'admin_comment' => null,
-            'forms_step' => 0,
         ];
     }
 }

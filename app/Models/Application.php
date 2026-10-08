@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Application extends Model
@@ -14,22 +15,14 @@ class Application extends Model
         'ref_id', 'user_id',
         // Personal
         'full_name', 'surname', 'first_name', 'middle_name', 'sex', 'birthday', 'age', 'barangay', 'civil_status',
-        'parent_status', 'education', 'spes_status', 'mother_name',
+        'parent_status', 'education', 'grade_year_level', 'spes_status', 'mother_name',
         'father_guardian_name', 'contact_no', 'messenger', 'facebook',
         'mother_occupation', 'father_occupation', 'mother_contact_no', 'father_contact_no',
         // Documents
         'resume', 'certificate_enrollment', 'certificate_grade', 'application_letter', 'indigency',
+        'document_original_names',
         // Status
         'status', 'admin_comment',
-        // Post-approval forms step tracker
-        'forms_step',
-        // Form 2
-        'f2_control_no', 'f2_place_of_birth', 'f2_citizenship', 'f2_email',
-        'f2_social_media', 'f2_gsis_beneficiary', 'f2_present_address',
-        'f2_permanent_address', 'f2_applicant_category', 'f2_special_skills',
-        'f2_education_history', 'f2_father_occupation', 'f2_mother_occupation',
-        'f2_spes_history', 'f2_consent_accepted', 'f2_checklist',
-        'f2_parent_status_details', 'f2_other_info',
         // Form 3
         'f3_beneficiary_name', 'f3_beneficiary_age', 'f3_beneficiary_years', 'f3_beneficiary_address',
         'f3_signed_day', 'f3_signed_month', 'f3_signed_year', 'f3_signed_city',
@@ -45,22 +38,20 @@ class Application extends Model
     ];
 
     protected $casts = [
-        'birthday'             => 'date',
-        'f3_start_date'        => 'date',
-        'f3_end_date'          => 'date',
-        'f4_contract_start'    => 'date',
-        'f4_contract_end'      => 'date',
-        'f4_signed_date'       => 'date',
-        'f2_education_history' => 'array',
-        'f2_spes_history'      => 'array',
-        'f2_consent_accepted'  => 'boolean',
+        'birthday' => 'date',
+        'f3_start_date' => 'date',
+        'f3_end_date' => 'date',
+        'f4_contract_start' => 'date',
+        'f4_contract_end' => 'date',
+        'f4_signed_date' => 'date',
+        'document_original_names' => 'array',
     ];
 
     protected static function booted(): void
     {
         static::creating(function ($application) {
             if (empty($application->ref_id)) {
-                $application->ref_id = 'SPES-' . strtoupper(Str::random(8));
+                $application->ref_id = 'SPES-'.strtoupper(Str::random(8));
             }
         });
     }
@@ -70,21 +61,17 @@ class Application extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function additionalRequirementSubmissions(): HasMany
+    {
+        return $this->hasMany(ApplicationAdditionalRequirement::class);
+    }
+
     public function statusBadgeClass(): string
     {
         return match ($this->status) {
             'approved' => 'badge-approved',
-            'denied'   => 'badge-denied',
-            default    => 'badge-pending',
+            'denied' => 'badge-denied',
+            default => 'badge-pending',
         };
-    }
-
-    /**
-     * How far through the post-approval forms the user is.
-     * Returns: 0 (not started), 1 (form 2 done)
-     */
-    public function formsStep(): int
-    {
-        return (int) $this->forms_step;
     }
 }

@@ -9,11 +9,17 @@ class SystemSetting extends Model
     protected $fillable = [
         'application_start_date',
         'application_end_date',
+        'approved_applicant_limit',
+        'admin_minimum_password_length',
+        'admin_session_timeout_minutes',
     ];
 
     protected $casts = [
         'application_start_date' => 'datetime',
         'application_end_date' => 'datetime',
+        'approved_applicant_limit' => 'integer',
+        'admin_minimum_password_length' => 'integer',
+        'admin_session_timeout_minutes' => 'integer',
     ];
 
     /**
@@ -29,6 +35,10 @@ class SystemSetting extends Model
      */
     public function isApplicationOpen()
     {
+        if (app(\App\Services\ApplicationApprovalCapacity::class)->isFull($this)) {
+            return false;
+        }
+
         $timezone = config('app.timezone', 'UTC');
         $now = now()->setTimezone($timezone);
 

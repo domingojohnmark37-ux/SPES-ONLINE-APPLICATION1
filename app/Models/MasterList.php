@@ -12,6 +12,7 @@ class MasterList extends Model
     protected $fillable = [
         'name',
         'filters_json',
+        'archive_path',
         'generated_by',
     ];
 

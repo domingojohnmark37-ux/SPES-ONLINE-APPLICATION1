@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\AuditAction;
+use App\Services\AuditLogger;
 use App\Models\UserProfile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -35,9 +38,14 @@ class ProfileController extends Controller
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request, AuditLogger $auditLogger): RedirectResponse
     {
         $user = $request->user();
+        $data = $request->validated();
+        $originalUser = $user->getOriginal();
+        $originalProfile = $user->profile?->getOriginal() ?? [];
+        $applicant = $user->role === 'user' ? $user : null;
+        $application = $applicant?->applications()->latest('created_at')->first();
 
         if ($request->hasFile('profile_photo')) {
             if ($user->profile_photo) {
@@ -46,7 +54,6 @@ class ProfileController extends Controller
             $user->profile_photo = $request->file('profile_photo')->store('profile-photos', 'public');
         }
 
-        $data = $request->validated();
         unset($data['profile_photo']);
 
         $user->email = $data['email'];
@@ -68,8 +75,6 @@ class ProfileController extends Controller
             $user->email_verified_at = null;
         }
 
-        $user->save();
-
         $profileData = collect($data)->only([
             'last_name',
             'first_name',
@@ -80,7 +85,6 @@ class ProfileController extends Controller
             'status',
             'citizenship',
             'social_media',
-            'gsis_beneficiary',
             'contact_number',
             'present_address',
             'permanent_address',
@@ -102,10 +106,29 @@ class ProfileController extends Controller
             ->mapWithKeys(fn ($status) => [$status => in_array($status, $selectedParentStatuses, true)])
             ->all();
 
-        $user->profile()->updateOrCreate(
-            ['user_id' => $user->id],
-            $profileData
-        );
+        DB::transaction(function () use ($user, $profileData, $originalUser, $originalProfile, $applicant, $application, $auditLogger): void {
+            $user->save();
+            $profile = $user->profile()->updateOrCreate(
+                ['user_id' => $user->id],
+                $profileData
+            );
+            if ($applicant) {
+                $oldValues = array_intersect_key($originalUser, array_flip(['name', 'email']));
+                $newValues = array_intersect_key($user->getAttributes(), array_flip(['name', 'email']));
+                $profileFields = array_keys($profileData);
+                $oldValues += array_intersect_key($originalProfile, array_flip($profileFields));
+                $newValues += array_intersect_key($profile->getAttributes(), array_flip($profileFields));
+                $auditLogger->recordChanges(
+                    $oldValues,
+                    $newValues,
+                    'Applicant Information',
+                    $user,
+                    $user,
+                    $application,
+                    AuditAction::INFORMATION_UPDATED,
+                );
+            }
+        });
 
         $request->session()->put('profile_read_only', true);
 
@@ -116,7 +139,7 @@ class ProfileController extends Controller
     /**
      * Delete the user's account.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, AuditLogger $auditLogger): RedirectResponse
     {
         $request->validateWithBag('userDeletion', [
             'password' => ['required', 'current_password'],
@@ -125,8 +148,19 @@ class ProfileController extends Controller
         $user = $request->user();
 
         Auth::logout();
-
-        $user->delete();
+        DB::transaction(function () use ($user, $auditLogger): void {
+            if ($user->role === 'user') {
+                $auditLogger->record(
+                    AuditAction::APPLICANT_DELETED,
+                    'Applicant Information',
+                    $user,
+                    $user,
+                    $user->applications()->latest('created_at')->first(),
+                    ['description' => 'Applicant deleted their account'],
+                );
+            }
+            $user->delete();
+        });
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

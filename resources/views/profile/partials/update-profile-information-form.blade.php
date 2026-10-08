@@ -1,4 +1,4 @@
-<section class="bg-white p-6">
+<section class="profile-form-section bg-white p-6">
     <style>
         :root {
             --space-xs: 0.5rem;
@@ -270,56 +270,170 @@
                 padding: 0.75rem;
             }
         }
+
+        html[data-theme="dark"] .applicant-profile-page .profile-form-section,
+        html[data-theme="system"] .applicant-profile-page .profile-form-section {
+            background-color: var(--white) !important;
+            color: var(--text);
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card,
+        html[data-theme="system"] .applicant-profile-page .profile-card {
+            color: var(--text);
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card h2,
+        html[data-theme="system"] .applicant-profile-page .profile-card h2 {
+            color: var(--text) !important;
+        }
+        html[data-theme="dark"] .applicant-profile-page .page-title h1,
+        html[data-theme="system"] .applicant-profile-page .page-title h1 {
+            color: var(--text) !important;
+        }
+        html[data-theme="dark"] .applicant-profile-page .page-title p,
+        html[data-theme="system"] .applicant-profile-page .page-title p {
+            color: var(--text-muted) !important;
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card p,
+        html[data-theme="dark"] .applicant-profile-page .profile-card label,
+        html[data-theme="dark"] .applicant-profile-page .profile-card .text-gray-600,
+        html[data-theme="dark"] .applicant-profile-page .profile-card .text-gray-700,
+        html[data-theme="dark"] .applicant-profile-page .profile-card .text-gray-400,
+        html[data-theme="system"] .applicant-profile-page .profile-card p,
+        html[data-theme="system"] .applicant-profile-page .profile-card label,
+        html[data-theme="system"] .applicant-profile-page .profile-card .text-gray-600,
+        html[data-theme="system"] .applicant-profile-page .profile-card .text-gray-700,
+        html[data-theme="system"] .applicant-profile-page .profile-card .text-gray-400 {
+            color: var(--text-muted) !important;
+        }
+        .applicant-profile-page .profile-card .field label.text-primary-line,
+        .applicant-profile-page .profile-card label.text-primary-line {
+            color:var(--type-primary-color) !important;
+            font-size:var(--type-secondary);
+            font-weight:600;
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+        html[data-theme="dark"] .applicant-profile-page .profile-card select,
+        html[data-theme="dark"] .applicant-profile-page .profile-card textarea,
+        html[data-theme="system"] .applicant-profile-page .profile-card input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+        html[data-theme="system"] .applicant-profile-page .profile-card select,
+        html[data-theme="system"] .applicant-profile-page .profile-card textarea {
+            background-color: #30343b !important;
+            border-color: var(--border) !important;
+            color: var(--text) !important;
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card input[readonly],
+        html[data-theme="system"] .applicant-profile-page .profile-card input[readonly] {
+            background-color: #292d33 !important;
+            color: var(--text-muted) !important;
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card .upload-circle,
+        html[data-theme="system"] .applicant-profile-page .profile-card .upload-circle {
+            background-color: #30343b;
+            border-color: #69717e;
+            color: var(--text);
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card .responsive-table,
+        html[data-theme="system"] .applicant-profile-page .profile-card .responsive-table {
+            color: var(--text);
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card .responsive-table thead,
+        html[data-theme="dark"] .applicant-profile-page .profile-card .responsive-table td,
+        html[data-theme="system"] .applicant-profile-page .profile-card .responsive-table thead,
+        html[data-theme="system"] .applicant-profile-page .profile-card .responsive-table td {
+            background-color: #292d33;
+            color: var(--text);
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card .responsive-table th,
+        html[data-theme="dark"] .applicant-profile-page .profile-card .responsive-table td,
+        html[data-theme="system"] .applicant-profile-page .profile-card .responsive-table th,
+        html[data-theme="system"] .applicant-profile-page .profile-card .responsive-table td {
+            border-color: var(--border);
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card .responsive-table td::before,
+        html[data-theme="system"] .applicant-profile-page .profile-card .responsive-table td::before {
+            color: var(--text-muted);
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card .actions-row .bg-white,
+        html[data-theme="system"] .applicant-profile-page .profile-card .actions-row .bg-white {
+            background-color: #30343b !important;
+            color: var(--text) !important;
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-card .actions-row button:disabled,
+        html[data-theme="system"] .applicant-profile-page .profile-card .actions-row button:disabled {
+            color: #f8fafc !important;
+            opacity: .65;
+        }
+        html[data-theme="dark"] .applicant-profile-page .profile-page-card,
+        html[data-theme="system"] .applicant-profile-page .profile-page-card {
+            background-color: var(--surface) !important;
+            color: var(--text);
+        }
     </style>
     @php
         $readOnly = $readOnly ?? session('profile_read_only', false);
     @endphp
     <div class="profile-card">
         <div class="mb-4">
-            <h2 class="text-lg font-bold text-gray-900">Account Setup: Profile Details</h2>
-            <p class="text-xs text-gray-600">Profile Information: Student / Applicant's Information</p>
+            <h2 class="text-section">{{ __('Profile details') }}</h2>
+            <p class="text-secondary">{{ __('Review and update your student applicant information.') }}</p>
         </div>
+
+    @if ($errors->any())
+        <div role="alert" class="mb-4 rounded border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+            <strong>{{ __('Your profile was not saved. Please correct the following and try again:') }}</strong>
+            <ul class="mt-2 list-disc pl-5">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <form id="send-verification" method="post" action="{{ route('verification.send') }}">@csrf</form>
 
     <form method="post" action="{{ route('profile.update') }}" enctype="multipart/form-data">
         @csrf
         @method('patch')
+        @php
+            $isApplicant = $user->role === 'user';
+            $hasMobileNumber = filled(optional($profile)->contact_number ?: $user->contact_number);
+            $requiredAttribute = $isApplicant ? 'required' : '';
+            $requiredMarker = $isApplicant ? '*' : '';
+        @endphp
         <fieldset {{ $readOnly ? 'disabled' : '' }}>
 
         <!-- NAME SECTION with Photo (compact layout) -->
         <div class="compact-row mb-3">
             <div class="field">
-                <label>Last Name</label>
-                <x-text-input id="last_name" name="last_name" type="text" class="compact px-2 py-2 rounded border border-gray-300" :value="old('last_name', optional($profile)->last_name ?? $user->last_name)" required />
+                <label class="text-primary-line">{{ __('Last Name') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="last_name" name="last_name" type="text" class="compact px-2 py-2 rounded border border-gray-300" :value="old('last_name', optional($profile)->last_name ?? $user->last_name)" :required="$isApplicant" />
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('last_name')" />
             </div>
             <div class="field">
-                <label>First Name</label>
-                <x-text-input id="first_name" name="first_name" type="text" class="compact px-2 py-2 rounded border border-gray-300" :value="old('first_name', optional($profile)->first_name ?? $user->first_name)" required />
+                <label class="text-primary-line">{{ __('First Name') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="first_name" name="first_name" type="text" class="compact px-2 py-2 rounded border border-gray-300" :value="old('first_name', optional($profile)->first_name ?? $user->first_name)" :required="$isApplicant" />
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('first_name')" />
             </div>
             <div class="field">
-                <label>Middle Name</label>
-                <x-text-input id="middle_name" name="middle_name" type="text" class="compact px-2 py-2 rounded border border-gray-300" :value="old('middle_name', optional($profile)->middle_name ?? $user->middle_name)" />
+                <label class="text-primary-line">{{ __('Middle Name') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="middle_name" name="middle_name" type="text" class="compact px-2 py-2 rounded border border-gray-300" :value="old('middle_name', optional($profile)->middle_name ?? $user->middle_name)" :required="$isApplicant" />
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('middle_name')" />
             </div>
             <div class="field">
-                <label>Sex</label>
-                <select id="sex" name="sex" class="compact-sm px-2 py-2 rounded border border-gray-300 bg-white" required>
-                    <option value="">Select</option>
-                    <option value="Male" {{ old('sex', optional($profile)->sex ?? $user->sex) === 'Male' ? 'selected' : '' }}>Male</option>
-                    <option value="Female" {{ old('sex', optional($profile)->sex ?? $user->sex) === 'Female' ? 'selected' : '' }}>Female</option>
+                <label class="text-primary-line">{{ __('Sex') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <select id="sex" name="sex" class="compact-sm px-2 py-2 rounded border border-gray-300 bg-white" {{ $requiredAttribute }}>
+                    <option value="">{{ __('Select') }}</option>
+                    <option value="Male" {{ old('sex', optional($profile)->sex ?? $user->sex) === 'Male' ? 'selected' : '' }}>{{ __('Male') }}</option>
+                    <option value="Female" {{ old('sex', optional($profile)->sex ?? $user->sex) === 'Female' ? 'selected' : '' }}>{{ __('Female') }}</option>
                 </select>
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('sex')" />
             </div>
             <label class="upload-circle" style="cursor: pointer;">
                 <div class="upload-placeholder" style="{{ $user->profile_photo ? 'display:none;' : '' }}">
-                    <small>Upload<br>Photo</small>
+                    <small>{{ __('Upload') }}<br>{{ __('Photo') }}</small>
                 </div>
                 <img id="profilePhotoPreview"
                      src="{{ $user->profile_photo ? asset('storage/' . $user->profile_photo) : '' }}"
-                     alt="Profile photo"
+                     alt="{{ __('Profile photo') }}"
                      style="{{ $user->profile_photo ? '' : 'display:none;' }}"
                      class="w-full h-full object-cover rounded-full" />
                 <input id="profile_photo" type="file" name="profile_photo" accept="image/*" />
@@ -330,81 +444,96 @@
         <!-- Personal Information compact row -->
         <div class="compact-row mb-3">
             <div class="field">
-                <label>Date of Birth</label>
-                <x-text-input id="date_of_birth" name="date_of_birth" type="date" class="compact-sm px-2 py-2 rounded border border-gray-300" :value="old('date_of_birth', optional(optional($profile)->date_of_birth ?? $user->date_of_birth)->format('Y-m-d'))" required />
+                <label class="text-primary-line">{{ __('Date of Birth') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="date_of_birth" name="date_of_birth" type="date" class="compact-sm px-2 py-2 rounded border border-gray-300" :value="old('date_of_birth', optional(optional($profile)->date_of_birth ?? $user->date_of_birth)->format('Y-m-d'))" :required="$isApplicant" />
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('date_of_birth')" />
             </div>
             <div class="field">
-                <label>Place of Birth</label>
-                <x-text-input id="place_of_birth" name="place_of_birth" type="text" class="compact-md px-2 py-2 rounded border border-gray-300" :value="old('place_of_birth', optional($profile)->place_of_birth ?? $user->place_of_birth)" required />
+                <label class="text-primary-line">{{ __('Place of Birth') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="place_of_birth" name="place_of_birth" type="text" class="compact-md px-2 py-2 rounded border border-gray-300" :value="old('place_of_birth', optional($profile)->place_of_birth ?? $user->place_of_birth)" :required="$isApplicant" />
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('place_of_birth')" />
             </div>
             <div class="field">
-                <label>Status</label>
-                <select id="status" name="status" class="compact px-2 py-2 rounded border border-gray-300 bg-white">
-                    <option value="">Select</option>
-                    <option value="Single" {{ old('status', optional($profile)->status ?? $user->status) === 'Single' ? 'selected' : '' }}>Single</option>
-                    <option value="Married" {{ old('status', optional($profile)->status ?? $user->status) === 'Married' ? 'selected' : '' }}>Married</option>
+                <label class="text-primary-line">{{ __('Status') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <select id="status" name="status" class="compact px-2 py-2 rounded border border-gray-300 bg-white" {{ $requiredAttribute }}>
+                    <option value="">{{ __('Select') }}</option>
+                    <option value="Single" {{ old('status', optional($profile)->status ?? $user->status) === 'Single' ? 'selected' : '' }}>{{ __('Single') }}</option>
+                    <option value="Married" {{ old('status', optional($profile)->status ?? $user->status) === 'Married' ? 'selected' : '' }}>{{ __('Married') }}</option>
                 </select>
+                <x-input-error class="text-xs mt-1" :messages="$errors->get('status')" />
             </div>
             <div class="field">
-                <label>Citizenship</label>
-                <select id="citizenship" name="citizenship" class="compact-sm px-2 py-2 rounded border border-gray-300 bg-white">
-                    <option value="">Select</option>
-                    <option value="Filipino" {{ old('citizenship', optional($profile)->citizenship ?? $user->citizenship) === 'Filipino' ? 'selected' : '' }}>Filipino</option>
-                    <option value="Foreign" {{ old('citizenship', optional($profile)->citizenship ?? $user->citizenship) === 'Foreign' ? 'selected' : '' }}>Foreign</option>
+                <label class="text-primary-line">{{ __('Citizenship') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <select id="citizenship" name="citizenship" class="compact-sm px-2 py-2 rounded border border-gray-300 bg-white" {{ $requiredAttribute }}>
+                    <option value="">{{ __('Select') }}</option>
+                    <option value="Filipino" {{ old('citizenship', optional($profile)->citizenship ?? $user->citizenship) === 'Filipino' ? 'selected' : '' }}>{{ __('Filipino') }}</option>
+                    <option value="Foreign" {{ old('citizenship', optional($profile)->citizenship ?? $user->citizenship) === 'Foreign' ? 'selected' : '' }}>{{ __('Foreign') }}</option>
                 </select>
+                <x-input-error class="text-xs mt-1" :messages="$errors->get('citizenship')" />
             </div>
         </div>
 
-        <!-- Email, Social Media, GSIS (compact) -->
+        <!-- Email and Social Media (compact) -->
         <div class="compact-row mb-3">
             <div class="field">
-                <label>Email Address</label>
-                <x-text-input id="email" name="email" type="email" class="full px-2 py-2 rounded border border-gray-300" :value="old('email', $user->email)" required />
+                <label class="text-primary-line">{{ __('Email address') }} <span aria-hidden="true">*</span></label>
+                <x-text-input id="email" name="email" type="email" class="full px-2 py-2 rounded border border-gray-300" :value="old('email', $user->email)" :readonly="$user->role === 'user'" required />
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('email')" />
+                @if($user->role === 'user')
+                    <p class="text-xs text-gray-500 mt-1">{{ __('Change your email in Settings to verify it.') }}</p>
+                @endif
             </div>
             <div class="field">
-                <label>Social Media Account</label>
-                <x-text-input id="social_media" name="social_media" type="text" class="compact-md px-2 py-2 rounded border border-gray-300" :value="old('social_media', optional($profile)->social_media ?? $user->social_media)" />
-                <p class="text-xs text-gray-400 mt-1">Social Media Account (Profile)</p>
-            </div>
-            <div class="field">
-                <label>GSIS Beneficiary/Relationship</label>
-                <x-text-input id="gsis_beneficiary" name="gsis_beneficiary" type="text" class="compact-md px-2 py-2 rounded border border-gray-300" :value="old('gsis_beneficiary', optional($profile)->gsis_beneficiary ?? $user->gsis_beneficiary)" />
+                <label class="text-primary-line">{{ __('Social media account') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="social_media" name="social_media" type="text" class="compact-md px-2 py-2 rounded border border-gray-300" :value="old('social_media', optional($profile)->social_media ?? $user->social_media)" :required="$isApplicant" />
+                <x-input-error class="text-xs mt-1" :messages="$errors->get('social_media')" />
             </div>
         </div>
 
         <!-- Addresses and Applicant Category (compact) -->
         <div class="compact-row mb-3">
             <div class="field" style="flex:1;">
-                <label>Present Address</label>
-                <x-text-input id="present_address" name="present_address" type="text" class="full px-2 py-2 rounded border border-gray-300" :value="old('present_address', optional($profile)->present_address ?? $user->present_address)" />
+                <label class="text-primary-line">{{ __('Present address') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="present_address" name="present_address" type="text" class="full px-2 py-2 rounded border border-gray-300" :value="old('present_address', optional($profile)->present_address ?? $user->present_address)" :required="$isApplicant" />
+                <x-input-error class="text-xs mt-1" :messages="$errors->get('present_address')" />
             </div>
             <div class="field">
-                <label>Permanent Address</label>
-                <x-text-input id="permanent_address" name="permanent_address" type="text" class="compact-md px-2 py-2 rounded border border-gray-300" :value="old('permanent_address', optional($profile)->permanent_address ?? $user->permanent_address)" />
+                <label class="text-primary-line">{{ __('Permanent address') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="permanent_address" name="permanent_address" type="text" class="compact-md px-2 py-2 rounded border border-gray-300" :value="old('permanent_address', optional($profile)->permanent_address ?? $user->permanent_address)" :required="$isApplicant" />
+                <x-input-error class="text-xs mt-1" :messages="$errors->get('permanent_address')" />
             </div>
             <div class="field">
-                <label>Contact Number</label>
-                <x-text-input id="contact_number" name="contact_number" type="text" class="compact-sm px-2 py-2 rounded border border-gray-300" :value="old('contact_number', optional($profile)->contact_number ?? $user->contact_number ?? '')" />
+                <label class="text-primary-line">{{ __('Mobile number') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                <x-text-input id="contact_number" name="contact_number" type="text" class="compact-sm px-2 py-2 rounded border border-gray-300" :value="old('contact_number', optional($profile)->contact_number ?? $user->contact_number ?? '')" :readonly="$isApplicant && $hasMobileNumber" :required="$isApplicant" />
+                <x-input-error class="text-xs mt-1" :messages="$errors->get('contact_number')" />
+                @if($user->role === 'user')
+                    @if($hasMobileNumber)
+                        <p class="text-xs text-gray-500 mt-1">
+                            {{ __('Change your mobile number in') }}
+                            <a class="underline font-medium" href="{{ route('settings.account') }}#mobile-number-settings">{{ __('Settings') }}</a>.
+                        </p>
+                    @else
+                        <p class="text-xs text-gray-500 mt-1">{{ __('Enter your mobile number here. You can change it in Settings after saving.') }}</p>
+                    @endif
+                @endif
             </div>
         </div>
 
         <!-- Applicant Category -->
         <div class="mb-3">
-            <label class="block text-xs font-semibold text-gray-600 mb-1">APPLICANT'S CATEGORY</label>
-            <select id="applicant_category" name="applicant_category" class="compact-md px-2 py-2 text-sm rounded border border-gray-300 bg-white">
-                <option value="" disabled {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) ? '' : 'selected' }}>Select</option>
-                <option value="student" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'student' ? 'selected' : '' }}>Student</option>
-                <option value="out_of_school_youth" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'out_of_school_youth' ? 'selected' : '' }}>Out-of-School Youth</option>
-                <option value="working_student" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'working_student' ? 'selected' : '' }}>Working Student</option>
+            <label class="text-primary-line block mb-1">{{ __('Applicant category') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+            <select id="applicant_category" name="applicant_category" class="compact-md px-2 py-2 text-sm rounded border border-gray-300 bg-white" {{ $requiredAttribute }}>
+                <option value="" disabled {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) ? '' : 'selected' }}>{{ __('Select') }}</option>
+                <option value="student" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'student' ? 'selected' : '' }}>{{ __('Student') }}</option>
+                <option value="out_of_school_youth" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'out_of_school_youth' ? 'selected' : '' }}>{{ __('Out-of-School Youth') }}</option>
+                <option value="working_student" {{ old('applicant_category', optional($profile)->applicant_category ?? $user->applicant_category) === 'working_student' ? 'selected' : '' }}>{{ __('Working Student') }}</option>
             </select>
+            <x-input-error class="text-xs mt-1" :messages="$errors->get('applicant_category')" />
         </div>
 
         <!-- EDUCATION TABLE -->
         <div class="mb-4">
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-2">EDUCATION</label>
+            <label class="text-primary-line block mb-2">Education</label>
             <div class="overflow-x-auto border border-gray-300 rounded">
                 <div class="table-responsive">
                     <table class="responsive-table">
@@ -464,31 +593,37 @@
 
         <!-- Parents Information compact cards -->
         <div class="mb-4">
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-2">PARENTS INFORMATION</label>
+            <label class="text-primary-line block mb-2">{{ __('Parent information') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
             <div class="parents-card">
                 <div class="p-3 border border-gray-200 rounded">
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Father's Name</label>
-                    <x-text-input id="father_name" name="father_name" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('father_name', optional($profile)->father_name ?? $user->father_name)" />
-                    <label class="block text-xs font-semibold text-gray-600 mb-1 mt-3">Father's Contact No.</label>
-                    <x-text-input id="father_contact_number" name="father_contact_number" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :Value="old('father_contact_number', optional($profile)->father_contact_number ?? $user->father_contact_number)" />
-                    <label class="block text-xs font-semibold text-gray-600 mb-1 mt-3">Occupation</label>
-                    <x-text-input id="father_occupation" name="father_occupation" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('father_occupation', optional($profile)->father_occupation ?? $user->father_occupation)" />
+                    <label class="text-primary-line block mb-1" for="father_name">{{ __('Father\'s name') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                    <x-text-input id="father_name" name="father_name" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('father_name', optional($profile)->father_name ?? $user->father_name)" :required="$isApplicant" />
+                    <x-input-error class="text-xs mt-1" :messages="$errors->get('father_name')" />
+                    <label class="text-primary-line block mb-1 mt-3" for="father_contact_number">{{ __('Father\'s contact number') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                    <x-text-input id="father_contact_number" name="father_contact_number" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('father_contact_number', optional($profile)->father_contact_number ?? $user->father_contact_number)" :required="$isApplicant" />
+                    <x-input-error class="text-xs mt-1" :messages="$errors->get('father_contact_number')" />
+                    <label class="text-primary-line block mb-1 mt-3" for="father_occupation">{{ __('Occupation') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                    <x-text-input id="father_occupation" name="father_occupation" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('father_occupation', optional($profile)->father_occupation ?? $user->father_occupation)" :required="$isApplicant" />
+                    <x-input-error class="text-xs mt-1" :messages="$errors->get('father_occupation')" />
                 </div>
                 <div class="p-3 border border-gray-200 rounded">
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">Mother's Name</label>
-                    <x-text-input id="mother_name" name="mother_name" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('mother_name', optional($profile)->mother_name ?? $user->mother_name)" />
-                    <label class="block text-xs font-semibold text-gray-600 mb-1 mt-3">Mother's Contact No.</label>
-                    <x-text-input id="mother_contact_number" name="mother_contact_number" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('mother_contact_number', optional($profile)->mother_contact_number ?? $user->mother_contact_number)" />
-                    <label class="block text-xs font-semibold text-gray-600 mb-1 mt-3">Occupation</label>
-                    <x-text-input id="mother_occupation" name="mother_occupation" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('mother_occupation', optional($profile)->mother_occupation ?? $user->mother_occupation)" />
+                    <label class="text-primary-line block mb-1" for="mother_name">{{ __('Mother\'s name') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                    <x-text-input id="mother_name" name="mother_name" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('mother_name', optional($profile)->mother_name ?? $user->mother_name)" :required="$isApplicant" />
+                    <x-input-error class="text-xs mt-1" :messages="$errors->get('mother_name')" />
+                    <label class="text-primary-line block mb-1 mt-3" for="mother_contact_number">{{ __('Mother\'s contact number') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                    <x-text-input id="mother_contact_number" name="mother_contact_number" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('mother_contact_number', optional($profile)->mother_contact_number ?? $user->mother_contact_number)" :required="$isApplicant" />
+                    <x-input-error class="text-xs mt-1" :messages="$errors->get('mother_contact_number')" />
+                    <label class="text-primary-line block mb-1 mt-3" for="mother_occupation">{{ __('Occupation') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+                    <x-text-input id="mother_occupation" name="mother_occupation" type="text" class="px-2 py-2 text-sm rounded border border-gray-300" :value="old('mother_occupation', optional($profile)->mother_occupation ?? $user->mother_occupation)" :required="$isApplicant" />
+                    <x-input-error class="text-xs mt-1" :messages="$errors->get('mother_occupation')" />
                 </div>
             </div>
         </div>
 
         <!-- CURRENT STATUS OF PARENTS -->
         <div class="mb-4">
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-2">CURRENT STATUS OF PARENTS</label>
-            <div class="checkbox-grid">
+            <label class="text-primary-line block mb-2">{{ __('Current parent status') }} <span aria-hidden="true">{{ $requiredMarker }}</span></label>
+            <div class="checkbox-grid" role="group" aria-required="{{ $isApplicant ? 'true' : 'false' }}" aria-describedby="parent_status_details_error">
                 @php
                     $parentStatusOptions = [
                         'Living Together',
@@ -508,16 +643,16 @@
                     @endphp
                     <label>
                         <input type="checkbox" name="parent_status_details[]" value="{{ $statusOption }}" class="w-4 h-4 border border-gray-300 rounded" {{ $isParentStatusSelected ? 'checked' : '' }}>
-                        <span class="ml-1">{{ $statusOption }}</span>
+                        <span class="ml-1">{{ __($statusOption) }}</span>
                     </label>
                 @endforeach
             </div>
-            <x-input-error class="text-xs mt-1" :messages="$errors->get('parent_status_details')" />
+            <x-input-error id="parent_status_details_error" class="text-xs mt-1" :messages="$errors->get('parent_status_details')" />
         </div>
 
         <!-- SPECIAL SKILLS -->
         <div class="mb-4">
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">SPECIAL SKILLS</label>
+            <label class="text-primary-line block mb-1">{{ __('Special skills') }}</label>
             <textarea id="special_skills" name="special_skills" rows="2" class="px-2 py-2 text-sm rounded border border-gray-300 text-gray-900" style="width:100%;">{{ old('special_skills', optional($profile)->special_skills ?? $user->special_skills) }}</textarea>
             <x-input-error class="text-xs mt-1" :messages="$errors->get('special_skills')" />
         </div>
@@ -527,21 +662,21 @@
         <div class="actions-row mt-4">
             @if ($readOnly)
                 <a href="{{ route('profile.edit', ['edit' => 1]) }}" class="px-5 py-2 bg-white border border-blue-600 text-blue-600 font-semibold rounded hover:bg-blue-50">
-                    Edit
+                    {{ __('Edit') }}
                 </a>
                 <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-black font-semibold rounded" disabled>
-                    Save Profile & Continue
+                    {{ __('Save Profile & Continue') }}
                 </button>
             @else
                 <button type="submit" class="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-white border-2 border-green-500 text-green-600 font-semibold shadow-md hover:bg-green-500 hover:text-white hover:border-green-500 hover:shadow-xl hover:shadow-green-300/50 hover:-translate-y-1 active:scale-95 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-green-200">
-                    Save Profile & Continue
+                    {{ __('Save Profile & Continue') }}
                 </button>
             @endif
         </div>
 
         @if (session('status') === 'profile-updated')
             <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-                Profile updated successfully.
+                {{ __('Profile updated successfully.') }}
             </div>
         @endif
     </form>

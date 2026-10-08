@@ -12,7 +12,31 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['Inter', 'Plus Jakarta Sans', ...defaultTheme.fontFamily.sans],
+            },
+            colors: {
+                portal: {
+                    bg: 'var(--theme-bg)',
+                    surface: 'var(--theme-surface)',
+                    card: 'var(--theme-card)',
+                    elevated: 'var(--theme-elevated)',
+                    maroon: {
+                        DEFAULT: 'var(--theme-maroon)',
+                        hover: 'var(--theme-maroon-hover)',
+                    },
+                    mustard: {
+                        DEFAULT: 'var(--theme-mustard)',
+                        bright: 'var(--theme-mustard-bright)',
+                    },
+                    text: {
+                        DEFAULT: 'var(--theme-text)',
+                        secondary: 'var(--theme-text-secondary)',
+                        muted: 'var(--theme-text-muted)',
+                    },
+                    border: 'var(--theme-border)',
+                    success: 'var(--theme-success)',
+                    danger: 'var(--theme-danger)',
+                },
             },
         },
     },

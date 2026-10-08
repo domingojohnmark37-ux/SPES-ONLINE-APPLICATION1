@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\RegistrationVerificationController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,7 +16,19 @@ Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post('register', [RegisteredUserController::class, 'store'])
+        ->middleware('throttle:registration');
+
+    Route::get('verify-registration', [RegistrationVerificationController::class, 'create'])
+        ->name('registration.verify');
+
+    Route::post('verify-registration', [RegistrationVerificationController::class, 'verify'])
+        ->middleware('throttle:registration-verification')
+        ->name('registration.verify.submit');
+
+    Route::post('verify-registration/resend', [RegistrationVerificationController::class, 'resend'])
+        ->middleware('throttle:registration-verification')
+        ->name('registration.verify.resend');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
@@ -28,14 +41,25 @@ Route::middleware('guest')->group(function () {
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
         ->name('password.email');
 
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+    Route::get('reset-password', [NewPasswordController::class, 'create'])
         ->name('password.reset');
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    Route::get('reset-password/verify', [NewPasswordController::class, 'showVerification'])
+        ->name('password.verify');
+
+    Route::post('reset-password/verify', [NewPasswordController::class, 'verify'])
+        ->middleware('throttle:6,1')
+        ->name('password.verify.submit');
+
+    Route::post('reset-password/resend', [NewPasswordController::class, 'resend'])
+        ->middleware('throttle:3,1')
+        ->name('password.verify.resend');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'admin.preferences'])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 
@@ -52,7 +76,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
 
-    Route::put('password', [PasswordController::class, 'update'])->name('password.update');
+    Route::put('password', [PasswordController::class, 'update'])
+        ->middleware(\App\Http\Middleware\ThrottleApplicantSensitiveActions::class)
+        ->name('password.update');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');

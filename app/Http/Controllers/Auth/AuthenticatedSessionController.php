@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
+use App\Services\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,9 +24,9 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request, AuditLogger $auditLogger): RedirectResponse
     {
-        $request->authenticate();
+        $request->authenticate($auditLogger);
 
         $request->session()->regenerate();
 
@@ -34,6 +35,10 @@ class AuthenticatedSessionController extends Controller
         if ($user instanceof User) {
             $user->last_active_at = now();
             $user->save();
+
+            if ($user->role === 'user') {
+                $request->session()->put('show_application_status_toasts', true);
+            }
         }
         
         if ($user->role === 'admin') {

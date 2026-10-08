@@ -1,16 +1,12 @@
 <x-guest-layout>
+    <div class="mb-4 text-sm text-gray-600">
+        Choose a new password for <strong>{{ $email }}</strong>. We will email you a code to confirm the change.
+    </div>
+
     <form method="POST" action="{{ route('password.store') }}">
         @csrf
 
-        <!-- Password Reset Token -->
-        <input type="hidden" name="token" value="{{ $request->route('token') }}">
-
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
-        </div>
+        <x-input-error :messages="$errors->get('email')" class="mt-2" />
 
         <!-- Password -->
         <div class="mt-4">
@@ -32,8 +28,12 @@
 
         <div class="flex items-center justify-end mt-4">
             <x-primary-button>
-                {{ __('Reset Password') }}
+                {{ __('Send confirmation code') }}
             </x-primary-button>
         </div>
     </form>
+
+    <p class="mt-4 text-sm text-gray-600">
+        <a href="{{ route('password.request') }}">{{ __('Use a different email') }}</a>
+    </p>
 </x-guest-layout>

@@ -17,10 +17,10 @@
                 </div>
                 <h1>PESO <span>Lal-lo</span></h1>
                 <p class="subtitle">Special Program for Employment of Students (SPES)</p>
-                <p>Apply online and track your application status anytime, anywhere.</p>
+                <p>Apply online and stay connected with PESO Lal-lo.</p>
                 <div class="auth-features">
                     <div><i aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M9 4h6M9 2h6v4H9zM6 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1M7 12l2 2 4-4M7 17h8" /></svg></i><span>Easy<br>Application</span></div>
-                    <div><i aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 20V10h4v10H4zm6 0V4h4v16h-4zm6 0v-7h4v7h-4z" /></svg></i><span>Track<br>Status</span></div>
+                    <div><i aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 20V10h4v10H4zm6 0V4h4v16h-4zm6 0v-7h4v7h-4z" /></svg></i><span>Program<br>Updates</span></div>
                     <div><i aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 3 4 6v5c0 5.2 3.4 8.8 8 10 4.6-1.2 8-4.8 8-10V6l-8-3zm0 5a2 2 0 0 1 2 2v1h1v5H9v-5h1v-1a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v1h2v-1a1 1 0 0 0-1-1z" /></svg></i><span>Secure &amp;<br>Reliable</span></div>
                 </div>
             </div>
@@ -28,26 +28,12 @@
             <div class="auth-right">
                 <h2>Create <span>Account</span></h2>
                 <p class="subtitle">Join us and start your employment journey</p>
+                @if (session('status'))
+                    <p class="success-message" role="status">{{ session('status') }}</p>
+                @endif
 
                 <form method="POST" action="{{ route('register') }}">
                     @csrf
-
-                    <!-- Name -->
-                    <div class="form-group">
-                        <label for="name">Full Name</label>
-                        <input 
-                            id="name" 
-                            type="text" 
-                            name="name" 
-                            value="{{ old('name') }}"
-                            placeholder="Enter your full name"
-                            required 
-                            autofocus 
-                        />
-                        @error('name')
-                            <span class="error-message">{{ $message }}</span>
-                        @enderror
-                    </div>
 
                     <!-- Email Address -->
                     <div class="form-group">
@@ -59,6 +45,7 @@
                             value="{{ old('email') }}"
                             placeholder="Enter your email address"
                             required 
+                            autofocus
                             autocomplete="email"
                         />
                         @error('email')
@@ -75,6 +62,8 @@
                             name="password" 
                             placeholder="Create a password"
                             required 
+                            minlength="12"
+                            aria-describedby="password-guidance"
                             autocomplete="new-password"
                         />
                         @error('password')
@@ -91,6 +80,7 @@
                             name="password_confirmation" 
                             placeholder="Confirm your password"
                             required 
+                            minlength="12"
                             autocomplete="new-password"
                         />
                         @error('password_confirmation')
@@ -98,25 +88,31 @@
                         @enderror
                     </div>
 
-                    <!-- Terms and Conditions -->
-                    <div class="checkbox-group">
-                        <input 
-                            type="checkbox" 
-                            id="agree" 
-                            name="agree" 
-                            required
-                        />
-                        <label for="agree">
-                            I agree to the 
-                            <a href="#" style="color: #003d82; text-decoration: none; font-weight: 500;">terms and conditions</a>
-                        </label>
-                        @error('agree')
-                            <span class="error-message">{{ $message }}</span>
-                        @enderror
+                    <div class="registration-terms">
+                        <p>Read the <a href="{{ route('terms') }}" target="_blank" rel="noopener">Terms and Conditions</a> before continuing.</p>
+                        <div class="checkbox-group agreement-group">
+                            <input
+                                type="checkbox"
+                                id="terms_accepted"
+                                name="terms_accepted"
+                                value="1"
+                                required
+                                @checked(old('terms_accepted'))
+                                aria-describedby="terms-hint terms-error"
+                            />
+                            <label for="terms_accepted">I have read, understood, and agree to the Terms and Conditions.</label>
+                        </div>
+                        <p id="terms-error" class="error-message" role="alert" @if (!$errors->has('terms_accepted')) hidden @endif>
+                            @error('terms_accepted')
+                                {{ $message }}
+                            @else
+                                Please agree to the Terms and Conditions before continuing.
+                            @enderror
+                        </p>
                     </div>
 
                     <!-- Register Button -->
-                    <button type="submit" class="btn-submit">Sign Up</button>
+                    <button type="submit" class="btn-submit" @disabled(!old('terms_accepted'))>Sign Up</button>
 
                     <!-- Login Link -->
                     <div class="auth-footer">

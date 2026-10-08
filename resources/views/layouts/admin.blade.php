@@ -1,10 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+@php
+    $applicationBatchYear = \App\Models\SystemSetting::query()->first()?->application_start_date?->year ?? now()->year;
+@endphp
+<html lang="{{ auth()->user()->adminPreference?->language === 'fil' ? 'fil' : 'en' }}"
+      data-admin-theme="{{ auth()->user()->adminPreference?->theme ?? 'system' }}"
+      data-admin-sidebar="{{ auth()->user()->adminPreference?->sidebar_behavior ?? 'auto' }}"
+      data-admin-font-size="{{ auth()->user()->adminPreference?->font_size ?? 'medium' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Admin') — SPES Management System</title>
+    <title>@yield('title', __('Admin')) — {{ __('SPES Management System') }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,6 +31,54 @@
             --text-muted: #757575;
             --border: #e0e0e0;
             --shadow: 0 2px 12px rgba(0,0,0,.08);
+        }
+        html[data-admin-theme="dark"] {
+            color-scheme: dark;
+            --bg: #17191d;
+            --white: #24272d;
+            --text: #f2f4f7;
+            --text-muted: #c0c6d0;
+            --border: #434852;
+            --shadow: 0 2px 12px rgba(0,0,0,.3);
+        }
+        @media (prefers-color-scheme: dark) {
+            html[data-admin-theme="system"] {
+                color-scheme: dark;
+                --bg: #17191d;
+                --white: #24272d;
+                --text: #f2f4f7;
+                --text-muted: #c0c6d0;
+                --border: #434852;
+                --shadow: 0 2px 12px rgba(0,0,0,.3);
+            }
+        }
+        html[data-admin-font-size="small"] { font-size: 14px; }
+        html[data-admin-font-size="medium"] { font-size: 16px; }
+        html[data-admin-font-size="large"] { font-size: 18px; }
+        html[data-admin-sidebar="collapsed"][data-admin-sidebar-open="true"] { --sidebar-w: 260px; }
+        @media (min-width: 901px) {
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) { --sidebar-w: 76px; }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-brand { justify-content: center; padding-right: 8px; padding-left: 8px; }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-brand > div { display: none; }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav { padding-right: 8px; padding-left: 8px; }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav > .nav-link,
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-group-toggle {
+                justify-content: center;
+                gap: 0;
+                padding-right: 6px;
+                padding-left: 6px;
+                font-size: 0;
+            }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav > .nav-link i,
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-group-toggle i:first-child {
+                flex: 0 0 auto;
+                font-size: .95rem;
+            }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-chevron,
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-section,
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-submenu { display: none; }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-footer .btn-logout { justify-content: center; gap: 0; font-size: 0; }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-footer .btn-logout i { font-size: .95rem; }
         }
 
         body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -58,6 +112,21 @@
         .nav-link:hover { background: rgba(255,255,255,.1); color: #fff; }
         .nav-link.active { background: var(--accent); color: var(--primary-dark); font-weight: 600; }
         .nav-link.active i { color: var(--primary-dark); }
+        .nav-group { display:flex; flex-direction:column; }
+        .nav-group-toggle {
+            width:100%;
+            border:0;
+            background:transparent;
+            cursor:pointer;
+            font:inherit;
+            text-align:left;
+        }
+        .nav-group-toggle .nav-chevron { width:auto; margin-left:auto; transition:transform .18s ease; }
+        .nav-group-toggle[aria-expanded="true"] .nav-chevron { transform:rotate(180deg); }
+        .nav-group-toggle.is-active { background:rgba(255,255,255,.08); color:#fff; }
+        .nav-submenu { display:none; flex-direction:column; gap:2px; padding:3px 0 5px 14px; }
+        .nav-group.is-open .nav-submenu { display:flex; }
+        .nav-submenu .nav-link { min-height:36px; padding:9px 10px; font-size:.84rem; }
 
         .sidebar-footer {
             padding: 14px 12px;
@@ -171,6 +240,30 @@
         .alert-danger  { background: #ffebee; color: #c62828; border-left: 4px solid #e53935; }
         .alert-info    { background: #e3f2fd; color: #1565c0; border-left: 4px solid #1e88e5; }
 
+        .admin-confirm-backdrop { position:fixed; inset:0; z-index:1500; display:grid; place-items:center; padding:20px; background:rgba(17,24,39,.58); backdrop-filter:blur(3px); }
+        .admin-confirm-backdrop[hidden] { display:none; }
+        .admin-confirm-dialog { width:min(460px,100%); overflow:hidden; border:1px solid var(--border); border-radius:16px; background:var(--white); color:var(--text); box-shadow:0 24px 70px rgba(0,0,0,.3); animation:admin-confirm-in .18s ease-out; }
+        .admin-confirm-top { display:flex; align-items:center; gap:13px; padding:22px 24px 13px; }
+        .admin-confirm-icon { display:grid; width:44px; height:44px; flex:0 0 44px; place-items:center; border-radius:13px; background:rgba(21,101,192,.1); color:var(--info); font-size:1.1rem; }
+        .admin-confirm-dialog[data-kind="save"] .admin-confirm-icon { background:rgba(46,125,50,.11); color:var(--success); }
+        .admin-confirm-dialog h2 { font-size:1.05rem; font-weight:750; }
+        .admin-confirm-copy { padding:0 24px 20px 81px; color:var(--text-muted); font-size:.88rem; line-height:1.55; }
+        .admin-confirm-actions { display:flex; justify-content:flex-end; gap:9px; padding:15px 20px; border-top:1px solid var(--border); background:var(--bg); }
+        .admin-confirm-actions button { min-height:40px; padding:9px 14px; border:1px solid var(--border); border-radius:8px; background:var(--white); color:var(--text); font:inherit; font-size:.82rem; font-weight:700; cursor:pointer; }
+        .admin-confirm-actions button:focus-visible { outline:3px solid rgba(21,101,192,.35); outline-offset:2px; }
+        .admin-confirm-actions [data-admin-confirm] { border-color:var(--primary); background:var(--primary); color:#fff; }
+        .admin-confirm-dialog[data-kind="leave"] .admin-confirm-actions [data-admin-confirm] { border-color:var(--danger); background:var(--danger); }
+        @keyframes admin-confirm-in { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @media(prefers-reduced-motion:reduce) { .admin-confirm-dialog { animation:none; } }
+        .approval-limit-toast { position:fixed; right:24px; bottom:24px; z-index:1450; display:flex; width:min(460px,calc(100vw - 32px)); align-items:flex-start; gap:13px; padding:17px 18px; border:1px solid rgba(198,40,40,.2); border-left:5px solid var(--danger); border-radius:12px; background:var(--white); color:var(--text); box-shadow:0 16px 45px rgba(17,24,39,.22); animation:admin-confirm-in .2s ease-out; }
+        .approval-limit-toast[hidden] { display:none; }
+        .approval-limit-toast > i { margin-top:2px; color:var(--danger); font-size:1.1rem; }
+        .approval-limit-toast-copy { flex:1; min-width:0; }
+        .approval-limit-toast-copy strong { display:block; margin-bottom:4px; font-size:.92rem; }
+        .approval-limit-toast-copy p { color:var(--text-muted); font-size:.82rem; line-height:1.5; }
+        .approval-limit-toast button { display:grid; width:30px; height:30px; flex:0 0 30px; place-items:center; border:0; border-radius:7px; background:transparent; color:var(--text-muted); cursor:pointer; }
+        .approval-limit-toast button:hover { background:var(--bg); color:var(--text); }
+
         /* ── Search bar ───────────────────────────────────── */
         .search-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         .search-bar input, .search-bar select {
@@ -246,6 +339,26 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('[data-admin-nav-toggle]').forEach(function(toggle){
+        toggle.addEventListener('click', function(){
+            const group = toggle.closest('[data-admin-nav-group]');
+            if (document.documentElement.dataset.adminSidebar === 'collapsed'
+                && document.documentElement.dataset.adminSidebarOpen !== 'true') {
+                document.documentElement.dataset.adminSidebarOpen = 'true';
+                toggle.setAttribute('aria-expanded', 'true');
+                group?.classList.add('is-open');
+                return;
+            }
+            const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+            toggle.setAttribute('aria-expanded', String(!isExpanded));
+            group?.classList.toggle('is-open', !isExpanded);
+            if (document.documentElement.dataset.adminSidebar === 'collapsed'
+                && !document.querySelector('[data-admin-nav-group].is-open')) {
+                delete document.documentElement.dataset.adminSidebarOpen;
+            }
+        });
+    });
+
     const bell = document.getElementById('notifBell');
     const dd = document.getElementById('notifDropdown');
     const markAll = document.getElementById('markAllRead');
@@ -258,7 +371,13 @@ document.addEventListener('DOMContentLoaded', function(){
         markAll.addEventListener('click', function(e){
             e.preventDefault();
             fetch('{{ route('notifications.readAll') }}', { method: 'POST', headers: {'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } })
-            .then(()=>{ document.getElementById('notifCount')?.remove(); dd.innerHTML = '<div class="notif-empty">No new notifications</div>'; })
+            .then(()=>{
+                document.getElementById('notifCount')?.remove();
+                const emptyMessage = document.createElement('div');
+                emptyMessage.className = 'notif-empty';
+                emptyMessage.textContent = @json(__('No new notifications'));
+                dd.replaceChildren(emptyMessage);
+            })
         });
     }
     // mark single notification when clicked
@@ -282,38 +401,118 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
 
     <nav class="sidebar-nav">
-        <div class="nav-section">Main</div>
         <a href="{{ route('admin.dashboard') }}"
            class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-            <i class="fa-solid fa-chart-pie"></i> Dashboard
+            <i class="fa-solid fa-chart-pie"></i> {{ __('Dashboard') }}
         </a>
 
-        <div class="nav-section">Management</div>
-        <a href="{{ route('admin.applications.index') }}"
-           class="nav-link {{ request()->routeIs('admin.applications.*') ? 'active' : '' }}">
-            <i class="fa-solid fa-file-lines"></i> Applicants
-        </a>
+        @php
+            $applicationsNavActive = request()->routeIs([
+                'admin.applications.*',
+                'admin.additional-requirements.*',
+                'admin.masterlist.*',
+            ]);
+        @endphp
+        <div class="nav-group {{ $applicationsNavActive ? 'is-open' : '' }}" data-admin-nav-group>
+            <button
+                type="button"
+                class="nav-link nav-group-toggle {{ $applicationsNavActive ? 'is-active' : '' }}"
+                aria-expanded="{{ $applicationsNavActive ? 'true' : 'false' }}"
+                aria-controls="admin-applications-submenu"
+                data-admin-nav-toggle
+            >
+                <i class="fa-solid fa-file-lines"></i> {{ __('Applications') }}
+                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+            </button>
+            <div class="nav-submenu" id="admin-applications-submenu">
+                <a href="{{ route('admin.applications.index') }}"
+                   class="nav-link {{ request()->routeIs('admin.applications.*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-users"></i> {{ __('Applicants') }}
+                </a>
+                <a href="{{ route('admin.additional-requirements.index') }}"
+                   class="nav-link {{ request()->routeIs('admin.additional-requirements.*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-folder-plus"></i> {{ __('Requirements') }}
+                </a>
+                <a href="{{ route('admin.masterlist.index') }}"
+                   class="nav-link {{ request()->routeIs('admin.masterlist.*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-list-check"></i> {{ __('Final List of Batch') }} {{ $applicationBatchYear }}
+                </a>
+            </div>
+        </div>
         <a href="{{ route('admin.users') }}"
            class="nav-link {{ request()->routeIs('admin.users') ? 'active' : '' }}">
-            <i class="fa-solid fa-users"></i> Users
+            <i class="fa-solid fa-users"></i> {{ __('Users') }}
         </a>
-
-        <div class="nav-section">Settings</div>
-        <a href="{{ route('admin.settings') }}"
-           class="nav-link {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
-            <i class="fa-solid fa-calendar-days"></i> Schedule
-        </a>
-        <a href="{{ route('admin.applications.index') }}"
-           class="nav-link {{ request()->routeIs('admin.applications.index') && request()->has('export') ? 'active' : '' }}">
-            <i class="fa-solid fa-file-excel"></i> Download Excel
-        </a>
-        <a href="{{ route('admin.masterlist.index') }}"
-           class="nav-link {{ request()->routeIs('admin.masterlist.*') ? 'active' : '' }}">
-            <i class="fa-solid fa-list-check"></i> Approve Candidate
-        </a>
-        <a href="{{ route('admin.news.index') }}"
-           class="nav-link {{ request()->routeIs('admin.news.*') ? 'active' : '' }}">
-            <i class="fa-solid fa-newspaper"></i> News
+        @php
+            $statisticsAuditNavActive = request()->routeIs([
+                'admin.statistics-report',
+                'admin.applicant-audit.*',
+            ]);
+            $announcementsNavActive = request()->routeIs([
+                'admin.settings',
+                'admin.news.*',
+                'admin.appointments.*',
+            ]);
+            $adminSettingsNavActive = request()->routeIs([
+                'admin.preferences',
+                'admin.manual',
+                'admin.security',
+                'admin.backup.*',
+            ]);
+        @endphp
+        <div class="nav-group {{ $statisticsAuditNavActive ? 'is-open' : '' }}" data-admin-nav-group>
+            <button
+                type="button"
+                class="nav-link nav-group-toggle {{ $statisticsAuditNavActive ? 'is-active' : '' }}"
+                aria-expanded="{{ $statisticsAuditNavActive ? 'true' : 'false' }}"
+                aria-controls="admin-statistics-audit-submenu"
+                data-admin-nav-toggle
+            >
+                <i class="fa-solid fa-chart-line"></i> {{ __('Statistics & Audit') }}
+                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+            </button>
+            <div class="nav-submenu" id="admin-statistics-audit-submenu">
+                <a href="{{ route('admin.statistics-report') }}"
+                   class="nav-link {{ request()->routeIs('admin.statistics-report') ? 'active' : '' }}">
+                    <i class="fa-solid fa-chart-bar"></i> {{ __('Statistics Report') }}
+                </a>
+                @can('viewApplicantAudit')
+                    <a href="{{ route('admin.applicant-audit.index') }}"
+                       class="nav-link {{ request()->routeIs('admin.applicant-audit.index', 'admin.applicant-audit.show', 'admin.applicant-audit.event', 'admin.applicant-audit.status-history') ? 'active' : '' }}">
+                        <i class="fa-solid fa-user-clock"></i> {{ __('Applicant Audit') }}
+                    </a>
+                @endcan
+            </div>
+        </div>
+        <div class="nav-group {{ $announcementsNavActive ? 'is-open' : '' }}" data-admin-nav-group>
+            <button
+                type="button"
+                class="nav-link nav-group-toggle {{ $announcementsNavActive ? 'is-active' : '' }}"
+                aria-expanded="{{ $announcementsNavActive ? 'true' : 'false' }}"
+                aria-controls="admin-announcements-submenu"
+                data-admin-nav-toggle
+            >
+                <i class="fa-solid fa-bullhorn"></i> {{ __('Announcements') }}
+                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+            </button>
+            <div class="nav-submenu" id="admin-announcements-submenu">
+                <a href="{{ route('admin.appointments.index') }}"
+                   class="nav-link {{ request()->routeIs('admin.appointments.*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-calendar-check"></i> {{ __('Appointments') }}
+                </a>
+                <a href="{{ route('admin.news.index') }}"
+                   class="nav-link {{ request()->routeIs('admin.news.*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-newspaper"></i> {{ __('News') }}
+                </a>
+                <a href="{{ route('admin.settings') }}"
+                   class="nav-link {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
+                    <i class="fa-solid fa-calendar-days"></i> {{ __('Schedule') }}
+                </a>
+            </div>
+        </div>
+        <a href="{{ route('admin.preferences') }}"
+           class="nav-link {{ $adminSettingsNavActive ? 'active' : '' }}">
+            <i class="fa-solid fa-sliders"></i> {{ __('Settings') }}
         </a>
     </nav>
 
@@ -321,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="btn-logout" style="width:100%; justify-content:center;">
-                <i class="fa-solid fa-right-from-bracket"></i> Log Out
+                <i class="fa-solid fa-right-from-bracket"></i> {{ __('Log Out') }}
             </button>
         </form>
     </div>
@@ -334,20 +533,20 @@ document.addEventListener('DOMContentLoaded', function(){
             <i class="fa-solid fa-bars"></i>
         </button>
         <div class="topbar-left">
-            <h1>@yield('page-title', 'Admin Panel')</h1>
-            <p>@yield('page-sub', 'SPES Management System')</p>
+            <h1>@yield('page-title', __('Admin Panel'))</h1>
+            <p>@yield('page-sub', __('SPES Management System'))</p>
         </div>
     </div>
         <div class="topbar-right">
         <div class="topbar-date-pill">
             <i class="fa-solid fa-calendar-days"></i>
             <div>
-                <div>{{ now()->format('F j, Y') }}</div>
-                <small>{{ now()->format('l') }}</small>
+                <div>{{ now()->translatedFormat('F j, Y') }}</div>
+                <small>{{ now()->translatedFormat('l') }}</small>
             </div>
         </div>
         <div class="notif">
-            <div class="bell" id="notifBell" title="Notifications">
+            <div class="bell" id="notifBell" title="{{ __('Notifications') }}" aria-label="{{ __('Notifications') }}">
                 <i class="fa-solid fa-bell" style="color:var(--primary);"></i>
                 @php $unread = auth()->user()->unreadNotifications->count(); @endphp
                 @if($unread > 0)
@@ -361,14 +560,14 @@ document.addEventListener('DOMContentLoaded', function(){
                         <div class="notif-item" data-id="{{ $n->id }}">
                             <div style="width:36px;height:36px;border-radius:8px;background:#eef7ff;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-info" style="color:#1e6fb3"></i></div>
                             <div class="meta">
-                                <div style="font-weight:700;">{{ $n->data['message'] ?? 'Notification' }}</div>
+                                <div style="font-weight:700;">{{ __($n->data['message'] ?? 'Notification') }}</div>
                                 <div style="font-size:.8rem;color:#6b7680;margin-top:4px;">{{ optional($n->created_at)->diffForHumans() }}</div>
                             </div>
                         </div>
                     @endforeach
-                    <div style="padding:10px;text-align:center;border-top:1px solid #f1f5f6;"><a href="#" id="markAllRead" style="color:var(--primary);text-decoration:none;font-weight:700;">Mark all as read</a></div>
+                    <div style="padding:10px;text-align:center;border-top:1px solid #f1f5f6;"><a href="#" id="markAllRead" style="color:var(--primary);text-decoration:none;font-weight:700;">{{ __('Mark all as read') }}</a></div>
                 @else
-                    <div class="notif-empty">No new notifications</div>
+                    <div class="notif-empty">{{ __('No new notifications') }}</div>
                 @endif
             </div>
         </div>
@@ -403,5 +602,210 @@ document.addEventListener('DOMContentLoaded', function(){
 </footer>
 
 @yield('scripts')
+@if(session('approval_limit_notice'))
+    <aside class="approval-limit-toast" role="alert" aria-live="assertive" data-approval-limit-toast>
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+        <div class="approval-limit-toast-copy">
+            <strong>SPES approval limit reached</strong>
+            <p>{{ session('approval_limit_notice') }}</p>
+        </div>
+        <button type="button" aria-label="Dismiss approval limit notice" data-dismiss-approval-limit><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </aside>
+    <script>
+        (() => {
+            const toast = document.querySelector('[data-approval-limit-toast]');
+            if (!toast) return;
+            toast.querySelector('[data-dismiss-approval-limit]').addEventListener('click', () => toast.remove());
+            window.setTimeout(() => toast.remove(), 12000);
+        })();
+    </script>
+@endif
+<div class="admin-confirm-backdrop" data-admin-confirm-backdrop hidden>
+    <section class="admin-confirm-dialog" data-admin-confirm-dialog data-kind="save" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-title" aria-describedby="admin-confirm-copy" tabindex="-1">
+        <div class="admin-confirm-top">
+            <span class="admin-confirm-icon" aria-hidden="true"><i class="fa-solid fa-circle-question" data-admin-confirm-icon></i></span>
+            <h2 id="admin-confirm-title" data-admin-confirm-title>Confirm changes</h2>
+        </div>
+        <p class="admin-confirm-copy" id="admin-confirm-copy" data-admin-confirm-copy>Are you sure you want to save your changes?</p>
+        <div class="admin-confirm-actions">
+            <button type="button" data-admin-confirm-cancel>Keep editing</button>
+            <button type="button" data-admin-confirm>Save changes</button>
+        </div>
+    </section>
+</div>
+<script>
+    (() => {
+        const backdrop = document.querySelector('[data-admin-confirm-backdrop]');
+        const dialog = backdrop?.querySelector('[data-admin-confirm-dialog]');
+        if (!backdrop || !dialog) return;
+
+        const title = dialog.querySelector('[data-admin-confirm-title]');
+        const copy = dialog.querySelector('[data-admin-confirm-copy]');
+        const icon = dialog.querySelector('[data-admin-confirm-icon]');
+        const confirmButton = dialog.querySelector('[data-admin-confirm]');
+        const cancelButton = dialog.querySelector('[data-admin-confirm-cancel]');
+        const formStates = new Map();
+        const approvedForms = new WeakSet();
+        const bypassCancelActions = new WeakSet();
+        let activeAction = null;
+        let returnFocus = null;
+        let allowUnload = false;
+
+        const fieldSignature = (form) => Array.from(form.elements)
+            .filter((field) => {
+                if (field.disabled || ['button', 'submit', 'reset', 'image'].includes(field.type)) return false;
+                if (field.type === 'hidden' && ['_token', '_method'].includes(field.name)) return false;
+                return true;
+            })
+            .map((field) => {
+                if (field.type === 'checkbox' || field.type === 'radio') {
+                    return [field.name, field.type, field.value, field.checked];
+                }
+                if (field.type === 'file') {
+                    return [field.name, Array.from(field.files, (file) => [file.name, file.size, file.lastModified])];
+                }
+                if (field instanceof HTMLSelectElement && field.multiple) {
+                    return [field.name, Array.from(field.selectedOptions, (option) => option.value)];
+                }
+                return [field.name, field.value];
+            });
+
+        const dirtyForms = () => Array.from(formStates.keys()).filter((form) => {
+            const initial = formStates.get(form);
+            return form.isConnected && JSON.stringify(fieldSignature(form)) !== initial;
+        });
+
+        document.querySelectorAll('.page-content form[method]').forEach((form) => {
+            if (form.dataset.unsavedGuard === 'off') return;
+            const method = (form.querySelector('input[name="_method"]')?.value || form.method).toLowerCase();
+            if (method === 'get' || method === 'delete') return;
+            if (form.getAttribute('onsubmit')?.includes('confirm(')) return;
+            formStates.set(form, JSON.stringify(fieldSignature(form)));
+        });
+
+        const closeDialog = () => {
+            backdrop.hidden = true;
+            activeAction = null;
+            returnFocus?.focus();
+        };
+
+        const openDialog = (kind, action, trigger) => {
+            activeAction = action;
+            returnFocus = trigger || document.activeElement;
+            dialog.dataset.kind = kind;
+
+            if (kind === 'save') {
+                title.textContent = 'Confirm changes';
+                copy.textContent = 'Are you sure you want to save your changes?';
+                icon.className = 'fa-solid fa-circle-question';
+                confirmButton.textContent = 'Save changes';
+                cancelButton.textContent = 'Keep editing';
+            } else {
+                title.textContent = 'Leave without saving?';
+                copy.textContent = 'You have unsaved changes. If you leave this page or cancel editing, those changes will be lost.';
+                icon.className = 'fa-solid fa-triangle-exclamation';
+                confirmButton.textContent = 'Discard changes';
+                cancelButton.textContent = 'Stay and keep editing';
+            }
+
+            backdrop.hidden = false;
+            cancelButton.focus();
+        };
+
+        document.addEventListener('submit', (event) => {
+            const form = event.target;
+            if (!formStates.has(form)) return;
+            if (approvedForms.has(form)) {
+                approvedForms.delete(form);
+                return;
+            }
+
+            if (JSON.stringify(fieldSignature(form)) === formStates.get(form)) return;
+            event.preventDefault();
+            openDialog('save', () => {
+                if (!form.reportValidity()) return;
+                approvedForms.add(form);
+                allowUnload = true;
+                if (event.submitter) {
+                    form.requestSubmit(event.submitter);
+                } else {
+                    form.requestSubmit();
+                }
+                window.setTimeout(() => {
+                    approvedForms.delete(form);
+                    allowUnload = false;
+                }, 0);
+            }, event.submitter);
+        }, true);
+
+        document.addEventListener('click', (event) => {
+            const cancelControl = event.target.closest('[data-unsaved-cancel]');
+            if (cancelControl) {
+                if (bypassCancelActions.has(cancelControl)) {
+                    bypassCancelActions.delete(cancelControl);
+                    return;
+                }
+                const form = document.getElementById(cancelControl.dataset.unsavedCancel);
+                if (form && formStates.has(form)
+                    && JSON.stringify(fieldSignature(form)) !== formStates.get(form)) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    openDialog('leave', () => {
+                        bypassCancelActions.add(cancelControl);
+                        cancelControl.click();
+                    }, cancelControl);
+                    return;
+                }
+            }
+
+            if (event.defaultPrevented || event.button !== 0
+                || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+            const link = event.target.closest('a[href]');
+            if (!link || (link.target && link.target !== '_self') || link.hasAttribute('download')) return;
+            if (!dirtyForms().length) return;
+
+            const destination = new URL(link.href, window.location.href);
+            if (destination.href === window.location.href
+                || (destination.hash && destination.pathname === window.location.pathname
+                    && destination.search === window.location.search)) return;
+
+            event.preventDefault();
+            openDialog('leave', () => {
+                allowUnload = true;
+                window.location.assign(destination.href);
+            }, link);
+        }, true);
+
+        confirmButton.addEventListener('click', () => {
+            const action = activeAction;
+            closeDialog();
+            action?.();
+        });
+
+        cancelButton.addEventListener('click', closeDialog);
+        backdrop.addEventListener('click', (event) => {
+            if (event.target === backdrop) closeDialog();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (backdrop.hidden) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeDialog();
+            } else if (event.key === 'Tab') {
+                event.preventDefault();
+                (document.activeElement === cancelButton ? confirmButton : cancelButton).focus();
+            }
+        });
+
+        window.addEventListener('beforeunload', (event) => {
+            if (dirtyForms().length && !allowUnload) {
+                event.preventDefault();
+                event.returnValue = '';
+            }
+        });
+    })();
+</script>
 </body>
 </html>
