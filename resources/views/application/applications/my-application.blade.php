@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('My Application') }} — SPES</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -33,7 +32,7 @@
         .nav-link { display:flex; align-items:center; gap:12px; color:rgba(255,255,255,.95);
             text-decoration:none; padding:14px 16px; border-radius:12px; font-size:1rem;
             transition:background .18s, transform .08s; margin-bottom:10px; }
-        .nav-link i { width:16px; text-align:center; }
+        .nav-link svg.icon { width:16px; text-align:center; }
         .nav-link:hover { background:rgba(255,255,255,.04); transform:translateX(2px); }
         .nav-link.active { background:rgba(255,255,255,.12); box-shadow:none; font-weight:700; color:#fff; }
         .sidebar-footer { padding:14px 12px; border-top:1px solid rgba(255,255,255,.1); }
@@ -65,12 +64,12 @@
         .detail-value { font-size:var(--type-body); color:var(--type-primary-color); font-weight:600; }
         .doc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
         .doc-item { border:1.5px solid var(--border); border-radius:10px; padding:16px; text-align:center; }
-        .doc-item i { font-size:1.8rem; margin-bottom:8px; display:block; }
+        .doc-item svg.icon { font-size:1.8rem; margin-bottom:8px; display:block; }
         .doc-item .label { font-size:.78rem; font-weight:600; margin-bottom:8px; }
         .doc-item a { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; background:var(--primary); color:#fff; border-radius:6px; font-size:.75rem; text-decoration:none; }
         .comment-box { background:#f5f7fa; border-left:4px solid var(--primary); padding:14px 18px; border-radius:0 8px 8px 0; font-size:.875rem; line-height:1.6; }
         .apply-cta { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:48px 24px; text-align:center; }
-        .apply-cta i { font-size:3.5rem; color:#c8e6c9; margin-bottom:16px; }
+        .apply-cta svg.icon { font-size:3.5rem; color:#c8e6c9; margin-bottom:16px; }
         .apply-cta h3 { font-size:1.25rem; color:var(--primary); margin-bottom:8px; }
         .apply-cta p  { color:var(--text-muted); font-size:.9rem; margin-bottom:20px; }
         .btn-apply { background:var(--primary); color:#fff; padding:13px 28px; border-radius:8px; font-size:.95rem; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:8px; }
@@ -110,12 +109,12 @@
         .btn-form-locked { background:#f5f5f5; color:#bdbdbd; cursor:not-allowed; }
 
         .all-done-banner { margin:0 22px 22px; padding:16px 20px; background:#e8f5e9; border-left:5px solid #43a047; border-radius:0 10px 10px 0; display:flex; align-items:center; gap:14px; }
-        .all-done-banner i { font-size:1.6rem; color:#2e7d32; }
+        .all-done-banner svg.icon { font-size:1.6rem; color:#2e7d32; }
         .all-done-banner h4 { font-size:.95rem; font-weight:700; color:#1b5e20; }
         .all-done-banner p  { font-size:.8rem; color:#388e3c; margin-top:2px; }
         .approved-next-steps { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:18px; margin-bottom:20px; padding:22px; border:1px solid #e7c85b; border-left:5px solid #c99400; border-radius:12px; background:linear-gradient(135deg,#fffbed,#fff); box-shadow:var(--shadow); }
         .approved-next-steps h2 { display:flex; align-items:center; gap:10px; margin-bottom:9px; color:var(--primary-dark); font-size:1.1rem; }
-        .approved-next-steps h2 i { color:#a57900; }
+        .approved-next-steps h2 svg.icon { color:#a57900; }
         .approved-next-steps p { margin-top:7px; color:#514a36; font-size:.88rem; line-height:1.6; }
         .approved-next-steps .proposal-note { color:#695a2e; font-size:.8rem; }
         .approved-next-steps .btn-apply { justify-content:center; min-width:205px; text-align:center; }
@@ -178,7 +177,7 @@
 
 <header class="topbar">
     <div style="display:flex;align-items:center;">
-        <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Toggle applicant navigation') }}"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
+        <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Toggle applicant navigation') }}"><x-icon class="fa-solid fa-bars" aria-hidden="true" /></button>
         <div><h1>{{ __('My Application') }}</h1><p>{{ __('Review your submitted information and documents') }}</p></div>
     </div>
 </header>
@@ -188,28 +187,28 @@
 
     @if(session('success'))
         <div style="background:#e8f5e9;color:#2e7d32;border-left:4px solid #43a047;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
-            <i class="fa-solid fa-circle-check"></i> {{ session('success') }}
+            <x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}
         </div>
     @endif
     @if(session('info'))
         <div style="background:#e3f2fd;color:#1565c0;border-left:4px solid #1e88e5;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
-            <i class="fa-solid fa-circle-info"></i> {{ session('info') }}
+            <x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}
         </div>
     @endif
     @if(session('error'))
         <div style="background:#ffebee;color:#c62828;border-left:4px solid #e53935;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
-            <i class="fa-solid fa-triangle-exclamation"></i> {{ session('error') }}
+            <x-icon class="fa-solid fa-triangle-exclamation" /> {{ session('error') }}
         </div>
     @endif
 
     @if(!$application)
         <div class="card">
             <div class="apply-cta">
-                <i class="fa-solid fa-file-circle-plus"></i>
+                <x-icon class="fa-solid fa-file-circle-plus" />
                 <h2 class="text-section">{{ __('No application yet') }}</h2>
                 <p class="text-secondary">{{ __('You have not submitted a SPES application. Start below when you are ready.') }}</p>
                 <a href="{{ route('applications.create') }}" class="btn-apply">
-                    <i class="fa-solid fa-paper-plane"></i> {{ __('Apply Now') }}
+                    <x-icon class="fa-solid fa-paper-plane" /> {{ __('Apply Now') }}
                 </a>
             </div>
         </div>
@@ -218,13 +217,13 @@
     @if($application->status === 'approved')
         <section class="approved-next-steps" aria-labelledby="approved-next-steps-heading">
             <div>
-                <h2 id="approved-next-steps-heading"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> {{ __('You are a proposed SPES applicant') }}</h2>
+                <h2 id="approved-next-steps-heading"><x-icon class="fa-solid fa-circle-check" aria-hidden="true" /> {{ __('You are a proposed SPES applicant') }}</h2>
                 <p>{{ __('The LGU of Lal-lo has approved your application as a proposed SPES applicant. This is a preliminary step and is not yet final confirmation of program participation.') }}</p>
                 <p>{{ __('To continue, download the forms requested for you, complete and sign them as instructed, then upload a clear photo or scanned copy through the requirements checklist as soon as possible. After submitting the copy online, bring the completed printed forms to the PESO office in Lal-lo and follow the staff’s instructions for the next step. Follow any specific due date or submission instructions posted by PESO.') }}</p>
-                <p class="proposal-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{ __('PESO will review your submitted requirements and provide further updates about your application.') }}</p>
+                <p class="proposal-note"><x-icon class="fa-solid fa-circle-info" aria-hidden="true" /> {{ __('PESO will review your submitted requirements and provide further updates about your application.') }}</p>
             </div>
             <a href="{{ route('applicant.requirements') }}" class="btn-apply">
-                <i class="fa-solid fa-list-check" aria-hidden="true"></i> {{ __('View forms and next steps') }}
+                <x-icon class="fa-solid fa-list-check" aria-hidden="true" /> {{ __('View forms and next steps') }}
             </a>
         </section>
     @endif
@@ -233,7 +232,7 @@
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
         <div>
             <div class="card">
-                <div class="card-header"><h2 class="text-section"><i class="fa-solid fa-id-card" aria-hidden="true"></i> {{ __('Submitted Information') }}</h2></div>
+                <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-id-card" aria-hidden="true" /> {{ __('Submitted Information') }}</h2></div>
                 <div class="detail-grid">
                     <div class="detail-item"><div class="detail-label">{{ __('Full Name') }}</div><div class="detail-value">{{ $application->full_name }}</div></div>
                     <div class="detail-item"><div class="detail-label">{{ __('Sex') }}</div><div class="detail-value">{{ __($application->sex) }}</div></div>
@@ -288,7 +287,7 @@
 
         <div>
             <div class="card">
-                <div class="card-header"><h2 class="text-section"><i class="fa-solid fa-info-circle" aria-hidden="true"></i> {{ __('Submission Details') }}</h2></div>
+                <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-info-circle" aria-hidden="true" /> {{ __('Submission Details') }}</h2></div>
                 <div class="card-body" style="font-size:.875rem;">
                     <p style="margin-bottom:10px;"><strong>{{ __('Reference ID') }}</strong><br><code style="color:var(--primary);">{{ $application->ref_id }}</code></p>
                     <p style="margin-bottom:10px;"><strong>{{ __('Date Submitted') }}</strong><br>{{ $application->created_at->locale(app()->getLocale())->translatedFormat('F d, Y') }}</p>
@@ -297,7 +296,7 @@
 
             @if($application->admin_comment)
             <div class="card">
-                <div class="card-header"><h2 class="text-section"><i class="fa-solid fa-comment-dots" aria-hidden="true"></i> {{ __('Admin Feedback') }}</h2></div>
+                <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-comment-dots" aria-hidden="true" /> {{ __('Admin Feedback') }}</h2></div>
                 <div class="card-body">
                     <div class="comment-box">{{ $application->admin_comment }}</div>
                 </div>
@@ -314,8 +313,8 @@
 <footer style="margin-left:var(--sidebar-w);background:#fff;border-top:1px solid var(--border);padding:14px 24px;font-size:.78rem;color:var(--text-muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <span>&copy; {{ date('Y') }} SPES Management System — PESO LAL-LO</span>
     <span>
-        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><i class="fa-brands fa-facebook"></i> Facebook</a>
-        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><i class="fa-solid fa-envelope"></i> lgulalloinformationoffice@gmail.com</a>
+        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><x-icon class="fa-brands fa-facebook" /> Facebook</a>
+        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><x-icon class="fa-solid fa-envelope" /> lgulalloinformationoffice@gmail.com</a>
     </span>
 </footer>
 <x-portal-help-chat />

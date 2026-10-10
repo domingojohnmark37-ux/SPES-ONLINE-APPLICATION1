@@ -49,6 +49,11 @@ Route::middleware([
             ->orderBy('starts_at')
             ->take(3)
             ->get();
+        $appointmentNotifications = $user->unreadNotifications()
+            ->get()
+            ->filter(fn ($notification): bool => isset($notification->data['appointment_id']))
+            ->take(3)
+            ->values();
         $profile = $user->profile;
         $profileFields = [
             'first_name', 'last_name', 'sex', 'date_of_birth', 'contact_number',
@@ -58,12 +63,29 @@ Route::middleware([
             ? (int) round(collect($profileFields)->filter(fn ($field) => filled($profile->{$field}))->count() / count($profileFields) * 100)
             : 0;
 
-        return view('dashboard', compact('application', 'announcements', 'appointments', 'profileCompletion'));
+        return view('dashboard', compact(
+            'application',
+            'announcements',
+            'appointments',
+            'appointmentNotifications',
+            'profileCompletion',
+        ));
     })->name('dashboard');
 
+    Route::get('/user-guide', function () {
+        $application = \App\Models\Application::query()
+            ->where('user_id', auth()->id())
+            ->latest()
+            ->first();
+
+        return view('applicant.manual', compact('application'));
+    })->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.manual');
+
     Route::get('/recent-notifications', function () {
+        $recentSince = now()->subDay();
         $announcements = \App\Models\News::published()
             ->whereIn('display_on', ['portal', 'both'])
+            ->where('published_at', '>=', $recentSince)
             ->get()
             ->map(fn ($announcement): array => [
                 'id' => null,
@@ -74,14 +96,17 @@ Route::middleware([
             ]);
         $applicationUpdates = auth()->user()->notifications()
             ->get()
-            ->filter(function ($notification): bool {
+            ->filter(function ($notification) use ($recentSince): bool {
                 $data = $notification->data;
                 $title = mb_strtolower((string) ($data['title'] ?? ''));
+                $isUnreadOrRecent = !$notification->read_at || $notification->created_at->greaterThanOrEqualTo($recentSince);
 
-                return in_array($data['status'] ?? null, ['approved', 'denied'], true)
+                return $isUnreadOrRecent && (
+                    in_array($data['status'] ?? null, ['approved', 'denied'], true)
                     || ($data['event'] ?? null) === 'application_feedback'
                     || (isset($data['application_id']) && $title === 'document requirement update')
-                    || isset($data['appointment_id']);
+                    || isset($data['appointment_id'])
+                );
             })
             ->map(fn ($notification): array => [
                 'id' => $notification->id,
@@ -115,22 +140,29 @@ Route::middleware([
     Route::get('/previous-notifications', function () {
         $filter = request()->query('filter', 'all');
         $search = request()->query('search', '');
-        abort_unless(is_string($filter) && in_array($filter, ['all', 'events', 'announcements', 'system'], true), 400);
+        abort_unless(is_string($filter) && in_array($filter, ['all', 'events', 'announcements', 'system', 'archived'], true), 400);
         abort_unless(is_string($search) && mb_strlen($search) <= 120, 400);
 
         $user = auth()->user();
+        $unreadCount = $user->unreadNotifications()->count();
+        $recentSince = now()->subDay();
         $history = $user->notifications()
             ->latest()
             ->get()
-            ->map(function ($notification): array {
+            ->map(function ($notification) use ($recentSince): array {
                 $data = $notification->data;
                 $title = (string) ($data['title'] ?? 'SPES Portal notification');
                 $applicationStatus = in_array($data['status'] ?? null, ['approved', 'denied'], true);
+                $isRecentNotification = $applicationStatus
+                    || ($data['event'] ?? null) === 'application_feedback'
+                    || (isset($data['application_id']) && mb_strtolower($title) === 'document requirement update')
+                    || isset($data['appointment_id']);
                 $category = isset($data['appointment_id']) || str_contains(strtolower($title), 'appointment')
                     ? 'events'
                     : (str_contains(strtolower($title), 'announcement') ? 'announcements' : 'system');
 
                 return [
+                    'id' => $notification->id,
                     'title' => $title,
                     'message' => $data['message'] ?? 'There is a new update in your SPES application.',
                     'category' => $category,
@@ -140,11 +172,13 @@ Route::middleware([
                         ? 'Device: '.$data['device'].(filled($data['ip_address'] ?? null) ? ' · IP: '.$data['ip_address'] : '')
                         : null,
                     'login_activity_id' => $data['login_activity_id'] ?? null,
-                    'read_status' => $applicationStatus
-                        ? ($notification->read_at
-                            ? 'Read on '.$notification->read_at->format('M j, Y · g:i A')
-                            : 'Unread — delivered in-app')
-                        : null,
+                    'read_at' => $notification->read_at,
+                    'read_status' => $notification->read_at
+                        ? __('Read :date', ['date' => $notification->read_at->format('M j, Y · g:i A')])
+                        : ($isRecentNotification ? 'Unread — delivered in-app' : __('Unread')),
+                    'archived_from_recent' => $isRecentNotification
+                        && $notification->read_at !== null
+                        && $notification->created_at->lt($recentSince),
                 ];
             });
 
@@ -165,6 +199,7 @@ Route::middleware([
                 'details' => 'Device: '.\App\Support\DeviceIdentifier::describe($activity->user_agent)
                     .(filled($activity->ip_address) ? ' · IP: '.$activity->ip_address : ''),
                 'login_activity_id' => $activity->id,
+                'archived_from_recent' => false,
             ]);
 
         $announcementHistory = \App\Models\News::published()
@@ -172,10 +207,11 @@ Route::middleware([
             ->get()
             ->map(fn ($announcement): array => [
                 'title' => $announcement->title,
-                'message' => \Illuminate\Support\Str::limit(strip_tags($announcement->content), 220),
+                'message' => html_entity_decode(strip_tags($announcement->content), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
                 'category' => 'announcements',
                 'date' => $announcement->published_at,
                 'location' => null,
+                'archived_from_recent' => $announcement->published_at->lt($recentSince),
             ]);
 
         $appointmentHistory = \App\Models\Appointment::where('is_published', true)
@@ -188,6 +224,7 @@ Route::middleware([
                 'category' => 'events',
                 'date' => $appointment->starts_at,
                 'location' => $appointment->location,
+                'archived_from_recent' => false,
             ]);
 
         $accountHistory = collect([[
@@ -196,6 +233,7 @@ Route::middleware([
             'category' => 'system',
             'date' => $user->created_at,
             'location' => null,
+            'archived_from_recent' => false,
         ]]);
 
         $notifications = $history
@@ -203,7 +241,11 @@ Route::middleware([
             ->concat($announcementHistory)
             ->concat($appointmentHistory)
             ->concat($accountHistory)
-            ->when($filter !== 'all', fn ($items) => $items->where('category', $filter))
+            ->when(
+                $filter === 'archived',
+                fn ($items) => $items->where('archived_from_recent', true),
+                fn ($items) => $filter !== 'all' ? $items->where('category', $filter) : $items
+            )
             ->when($search !== '', function ($items) use ($search) {
                 $term = mb_strtolower($search);
 
@@ -217,7 +259,7 @@ Route::middleware([
             ->sortByDesc(fn (array $item) => $item['date']->getTimestamp())
             ->values();
 
-        return view('applicant.previous-notifications', compact('notifications', 'filter', 'search'));
+        return view('applicant.previous-notifications', compact('notifications', 'filter', 'search', 'unreadCount'));
     })->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.notifications.previous');
 
     Route::get('/appointments', function () {
@@ -265,6 +307,8 @@ Route::middleware([
 
     // Notification endpoints (mark read)
     Route::post('/notifications/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/{id}/unread', [\App\Http\Controllers\NotificationController::class, 'markAsUnread'])->name('notifications.unread');
+    Route::delete('/notifications/{id}', [\App\Http\Controllers\NotificationController::class, 'dismiss'])->name('notifications.dismiss');
     Route::post('/notifications/mark-all', [\App\Http\Controllers\NotificationController::class, 'markAllRead'])->name('notifications.readAll');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -291,14 +335,7 @@ Route::middleware([
     Route::post('/settings/devices/logout', [\App\Http\Controllers\ApplicantSettingsController::class, 'logoutOtherDevices'])->name('settings.logout-other-devices');
     Route::get('/settings/{document}', [\App\Http\Controllers\ApplicantSettingsController::class, 'document'])->where('document', 'privacy-policy|data-privacy-notice')->name('settings.document');
 
-    Route::get('/updates', function () {
-        if (!auth()->user()->applications()->where('status', 'approved')->exists()) {
-            return redirect()->route('dashboard')->with('info', 'Updates are available after your application is approved.');
-        }
-
-        $updates = \App\Models\News::published()->whereIn('display_on', ['portal', 'both'])->get();
-        return view('updates', compact('updates'));
-    })->name('updates');
+    Route::get('/updates', fn () => redirect()->route('applicant.notifications.recent'))->name('updates');
 
     // Application
     Route::get('/apply',           [ApplicationController::class, 'create'])->name('applications.create');
@@ -319,6 +356,8 @@ Route::middleware([
         ->name('applications.document.stream');
     Route::get('/applications/{application}/additional-requirements/{additionalRequirement}/document', [ApplicantRequirementsController::class, 'viewDocument'])
         ->name('applications.additional-requirements.document');
+    Route::get('/applications/{application}/additional-requirements/{additionalRequirement}/submissions/{submission}', [ApplicantRequirementsController::class, 'viewSubmission'])
+        ->name('applications.additional-requirements.submission');
 });
 
 Route::middleware([
@@ -408,6 +447,9 @@ Route::middleware(['auth', 'admin', 'admin.preferences', \App\Http\Middleware\Tr
         ->name('applicant-audit.event');
     Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
+    Route::post('/settings/email-test', [SettingsController::class, 'sendTestEmail'])
+        ->middleware('throttle:3,1')
+        ->name('settings.email-test');
     Route::get('/settings/preferences', [AdminSettingsFeatureController::class, 'preferences'])->name('preferences');
     Route::put('/settings/preferences', [AdminSettingsFeatureController::class, 'updatePreferences'])->name('preferences.update');
     Route::get('/manual', [AdminSettingsFeatureController::class, 'manual'])->name('manual');

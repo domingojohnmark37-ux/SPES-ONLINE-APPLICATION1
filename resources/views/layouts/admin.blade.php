@@ -11,7 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', __('Admin')) — {{ __('SPES Management System') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -69,8 +69,8 @@
                 padding-left: 6px;
                 font-size: 0;
             }
-            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav > .nav-link i,
-            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-group-toggle i:first-child {
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav > .nav-link svg.icon,
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-group-toggle svg.icon:first-child {
                 flex: 0 0 auto;
                 font-size: .95rem;
             }
@@ -78,7 +78,7 @@
             html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-section,
             html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-nav .nav-submenu { display: none; }
             html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-footer .btn-logout { justify-content: center; gap: 0; font-size: 0; }
-            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-footer .btn-logout i { font-size: .95rem; }
+            html[data-admin-sidebar="collapsed"]:not([data-admin-sidebar-open="true"]) .sidebar-footer .btn-logout svg.icon { font-size: .95rem; }
         }
 
         body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -108,10 +108,10 @@
             padding: 11px 12px; border-radius: 8px; font-size: .9rem;
             transition: background .2s, color .2s; margin-bottom: 2px;
         }
-        .nav-link i { width: 18px; text-align: center; font-size: .95rem; }
+        .nav-link svg.icon { width: 18px; text-align: center; font-size: .95rem; }
         .nav-link:hover { background: rgba(255,255,255,.1); color: #fff; }
         .nav-link.active { background: var(--accent); color: var(--primary-dark); font-weight: 600; }
-        .nav-link.active i { color: var(--primary-dark); }
+        .nav-link.active svg.icon { color: var(--primary-dark); }
         .nav-group { display:flex; flex-direction:column; }
         .nav-group-toggle {
             width:100%;
@@ -204,13 +204,26 @@
         .stat-label { font-size: .78rem; color: var(--text-muted); margin-top: 3px; }
 
         /* ── Table ────────────────────────────────────────── */
-        .table-wrap { overflow-x: auto; }
+        .table-wrap {
+            max-height: min(68vh, 720px);
+            overflow: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+        }
         table { width: 100%; border-collapse: collapse; font-size: .875rem; }
         thead { background: #f5f7fa; }
         th { padding: 12px 16px; text-align: left; font-weight: 600; color: var(--text-muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
-        td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .table-wrap thead th { position: sticky; top: 0; z-index: 2; background: var(--white); }
+        td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; overflow-wrap: anywhere; word-break: normal; }
+        .table-wrap td .btn { white-space: nowrap; }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: #fafafa; }
+        @media (max-width: 600px) {
+            .table-wrap table { min-width: 640px; }
+            .table-wrap { max-height: min(62vh, 620px); }
+        }
 
         /* ── Badges ───────────────────────────────────────── */
         .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
@@ -257,7 +270,7 @@
         @media(prefers-reduced-motion:reduce) { .admin-confirm-dialog { animation:none; } }
         .approval-limit-toast { position:fixed; right:24px; bottom:24px; z-index:1450; display:flex; width:min(460px,calc(100vw - 32px)); align-items:flex-start; gap:13px; padding:17px 18px; border:1px solid rgba(198,40,40,.2); border-left:5px solid var(--danger); border-radius:12px; background:var(--white); color:var(--text); box-shadow:0 16px 45px rgba(17,24,39,.22); animation:admin-confirm-in .2s ease-out; }
         .approval-limit-toast[hidden] { display:none; }
-        .approval-limit-toast > i { margin-top:2px; color:var(--danger); font-size:1.1rem; }
+        .approval-limit-toast > svg.icon { margin-top:2px; color:var(--danger); font-size:1.1rem; }
         .approval-limit-toast-copy { flex:1; min-width:0; }
         .approval-limit-toast-copy strong { display:block; margin-bottom:4px; font-size:.92rem; }
         .approval-limit-toast-copy p { color:var(--text-muted); font-size:.82rem; line-height:1.5; }
@@ -371,13 +384,15 @@ document.addEventListener('DOMContentLoaded', function(){
         markAll.addEventListener('click', function(e){
             e.preventDefault();
             fetch('{{ route('notifications.readAll') }}', { method: 'POST', headers: {'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } })
-            .then(()=>{
+            .then((response)=>{
+                if (!response.ok) throw new Error('Could not mark notifications as read.');
                 document.getElementById('notifCount')?.remove();
                 const emptyMessage = document.createElement('div');
                 emptyMessage.className = 'notif-empty';
                 emptyMessage.textContent = @json(__('No new notifications'));
                 dd.replaceChildren(emptyMessage);
             })
+            .catch((error)=>console.error(error));
         });
     }
     // mark single notification when clicked
@@ -386,7 +401,13 @@ document.addEventListener('DOMContentLoaded', function(){
         if (!item) return;
         const id = item.getAttribute('data-id');
         fetch('/notifications/'+id+'/read', { method:'POST', headers:{'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } })
-        .then(()=> { item.remove(); const cnt = document.getElementById('notifCount'); if (cnt) { let v = parseInt(cnt.innerText)-1; if (v<=0) cnt.remove(); else cnt.innerText = v; } });
+        .then((response)=> {
+            if (!response.ok) throw new Error('Could not mark notification as read.');
+            item.remove();
+            const cnt = document.getElementById('notifCount');
+            if (cnt) { let v = parseInt(cnt.innerText)-1; if (v<=0) cnt.remove(); else cnt.innerText = v; }
+        })
+        .catch((error)=>console.error(error));
     });
 });
 </script>
@@ -403,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function(){
     <nav class="sidebar-nav">
         <a href="{{ route('admin.dashboard') }}"
            class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-            <i class="fa-solid fa-chart-pie"></i> {{ __('Dashboard') }}
+            <x-icon class="fa-solid fa-chart-pie" /> {{ __('Dashboard') }}
         </a>
 
         @php
@@ -421,27 +442,27 @@ document.addEventListener('DOMContentLoaded', function(){
                 aria-controls="admin-applications-submenu"
                 data-admin-nav-toggle
             >
-                <i class="fa-solid fa-file-lines"></i> {{ __('Applications') }}
-                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-file-lines" /> {{ __('Applications') }}
+                <x-icon class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true" />
             </button>
             <div class="nav-submenu" id="admin-applications-submenu">
                 <a href="{{ route('admin.applications.index') }}"
                    class="nav-link {{ request()->routeIs('admin.applications.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-users"></i> {{ __('Applicants') }}
+                    <x-icon class="fa-solid fa-users" /> {{ __('Applicants') }}
                 </a>
                 <a href="{{ route('admin.additional-requirements.index') }}"
                    class="nav-link {{ request()->routeIs('admin.additional-requirements.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-folder-plus"></i> {{ __('Requirements') }}
+                    <x-icon class="fa-solid fa-folder-plus" /> {{ __('Requirements') }}
                 </a>
                 <a href="{{ route('admin.masterlist.index') }}"
                    class="nav-link {{ request()->routeIs('admin.masterlist.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-list-check"></i> {{ __('Final List of Batch') }} {{ $applicationBatchYear }}
+                    <x-icon class="fa-solid fa-list-check" /> {{ __('Final List of Batch') }} {{ $applicationBatchYear }}
                 </a>
             </div>
         </div>
         <a href="{{ route('admin.users') }}"
            class="nav-link {{ request()->routeIs('admin.users') ? 'active' : '' }}">
-            <i class="fa-solid fa-users"></i> {{ __('Users') }}
+            <x-icon class="fa-solid fa-users" /> {{ __('Users') }}
         </a>
         @php
             $statisticsAuditNavActive = request()->routeIs([
@@ -468,18 +489,18 @@ document.addEventListener('DOMContentLoaded', function(){
                 aria-controls="admin-statistics-audit-submenu"
                 data-admin-nav-toggle
             >
-                <i class="fa-solid fa-chart-line"></i> {{ __('Statistics & Audit') }}
-                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-chart-line" /> {{ __('Statistics & Audit') }}
+                <x-icon class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true" />
             </button>
             <div class="nav-submenu" id="admin-statistics-audit-submenu">
                 <a href="{{ route('admin.statistics-report') }}"
                    class="nav-link {{ request()->routeIs('admin.statistics-report') ? 'active' : '' }}">
-                    <i class="fa-solid fa-chart-bar"></i> {{ __('Statistics Report') }}
+                    <x-icon class="fa-solid fa-chart-bar" /> {{ __('Statistics Report') }}
                 </a>
                 @can('viewApplicantAudit')
                     <a href="{{ route('admin.applicant-audit.index') }}"
                        class="nav-link {{ request()->routeIs('admin.applicant-audit.index', 'admin.applicant-audit.show', 'admin.applicant-audit.event', 'admin.applicant-audit.status-history') ? 'active' : '' }}">
-                        <i class="fa-solid fa-user-clock"></i> {{ __('Applicant Audit') }}
+                        <x-icon class="fa-solid fa-user-clock" /> {{ __('Applicant Audit') }}
                     </a>
                 @endcan
             </div>
@@ -492,27 +513,27 @@ document.addEventListener('DOMContentLoaded', function(){
                 aria-controls="admin-announcements-submenu"
                 data-admin-nav-toggle
             >
-                <i class="fa-solid fa-bullhorn"></i> {{ __('Announcements') }}
-                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-bullhorn" /> {{ __('Announcements') }}
+                <x-icon class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true" />
             </button>
             <div class="nav-submenu" id="admin-announcements-submenu">
                 <a href="{{ route('admin.appointments.index') }}"
                    class="nav-link {{ request()->routeIs('admin.appointments.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-calendar-check"></i> {{ __('Appointments') }}
+                    <x-icon class="fa-solid fa-calendar-check" /> {{ __('Appointments') }}
                 </a>
                 <a href="{{ route('admin.news.index') }}"
                    class="nav-link {{ request()->routeIs('admin.news.*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-newspaper"></i> {{ __('News') }}
+                    <x-icon class="fa-solid fa-newspaper" /> {{ __('News') }}
                 </a>
                 <a href="{{ route('admin.settings') }}"
                    class="nav-link {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
-                    <i class="fa-solid fa-calendar-days"></i> {{ __('Schedule') }}
+                    <x-icon class="fa-solid fa-calendar-days" /> {{ __('Schedule') }}
                 </a>
             </div>
         </div>
         <a href="{{ route('admin.preferences') }}"
            class="nav-link {{ $adminSettingsNavActive ? 'active' : '' }}">
-            <i class="fa-solid fa-sliders"></i> {{ __('Settings') }}
+            <x-icon class="fa-solid fa-sliders" /> {{ __('Settings') }}
         </a>
     </nav>
 
@@ -520,7 +541,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="btn-logout" style="width:100%; justify-content:center;">
-                <i class="fa-solid fa-right-from-bracket"></i> {{ __('Log Out') }}
+                <x-icon class="fa-solid fa-right-from-bracket" /> {{ __('Log Out') }}
             </button>
         </form>
     </div>
@@ -530,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function(){
 <header class="topbar">
     <div style="display:flex;align-items:center;gap:14px;">
         <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">
-            <i class="fa-solid fa-bars"></i>
+            <x-icon class="fa-solid fa-bars" />
         </button>
         <div class="topbar-left">
             <h1>@yield('page-title', __('Admin Panel'))</h1>
@@ -539,7 +560,7 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
         <div class="topbar-right">
         <div class="topbar-date-pill">
-            <i class="fa-solid fa-calendar-days"></i>
+            <x-icon class="fa-solid fa-calendar-days" />
             <div>
                 <div>{{ now()->translatedFormat('F j, Y') }}</div>
                 <small>{{ now()->translatedFormat('l') }}</small>
@@ -547,7 +568,7 @@ document.addEventListener('DOMContentLoaded', function(){
         </div>
         <div class="notif">
             <div class="bell" id="notifBell" title="{{ __('Notifications') }}" aria-label="{{ __('Notifications') }}">
-                <i class="fa-solid fa-bell" style="color:var(--primary);"></i>
+                <x-icon class="fa-solid fa-bell" style="color:var(--primary);" />
                 @php $unread = auth()->user()->unreadNotifications->count(); @endphp
                 @if($unread > 0)
                     <div class="count" id="notifCount">{{ $unread }}</div>
@@ -557,21 +578,21 @@ document.addEventListener('DOMContentLoaded', function(){
                 @php $notes = auth()->user()->unreadNotifications->take(8); @endphp
                 @if($notes->count())
                     @foreach($notes as $n)
-                        <div class="notif-item" data-id="{{ $n->id }}">
-                            <div style="width:36px;height:36px;border-radius:8px;background:#eef7ff;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-info" style="color:#1e6fb3"></i></div>
+                        <div class="notif-item" data-id="{{ $n->id }}" data-request-loading data-loading-label="Marking as read...">
+                            <div style="width:36px;height:36px;border-radius:8px;background:#eef7ff;display:flex;align-items:center;justify-content:center;"><x-icon class="fa-solid fa-info" style="color:#1e6fb3" /></div>
                             <div class="meta">
                                 <div style="font-weight:700;">{{ __($n->data['message'] ?? 'Notification') }}</div>
                                 <div style="font-size:.8rem;color:#6b7680;margin-top:4px;">{{ optional($n->created_at)->diffForHumans() }}</div>
                             </div>
                         </div>
                     @endforeach
-                    <div style="padding:10px;text-align:center;border-top:1px solid #f1f5f6;"><a href="#" id="markAllRead" style="color:var(--primary);text-decoration:none;font-weight:700;">{{ __('Mark all as read') }}</a></div>
+                    <div style="padding:10px;text-align:center;border-top:1px solid #f1f5f6;"><button type="button" id="markAllRead" data-request-loading data-loading-label="Marking as read..." style="border:0;background:transparent;color:var(--primary);font:inherit;font-weight:700;cursor:pointer;">{{ __('Mark all as read') }}</button></div>
                 @else
                     <div class="notif-empty">{{ __('No new notifications') }}</div>
                 @endif
             </div>
         </div>
-        <span class="topbar-user"><i class="fa-solid fa-circle-user" style="color:var(--primary)"></i> {{ Auth::user()->name }}</span>
+        <span class="topbar-user"><x-icon class="fa-solid fa-circle-user" style="color:var(--primary)" /> {{ Auth::user()->name }}</span>
     </div>
 </header>
 
@@ -579,13 +600,13 @@ document.addEventListener('DOMContentLoaded', function(){
 <div class="page-wrapper">
     <div class="page-content">
         @if(session('success'))
-            <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ session('success') }}</div>
+            <div class="alert alert-success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
         @endif
         @if(session('error'))
-            <div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> {{ session('error') }}</div>
+            <div class="alert alert-danger"><x-icon class="fa-solid fa-circle-xmark" /> {{ session('error') }}</div>
         @endif
         @if(session('info'))
-            <div class="alert alert-info"><i class="fa-solid fa-circle-info"></i> {{ session('info') }}</div>
+            <div class="alert alert-info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
         @endif
 
         @yield('content')
@@ -596,20 +617,20 @@ document.addEventListener('DOMContentLoaded', function(){
 <footer style="margin-left:var(--sidebar-w);background:#fff;border-top:1px solid var(--border);padding:14px 28px;font-size:.78rem;color:var(--text-muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <span>&copy; {{ date('Y') }} SPES Management System — PESO LAL-LO</span>
     <span>
-        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><i class="fa-brands fa-facebook"></i> Facebook</a>
-        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><i class="fa-solid fa-envelope"></i> lgulalloinformationoffice@gmail.com</a>
+        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><x-icon class="fa-brands fa-facebook" /> Facebook</a>
+        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><x-icon class="fa-solid fa-envelope" /> lgulalloinformationoffice@gmail.com</a>
     </span>
 </footer>
 
 @yield('scripts')
 @if(session('approval_limit_notice'))
     <aside class="approval-limit-toast" role="alert" aria-live="assertive" data-approval-limit-toast>
-        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+        <x-icon class="fa-solid fa-triangle-exclamation" aria-hidden="true" />
         <div class="approval-limit-toast-copy">
             <strong>SPES approval limit reached</strong>
             <p>{{ session('approval_limit_notice') }}</p>
         </div>
-        <button type="button" aria-label="Dismiss approval limit notice" data-dismiss-approval-limit><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        <button type="button" aria-label="Dismiss approval limit notice" data-dismiss-approval-limit><x-icon class="fa-solid fa-xmark" aria-hidden="true" /></button>
     </aside>
     <script>
         (() => {
@@ -623,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function(){
 <div class="admin-confirm-backdrop" data-admin-confirm-backdrop hidden>
     <section class="admin-confirm-dialog" data-admin-confirm-dialog data-kind="save" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-title" aria-describedby="admin-confirm-copy" tabindex="-1">
         <div class="admin-confirm-top">
-            <span class="admin-confirm-icon" aria-hidden="true"><i class="fa-solid fa-circle-question" data-admin-confirm-icon></i></span>
+            <span class="admin-confirm-icon" aria-hidden="true"><x-icon class="fa-solid fa-circle-question" data-admin-confirm-icon /></span>
             <h2 id="admin-confirm-title" data-admin-confirm-title>Confirm changes</h2>
         </div>
         <p class="admin-confirm-copy" id="admin-confirm-copy" data-admin-confirm-copy>Are you sure you want to save your changes?</p>
@@ -807,5 +828,6 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     })();
 </script>
+<script src="{{ asset('js/request-loading.js') }}?v={{ filemtime(public_path('js/request-loading.js')) }}"></script>
 </body>
 </html>

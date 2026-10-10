@@ -11,13 +11,6 @@
             ->filter(fn ($notification): bool => in_array($notification->data['status'] ?? null, ['approved', 'denied'], true))
             ->values()
         : collect();
-    $unreadAppointmentNotifications = $applicant->role === 'user' && request()->routeIs('dashboard')
-        ? $applicant->unreadNotifications()
-            ->get()
-            ->filter(fn ($notification): bool => isset($notification->data['appointment_id']))
-            ->take(3)
-            ->values()
-        : collect();
     $applicantSetting = \App\Models\ApplicantSetting::where('user_id', $applicant->id)->first();
     $applicantAppearance = $applicantSetting->appearance ?? $applicantSetting->theme_preference ?? 'system';
     $applicantLanguage = $applicantSetting->language ?? 'en';
@@ -26,6 +19,10 @@
 @endphp
 
 <x-applicant-text-styles />
+
+@once
+    <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+@endonce
 
 <style>
     html[data-font-size="small"] { font-size:14px; }
@@ -57,9 +54,9 @@
             padding-left:6px;
             font-size:0;
         }
-        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .nav-link i,
-        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-profile-link i,
-        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .btn-logout i {
+        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .nav-link svg.icon,
+        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-profile-link svg.icon,
+        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .btn-logout svg.icon {
             flex:0 0 auto;
             font-size:.95rem;
         }
@@ -202,10 +199,10 @@
         text-decoration:none;
         transition:background .18s, color .18s, transform .08s;
     }
-    .applicant-sidebar .nav-link i { width:18px; text-align:center; }
+    .applicant-sidebar .nav-link svg.icon { width:18px; text-align:center; }
     .applicant-sidebar .nav-link:hover { background:rgba(255,255,255,.08); color:#fff; transform:translateX(2px); }
     .applicant-sidebar .nav-link.active { background:#FFD700; color:#660000; font-weight:700; }
-    .applicant-sidebar .nav-link.active i { color:#660000; }
+    .applicant-sidebar .nav-link.active svg.icon { color:#660000; }
     .applicant-sidebar button.nav-link { border:0; background:transparent; cursor:pointer; font-family:inherit; }
     .applicant-sidebar .nav-group { display:flex; flex-direction:column; }
     .applicant-sidebar .nav-group-toggle { justify-content:flex-start; }
@@ -392,12 +389,15 @@
         <img src="{{ asset('images/welcome_logo.jpg') }}" alt="{{ __('PESO LAL-LO Logo') }}">
         <div><span>{{ __('SPES Portal') }}<small>PESO LAL-LO</small></span></div>
         <button class="sidebar-close" type="button" data-sidebar-close aria-label="Close applicant navigation">
-            <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            <x-icon class="fa-solid fa-chevron-left" aria-hidden="true" />
         </button>
     </div>
     <nav class="sidebar-nav" aria-label="{{ __('Applicant portal') }}">
         <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-            <i class="fa-solid fa-house"></i> {{ __('Dashboard') }}
+            <x-icon class="fa-solid fa-house" /> {{ __('Dashboard') }}
+        </a>
+        <a href="{{ route('applicant.manual') }}" class="nav-link {{ request()->routeIs('applicant.manual') ? 'active' : '' }}">
+            <x-icon class="fa-solid fa-book-open" aria-hidden="true" /> {{ __('User Guide') }}
         </a>
         @php
             $applicationSectionActive = request()->routeIs([
@@ -421,21 +421,21 @@
                 aria-controls="applicant-application-submenu"
                 data-nav-group-toggle
             >
-                <i class="fa-solid fa-file-lines"></i> {{ __('My Application') }}
-                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-file-lines" /> {{ __('My Application') }}
+                <x-icon class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true" />
             </button>
             <div class="nav-submenu" id="applicant-application-submenu">
                 <a href="{{ route('applications.myApplication') }}" class="nav-link {{ request()->routeIs('applications.myApplication') ? 'active' : '' }}">
-                    <i class="fa-solid fa-file-lines"></i> {{ __('Application Status') }}
+                    <x-icon class="fa-solid fa-file-lines" /> {{ __('Application Status') }}
                 </a>
                 @if(!$application || $application->status === 'denied')
                     <a href="{{ $application ? route('applications.edit') : route('applications.create') }}" class="nav-link {{ request()->routeIs(['applications.create', 'applications.store', 'applications.edit']) ? 'active' : '' }}">
-                        <i class="fa-solid {{ $application ? 'fa-rotate-right' : 'fa-file-circle-plus' }}"></i>
+                        <x-icon class="fa-solid {{ $application ? 'fa-rotate-right' : 'fa-file-circle-plus' }}" />
                         {{ __($application ? 'Reapply' : 'Apply Now') }}
                     </a>
                 @endif
                 <a href="{{ route('applicant.requirements') }}" class="nav-link {{ request()->routeIs('applicant.requirements') ? 'active' : '' }}">
-                    <i class="fa-solid fa-folder-open"></i> {{ __('Additional Requirements') }}
+                    <x-icon class="fa-solid fa-folder-open" /> {{ __('Additional Requirements') }}
                 </a>
             </div>
         </div>
@@ -447,21 +447,21 @@
                 aria-controls="applicant-notifications-submenu"
                 data-nav-group-toggle
             >
-                <i class="fa-solid fa-bell"></i> {{ __('Notifications') }}
+                <x-icon class="fa-solid fa-bell" /> {{ __('Notifications') }}
                 @if($unreadCount > 0)
                     <span class="nav-count" aria-label="{{ $unreadCount }} unread notifications">{{ $unreadCount }}</span>
                 @endif
-                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true" />
             </button>
             <div class="nav-submenu" id="applicant-notifications-submenu">
                 <a href="{{ route('applicant.appointments.index') }}" class="nav-link {{ $appointmentsSectionActive ? 'active' : '' }}">
-                    <i class="fa-solid fa-calendar-check"></i> {{ __('Appointments') }}
+                    <x-icon class="fa-solid fa-calendar-check" /> {{ __('Appointments') }}
                 </a>
                 <a href="{{ route('applicant.notifications.recent') }}" class="nav-link {{ $recentNotificationsActive ? 'active' : '' }}">
-                    <i class="fa-solid fa-bullhorn"></i> {{ __('Recent Notifications') }}
+                    <x-icon class="fa-solid fa-bullhorn" /> {{ __('Recent Notifications') }}
                 </a>
                 <a href="{{ route('applicant.notifications.previous') }}" class="nav-link {{ $previousNotificationsActive ? 'active' : '' }}">
-                    <i class="fa-solid fa-bell"></i> {{ __('Previous Notifications') }}
+                    <x-icon class="fa-solid fa-bell" /> {{ __('Previous Notifications') }}
                 </a>
             </div>
         </div>
@@ -473,23 +473,18 @@
                 aria-controls="applicant-support-submenu"
                 data-nav-group-toggle
             >
-                <i class="fa-solid fa-circle-question"></i> {{ __('Need Help & Support') }}
-                <i class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-circle-question" /> {{ __('Need Help & Support') }}
+                <x-icon class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true" />
             </button>
             <div class="nav-submenu" id="applicant-support-submenu">
                 <button type="button" class="nav-link" data-open-portal-help>
-                    <i class="fa-solid fa-circle-question"></i> {{ __('FAQs') }}
+                    <x-icon class="fa-solid fa-circle-question" /> {{ __('FAQs') }}
                 </button>
                 <a href="{{ route('contact-peso.index') }}" class="nav-link {{ $supportSectionActive ? 'active' : '' }}">
-                    <i class="fa-solid fa-envelope"></i> {{ __('Contact Us') }}
+                    <x-icon class="fa-solid fa-envelope" /> {{ __('Contact Us') }}
                 </a>
             </div>
         </div>
-        @if($application && $application->status === 'approved')
-            <a href="{{ route('updates') }}" class="nav-link {{ request()->routeIs('updates') ? 'active' : '' }}">
-                <i class="fa-solid fa-newspaper"></i> {{ __('Updates') }}
-            </a>
-        @endif
     </nav>
     <div class="sidebar-user">
         <img src="{{ $applicant->profile_photo_url ?? asset('images/avatar.png') }}" alt="{{ $applicant->name }}">
@@ -500,25 +495,28 @@
     </div>
     <div class="sidebar-profile-links">
         <a href="{{ route('profile.edit') }}" class="sidebar-profile-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}">
-            <i class="fa-solid fa-user"></i> {{ __('Profile') }}
+            <x-icon class="fa-solid fa-user" /> {{ __('Profile') }}
         </a>
         <a href="{{ route('settings.index') }}" class="sidebar-profile-link {{ request()->routeIs('settings.*') ? 'active' : '' }}">
-            <i class="fa-solid fa-gear"></i> {{ __('Settings') }}
+            <x-icon class="fa-solid fa-gear" /> {{ __('Settings') }}
         </a>
     </div>
     <div class="sidebar-footer" style="padding:10px 12px;">
         <form method="POST" action="{{ route('logout') }}">
             @csrf
-            <button type="submit" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> {{ __('Log Out') }}</button>
+            <button type="submit" class="btn-logout"><x-icon class="fa-solid fa-right-from-bracket" /> {{ __('Log Out') }}</button>
         </form>
     </div>
 </aside>
 <button class="sidebar-backdrop" type="button" data-sidebar-backdrop aria-label="{{ __('Close applicant navigation') }}" hidden></button>
+@once
+    <script src="{{ asset('js/request-loading.js') }}?v={{ filemtime(public_path('js/request-loading.js')) }}"></script>
+@endonce
 @if($showApprovalCapacityToast)
     <div class="application-status-toasts" aria-live="assertive" aria-label="{{ __('Application period closed') }}">
         <article class="application-status-toast" data-application-status-toast data-status="capacity">
             <div class="application-status-toast-content">
-                <span class="application-status-toast-icon" aria-hidden="true"><i class="fa-solid fa-lock"></i></span>
+                <span class="application-status-toast-icon" aria-hidden="true"><x-icon class="fa-solid fa-lock" /></span>
                 <div class="application-status-toast-copy">
                     <h2>{{ __('SPES applications are closed') }}</h2>
                     <p>{{ __('The program has reached its approved-applicant limit. New applications and submissions are closed for this season. Please try again next SPES season.') }}</p>
@@ -534,13 +532,13 @@
             <article class="application-status-toast" data-application-status-toast data-notification-id="{{ $statusNotification->id }}" data-status="{{ $statusNotification->data['status'] }}">
                 <div class="application-status-toast-content">
                     <span class="application-status-toast-icon" aria-hidden="true">
-                        <i class="fa-solid {{ $statusNotification->data['status'] === 'approved' ? 'fa-circle-check' : 'fa-circle-xmark' }}"></i>
+                        <x-icon class="fa-solid {{ $statusNotification->data['status'] === 'approved' ? 'fa-circle-check' : 'fa-circle-xmark' }}" />
                     </span>
                     <div class="application-status-toast-copy">
                         <h2>{{ $statusNotification->data['title'] ?? __('Application status updated') }}</h2>
                         <p>{{ $statusNotification->data['message'] ?? __('Your SPES application status has been updated.') }}</p>
                         <time datetime="{{ $statusNotification->created_at->toIso8601String() }}">{{ $statusNotification->created_at->format('M j, Y · g:i A') }}</time>
-                        <form method="POST" action="{{ route('notifications.read', $statusNotification->id) }}" data-mark-status-read>
+                        <form method="POST" action="{{ route('notifications.read', $statusNotification->id) }}" data-mark-status-read data-no-request-loading>
                             @csrf
                             <input type="hidden" name="redirect_to" value="back">
                             <button type="submit">{{ __('Mark as read') }}</button>
@@ -553,37 +551,6 @@
         @endforeach
     </div>
 @endif
-@if($unreadAppointmentNotifications->isNotEmpty())
-    <div class="application-status-toasts" aria-live="polite" aria-label="{{ __('Appointment reminders') }}">
-        @foreach($unreadAppointmentNotifications as $appointmentNotification)
-            <article class="application-status-toast" data-application-status-toast data-notification-id="{{ $appointmentNotification->id }}" data-status="appointment">
-                <div class="application-status-toast-content">
-                    <span class="application-status-toast-icon" aria-hidden="true"><i class="fa-solid fa-calendar-check"></i></span>
-                    <div class="application-status-toast-copy">
-                        <h2>{{ $appointmentNotification->data['title'] ?? __('Appointment reminder') }}</h2>
-                        <p>{{ $appointmentNotification->data['message'] ?? __('You have a scheduled appointment.') }}</p>
-                        @if($appointmentDate = ($appointmentNotification->data['appointment_date'] ?? null))
-                            <time datetime="{{ \Illuminate\Support\Carbon::parse($appointmentDate)->toIso8601String() }}">
-                                {{ \Illuminate\Support\Carbon::parse($appointmentDate)->locale(app()->getLocale())->translatedFormat('l, F j, Y · g:i A') }}
-                                @if($location = ($appointmentNotification->data['appointment_location'] ?? null))
-                                    · {{ $location }}
-                                @endif
-                            </time>
-                        @endif
-                        <form method="POST" action="{{ route('notifications.read', $appointmentNotification->id) }}" data-mark-status-read>
-                            @csrf
-                            <input type="hidden" name="redirect_to" value="back">
-                            <button type="submit">{{ __('Mark as read') }}</button>
-                            <p class="application-status-toast-error" data-toast-error role="alert" hidden></p>
-                        </form>
-                    </div>
-                </div>
-                <div class="application-status-toast-progress" aria-hidden="true"></div>
-            </article>
-        @endforeach
-    </div>
-@endif
-
 <script>
     document.documentElement.dataset.theme = @json($applicantAppearance);
     document.documentElement.lang = @json($applicantLanguage === 'fil' ? 'fil-PH' : 'en');
@@ -608,7 +575,8 @@
                 const form = event.currentTarget;
                 const button = form.querySelector('button[type="submit"]');
                 const error = form.querySelector('[data-toast-error]');
-                button.disabled = true;
+                if (form.dataset.requestPending === 'true') return;
+                const request = window.requestLoading.start(button, form);
                 error.hidden = true;
 
                 fetch(form.action, {
@@ -617,18 +585,27 @@
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 })
                     .then(function (response) {
-                        if (!response.ok) throw new Error('Could not mark this notification as read.');
+                        if (!response.ok) {
+                            const failure = new Error('Could not mark this notification as read.');
+                            failure.uncertain = response.status >= 500;
+                            throw failure;
+                        }
                         return response.json();
                     })
                     .then(function (result) {
                         if (!result.ok) throw new Error('Could not mark this notification as read.');
                         window.clearTimeout(timer);
+                        request.success('Notification marked as read.');
                         dismissToast();
                     })
-                    .catch(function () {
+                    .catch(function (failure) {
                         error.textContent = @json(__('Could not mark this notification as read. Please try again.'));
                         error.hidden = false;
-                        button.disabled = false;
+                        if (failure instanceof TypeError || failure instanceof SyntaxError || failure.uncertain) {
+                            request.uncertain('The connection was interrupted, so we could not confirm whether this notification was marked as read.');
+                        } else {
+                            request.error('Could not mark this notification as read. Please try again.');
+                        }
                     });
             });
         });

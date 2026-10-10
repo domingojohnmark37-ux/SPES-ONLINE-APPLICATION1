@@ -30,8 +30,6 @@ class ApplicantAuditController extends Controller
         $options = ['periods' => ['all' => 'All Periods'], 'actions' => [], 'statuses' => []];
         $filters = $this->defaultFilters();
         $users = collect();
-        $showAllActivities = $request->boolean('show_all');
-        $showAllAuditLogs = $request->boolean('show_all_audit_logs');
 
         try {
             $options = $auditQuery->filterOptions();
@@ -66,12 +64,7 @@ class ApplicantAuditController extends Controller
                 'filters' => $filters,
                 'options' => $options,
                 'users' => $users,
-                'rows' => $auditQuery->applicantRows($filters, $showAllAuditLogs ? 10 : 5),
-                'showAllAuditLogs' => $showAllAuditLogs,
-                'activities' => $activityQuery
-                    ->paginate($showAllActivities ? 20 : 5, ['*'], 'activity_page')
-                    ->withQueryString(),
-                'showAllActivities' => $showAllActivities,
+                'activities' => $activityQuery->get(),
                 'summary' => $auditQuery->summary($filters),
                 'selectedApplicant' => $selectedApplicant,
                 'selectedApplication' => $selectedApplication,
@@ -79,7 +72,6 @@ class ApplicantAuditController extends Controller
                 'history' => $history,
                 'statusHistory' => $statusHistory,
                 'queryError' => null,
-                'hasAuditRecords' => AuditLog::query()->whereNotNull('applicant_id')->exists(),
                 'periodSettings' => SystemSetting::query()->first(),
             ]);
         } catch (ValidationException $exception) {
@@ -91,10 +83,7 @@ class ApplicantAuditController extends Controller
                 'filters' => $filters,
                 'options' => $options,
                 'users' => $users,
-                'rows' => null,
-                'showAllAuditLogs' => $showAllAuditLogs,
                 'activities' => null,
-                'showAllActivities' => $showAllActivities,
                 'summary' => null,
                 'selectedApplicant' => null,
                 'selectedApplication' => null,
@@ -102,7 +91,6 @@ class ApplicantAuditController extends Controller
                 'history' => null,
                 'statusHistory' => null,
                 'queryError' => 'Applicant audit data could not be loaded. Please try again later.',
-                'hasAuditRecords' => null,
                 'periodSettings' => null,
             ]);
         }
@@ -117,8 +105,6 @@ class ApplicantAuditController extends Controller
         $options = ['periods' => ['all' => 'All Periods'], 'actions' => [], 'statuses' => []];
         $filters = $this->defaultFilters();
         $users = collect();
-        $showAllActivities = $request->boolean('show_all');
-        $showAllAuditLogs = $request->boolean('show_all_audit_logs');
         $applicationId = $request->integer('application_id') ?: null;
 
         try {
@@ -144,12 +130,7 @@ class ApplicantAuditController extends Controller
                 'filters' => $filters,
                 'options' => $options,
                 'users' => $users,
-                'rows' => $auditQuery->applicantRows($filters, $showAllAuditLogs ? 10 : 5),
-                'showAllAuditLogs' => $showAllAuditLogs,
-                'activities' => $auditQuery->userAuditQuery($filters)
-                    ->paginate($showAllActivities ? 20 : 5, ['*'], 'activity_page')
-                    ->withQueryString(),
-                'showAllActivities' => $showAllActivities,
+                'activities' => $auditQuery->userAuditQuery($filters)->get(),
                 'summary' => $auditQuery->summary($filters),
                 'selectedApplicant' => $applicant,
                 'selectedApplication' => $latestApplication,
@@ -157,7 +138,6 @@ class ApplicantAuditController extends Controller
                 'history' => $history,
                 'statusHistory' => $statusHistory,
                 'queryError' => null,
-                'hasAuditRecords' => AuditLog::query()->whereNotNull('applicant_id')->exists(),
                 'periodSettings' => SystemSetting::query()->first(),
             ]);
         } catch (ValidationException $exception) {
@@ -172,10 +152,7 @@ class ApplicantAuditController extends Controller
                 'filters' => $filters,
                 'options' => $options,
                 'users' => $users,
-                'rows' => null,
-                'showAllAuditLogs' => $showAllAuditLogs,
                 'activities' => null,
-                'showAllActivities' => $showAllActivities,
                 'summary' => null,
                 'selectedApplicant' => $applicant,
                 'selectedApplication' => null,
@@ -183,7 +160,6 @@ class ApplicantAuditController extends Controller
                 'history' => null,
                 'statusHistory' => null,
                 'queryError' => 'Applicant audit history could not be loaded. Please try again later.',
-                'hasAuditRecords' => null,
                 'periodSettings' => null,
             ]);
         }

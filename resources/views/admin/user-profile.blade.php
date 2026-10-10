@@ -104,9 +104,9 @@
     .profile-status-inactive { background:#f1f3f5; color:#59636e; }
     .user-profile-meta { display:grid; gap:10px; padding:16px 20px; border-top:1px solid var(--border); color:var(--text-muted); font-size:.82rem; }
     .user-profile-meta div { display:flex; gap:8px; align-items:flex-start; }
-    .user-profile-meta i { width:16px; margin-top:2px; color:var(--info); text-align:center; }
+    .user-profile-meta svg.icon { width:16px; margin-top:2px; color:var(--info); text-align:center; }
     .user-profile-card-header { display:flex; align-items:center; gap:10px; }
-    .user-profile-card-header i { color:var(--info); }
+    .user-profile-card-header svg.icon { color:var(--info); }
     .user-profile-rows { padding:8px 20px 18px; }
     .user-profile-row { display:grid; grid-template-columns:minmax(130px, .8fr) minmax(0, 1.2fr); gap:12px; padding:9px 0; border-bottom:1px solid #edf0f2; font-size:.84rem; }
     .user-profile-row:last-child { border-bottom:0; }
@@ -154,7 +154,7 @@
 @section('content')
 <div class="user-profile-back">
     <a class="btn btn-outline btn-sm" href="{{ route('admin.users', array_filter(['search' => $returnSearch])) }}">
-        <i class="fa-solid fa-arrow-left"></i> Back to Users
+        <x-icon class="fa-solid fa-arrow-left" /> Back to Users
     </a>
 </div>
 
@@ -171,16 +171,16 @@
                 <span class="profile-status {{ $statusClass }}">{{ $statusLabel }}</span>
             </div>
             <div class="user-profile-meta">
-                <div><i class="fa-solid fa-fingerprint"></i><span>User ID: #USR-{{ str_pad((string) $user->id, 3, '0', STR_PAD_LEFT) }}</span></div>
-                <div><i class="fa-solid fa-calendar-days"></i><span>Registered @adminDate($user->created_at)</span></div>
-                <div><i class="fa-solid fa-phone"></i><span>{{ filled($phone) ? $phone : 'No phone provided' }}</span></div>
-                <div><i class="fa-solid fa-location-dot"></i><span>{{ filled($address) ? $address : 'No address provided' }}</span></div>
-                <div><i class="fa-solid fa-clock"></i><span>{{ $user->activityDescription() }}</span></div>
+                <div><x-icon class="fa-solid fa-fingerprint" /><span>User ID: #USR-{{ str_pad((string) $user->id, 3, '0', STR_PAD_LEFT) }}</span></div>
+                <div><x-icon class="fa-solid fa-calendar-days" /><span>Registered @adminDate($user->created_at)</span></div>
+                <div><x-icon class="fa-solid fa-phone" /><span>{{ filled($phone) ? $phone : 'No phone provided' }}</span></div>
+                <div><x-icon class="fa-solid fa-location-dot" /><span>{{ filled($address) ? $address : 'No address provided' }}</span></div>
+                <div><x-icon class="fa-solid fa-clock" /><span>{{ $user->activityDescription() }}</span></div>
             </div>
         </section>
 
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-user"></i> Personal Information</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-user" /> Personal Information</h2></div>
             <div class="user-profile-rows">
                 @if(collect($personalRows)->contains(fn ($row) => filled($row[1])))
                     @foreach($personalRows as [$label, $value])
@@ -193,7 +193,7 @@
         </section>
 
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-graduation-cap"></i> Education Background</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-graduation-cap" /> Education Background</h2></div>
             @if($educationRows->isEmpty())
                 <div class="user-profile-rows"><div class="user-profile-empty">No information on file</div></div>
             @else
@@ -217,7 +217,7 @@
         </section>
 
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-people-group"></i> Parents Information</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-people-group" /> Parents Information</h2></div>
             @if(collect([$fatherName, $fatherContact, $fatherOccupation, $motherName, $motherContact, $motherOccupation])->contains(fn ($value) => filled($value)))
                 <div class="parent-details-grid">
                     <div class="parent-details-card">
@@ -239,7 +239,7 @@
         </section>
 
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-people-roof"></i> Current Status of Parents</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-people-roof" /> Current Status of Parents</h2></div>
             @if(count($selectedParentStatuses))
                 <div class="parent-status-tags">
                     @foreach($selectedParentStatuses as $status)
@@ -252,7 +252,7 @@
         </section>
 
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-wand-magic-sparkles"></i> Special Skills</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-wand-magic-sparkles" /> Special Skills</h2></div>
             @if(filled($specialSkills))
                 <p class="special-skills-text">{{ $specialSkills }}</p>
             @else
@@ -261,7 +261,7 @@
         </section>
 
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-briefcase"></i> Program Information</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-briefcase" /> Program Information</h2></div>
             <div class="user-profile-rows">
                 @if(collect($programRows)->contains(fn ($row) => filled($row[1])))
                     @foreach($programRows as [$label, $value])
@@ -278,7 +278,7 @@
 
     <div class="user-profile-side">
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-shield-halved"></i> Additional Details</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-shield-halved" /> Additional Details</h2></div>
             <div class="user-profile-rows">
                 @if(collect($additionalRows)->contains(fn ($row) => filled($row[1])))
                     @foreach($additionalRows as [$label, $value])
@@ -291,7 +291,7 @@
         </section>
 
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><i class="fa-solid fa-rectangle-list"></i> Application History</h2></div>
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-rectangle-list" /> Application History</h2></div>
             <div class="profile-history">
                 @forelse($applications as $historyItem)
                     <div class="profile-history-item">

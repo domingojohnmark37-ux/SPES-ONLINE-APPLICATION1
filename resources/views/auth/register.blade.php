@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'PESO LAL-LO') }} - Register</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ asset('css/auth.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/auth.css') }}?v={{ filemtime(public_path('css/auth.css')) }}">
 </head>
 <body>
     <div class="auth-container">
@@ -19,9 +19,9 @@
                 <p class="subtitle">Special Program for Employment of Students (SPES)</p>
                 <p>Apply online and stay connected with PESO Lal-lo.</p>
                 <div class="auth-features">
-                    <div><i aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M9 4h6M9 2h6v4H9zM6 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1M7 12l2 2 4-4M7 17h8" /></svg></i><span>Easy<br>Application</span></div>
-                    <div><i aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 20V10h4v10H4zm6 0V4h4v16h-4zm6 0v-7h4v7h-4z" /></svg></i><span>Program<br>Updates</span></div>
-                    <div><i aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 3 4 6v5c0 5.2 3.4 8.8 8 10 4.6-1.2 8-4.8 8-10V6l-8-3zm0 5a2 2 0 0 1 2 2v1h1v5H9v-5h1v-1a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v1h2v-1a1 1 0 0 0-1-1z" /></svg></i><span>Secure &amp;<br>Reliable</span></div>
+                    <div><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false" width="1em" height="1em"><path d="M9 4h6M9 2h6v4H9zM6 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1M7 12l2 2 4-4M7 17h8" /></svg><span>Easy<br>Application</span></div>
+                    <div><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false" width="1em" height="1em"><path d="M4 20V10h4v10H4zm6 0V4h4v16h-4zm6 0v-7h4v7h-4z" /></svg><span>Program<br>Updates</span></div>
+                    <div><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false" width="1em" height="1em"><path d="M12 3 4 6v5c0 5.2 3.4 8.8 8 10 4.6-1.2 8-4.8 8-10V6l-8-3zm0 5a2 2 0 0 1 2 2v1h1v5H9v-5h1v-1a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v1h2v-1a1 1 0 0 0-1-1z" /></svg><span>Secure &amp;<br>Reliable</span></div>
                 </div>
             </div>
 
@@ -32,7 +32,7 @@
                     <p class="success-message" role="status">{{ session('status') }}</p>
                 @endif
 
-                <form method="POST" action="{{ route('register') }}">
+                <form method="POST" action="{{ route('register') }}" data-auth-form="register" data-loading-label="Creating account..." data-loading-message="Creating your account request... Please wait while we prepare your email verification." data-network-error="We couldn't reach the server. Check your connection and try again. If your signup was received, we'll check for an existing verification request before suggesting another submission." data-server-error="We couldn't create your account request right now. Please try again." data-validation-error="Please review the information and try again." data-success-message="Your signup request was accepted. Follow the next steps to verify your email." data-recovery-url="{{ route('registration.verify') }}" data-recovery-success-url="{{ route('registration.verify') }}">
                     @csrf
 
                     <!-- Email Address -->
@@ -112,7 +112,11 @@
                     </div>
 
                     <!-- Register Button -->
-                    <button type="submit" class="btn-submit" @disabled(!old('terms_accepted'))>Sign Up</button>
+                    <button type="submit" class="btn-submit" data-auth-submit @disabled(!old('terms_accepted'))>
+                        <span class="auth-spinner" data-auth-spinner aria-hidden="true" hidden></span>
+                        <span data-auth-button-label>Sign Up</span>
+                    </button>
+                    <p class="auth-request-status" data-auth-request-status role="status" aria-live="polite" hidden></p>
 
                     <!-- Login Link -->
                     <div class="auth-footer">
@@ -124,6 +128,7 @@
         </div>
     </div>
 
-    <script src="{{ asset('js/auth.js') }}"></script>
+    <script src="{{ asset('js/request-loading.js') }}?v={{ filemtime(public_path('js/request-loading.js')) }}"></script>
+    <script src="{{ asset('js/auth.js') }}?v={{ filemtime(public_path('js/auth.js')) }}"></script>
 </body>
 </html>

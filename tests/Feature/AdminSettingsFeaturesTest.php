@@ -165,10 +165,10 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertDontSee('<td>Logout</td>', false);
     }
 
-    public function test_admin_audit_logs_show_five_recent_entries_and_can_show_all(): void
+    public function test_admin_audit_logs_are_scrollable_without_pagination(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        for ($index = 0; $index < 7; $index++) {
+        for ($index = 0; $index < 25; $index++) {
             app(AuditLogger::class)->record(
                 AuditAction::LOGIN_SUCCESS,
                 'Authentication',
@@ -179,18 +179,16 @@ class AdminSettingsFeaturesTest extends TestCase
             );
         }
 
-        $recentResponse = $this->actingAs($admin)
-            ->get(route('admin.preferences'))
+        $response = $this->actingAs($admin)
+            ->get(route('admin.preferences', ['admin_audit_page' => 2]))
             ->assertOk()
-            ->assertSee('Show more admin audit logs');
+            ->assertSee('aria-label="Administrator audit log entries"', false)
+            ->assertDontSee('admin_audit_page=', false)
+            ->assertDontSee('Showing 21–25 of 25 admin audit logs')
+            ->assertDontSee('Show more admin audit logs')
+            ->assertDontSee('Show recent 5');
 
-        $this->assertSame(5, substr_count($recentResponse->getContent(), '<td>Login Success</td>'));
-
-        $allResponse = $this->get(route('admin.preferences', ['show_all_admin_audit_logs' => 1]))
-            ->assertOk()
-            ->assertSee('Show recent 5');
-
-        $this->assertSame(7, substr_count($allResponse->getContent(), '<td>Login Success</td>'));
+        $this->assertSame(25, substr_count($response->getContent(), '<td>Login Success</td>'));
     }
 
     public function test_security_policy_updates_are_audited_and_applied_to_admin_sessions(): void

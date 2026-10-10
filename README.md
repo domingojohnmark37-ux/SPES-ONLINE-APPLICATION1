@@ -93,6 +93,23 @@ php artisan db:seed --class=AdminSeeder
 php artisan db:seed
 ```
 
+### Email Notifications
+
+Applicant email notifications use Laravel's configured SMTP mailer. For Gmail, configure the sender account in `.env`:
+
+```dotenv
+APP_URL=https://your-official-portal.example
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your-authorized-sender@gmail.com
+MAIL_PASSWORD=your-gmail-app-password
+MAIL_FROM_ADDRESS=your-authorized-sender@gmail.com
+MAIL_FROM_NAME="PESO Lal-lo SPES Portal"
+```
+
+Use a Gmail App Password for an account with 2-Step Verification enabled; never use or commit the account password. Set `APP_URL` to the official HTTPS portal URL before deployment. An administrator can send a real configuration test from **Admin → Settings**; it is delivered to that administrator's registered email address. Run `php artisan schedule:work` or configure Laravel's scheduler to run once per minute so eligible appointment reminders are sent approximately 24 hours before appointments and again on the appointment date.
+
 ### 4. Storage & Assets
 
 ```bash

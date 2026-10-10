@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('Appointments') }} — {{ __('SPES Portal') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <x-applicant-text-styles />
     <style>
         :root {
@@ -82,7 +81,7 @@
         .side-panel-section { padding:16px; }
         .side-panel-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px; color:var(--type-primary-color); font-size:var(--type-secondary); font-weight:700; }
         .heading-title { display:flex; min-width:0; align-items:center; gap:9px; }
-        .heading-title > i { display:grid; width:34px; height:34px; flex:0 0 auto; place-items:center; border-radius:10px; background:rgba(139,0,0,.08); color:var(--primary); }
+        .heading-title > svg.icon { display:grid; width:34px; height:34px; flex:0 0 auto; place-items:center; border-radius:10px; background:rgba(139,0,0,.08); color:var(--primary); }
         .heading-copy { display:grid; gap:2px; }
         .heading-copy strong { color:var(--type-primary-color); font-size:var(--type-secondary); }
         .heading-copy small { color:var(--type-caption-color); font-size:var(--type-caption); font-weight:500; }
@@ -97,11 +96,11 @@
         .upcoming-copy { min-width:0; }
         .upcoming-copy h3 { margin:0 0 8px; color:var(--type-primary-color); font-size:var(--type-body); font-weight:750; line-height:1.35; overflow-wrap:anywhere; }
         .upcoming-copy p { margin:5px 0 0; color:var(--type-secondary-color); font-size:var(--type-caption); line-height:1.5; }
-        .upcoming-copy p i { width:15px; color:var(--primary); }
+        .upcoming-copy p svg.icon { width:15px; color:var(--primary); }
         .upcoming-copy .appointment-description { margin-top:9px; color:var(--type-caption-color); }
         .page-content.is-list-view .upcoming-panel { padding:20px; }
         .page-content.is-list-view .side-panel-heading { margin-bottom:18px; }
-        .page-content.is-list-view .heading-title > i { width:42px; height:42px; font-size:1.05rem; }
+        .page-content.is-list-view .heading-title > svg.icon { width:42px; height:42px; font-size:1.05rem; }
         .page-content.is-list-view .heading-copy strong { font-size:var(--type-section); }
         .page-content.is-list-view .heading-copy small { font-size:var(--type-secondary); }
         .page-content.is-list-view .upcoming-list { gap:12px; }
@@ -116,9 +115,9 @@
         .appointment-legend { display:flex; align-items:center; gap:9px; color:var(--type-secondary-color); font-size:var(--type-caption); }
         .legend-dot { width:9px; height:9px; flex:0 0 auto; border-radius:50%; background:#c99400; }
         .appointment-note { display:flex; gap:9px; padding:11px; border-radius:8px; background:rgba(107,114,128,.08); color:var(--type-secondary-color); font-size:var(--type-caption); line-height:1.45; }
-        .appointment-note i { margin-top:2px; color:var(--type-caption-color); }
+        .appointment-note svg.icon { margin-top:2px; color:var(--type-caption-color); }
         .appointment-empty { display:grid; justify-items:center; gap:8px; padding:40px 16px; border:1px dashed var(--border); border-radius:12px; color:var(--type-secondary-color); font-size:var(--type-secondary); text-align:center; }
-        .appointment-empty i { color:var(--type-caption-color); font-size:1.5rem; }
+        .appointment-empty svg.icon { color:var(--type-caption-color); font-size:1.5rem; }
         .side-panel-section[id],.calendar-panel[id] { scroll-margin-top:76px; }
         .upcoming-panel { max-height:560px; overflow-y:auto; }
         @media(max-width:1050px) {
@@ -163,7 +162,7 @@
     <x-applicant-sidebar />
     <header class="topbar">
         <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Toggle applicant navigation') }}">
-            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            <x-icon class="fa-solid fa-bars" aria-hidden="true" />
         </button>
         <div>
             <h1>{{ __('Appointments') }}</h1>
@@ -174,16 +173,16 @@
         <div class="page-content">
             <nav class="appointment-view-switcher" aria-label="{{ __('Appointment views') }}">
                 <div class="view-tabs">
-                    <a class="view-tab calendar-tab" href="#calendar" aria-current="location"><i class="fa-regular fa-calendar" aria-hidden="true"></i>{{ __('Calendar') }}</a>
-                    <a class="view-tab upcoming-tab" href="#upcoming-list" aria-current="false"><i class="fa-solid fa-list" aria-hidden="true"></i>{{ __('Upcoming List') }}</a>
+                    <a class="view-tab calendar-tab" href="#calendar" aria-current="location"><x-icon class="fa-regular fa-calendar" aria-hidden="true" />{{ __('Calendar') }}</a>
+                    <a class="view-tab upcoming-tab" href="#upcoming-list" aria-current="false"><x-icon class="fa-solid fa-list" aria-hidden="true" />{{ __('Upcoming List') }}</a>
                 </div>
             </nav>
             <section class="calendar-panel" id="calendar" aria-label="{{ __('Appointment calendar') }}">
                 <div class="calendar-toolbar">
                     <div class="month-navigation" aria-label="{{ __('Calendar month navigation') }}">
-                            <a class="month-button" href="{{ route('applicant.appointments.index', ['month' => $month->copy()->subMonth()->format('Y-m')]) }}#calendar" aria-label="{{ __('Previous month') }}"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></a>
+                            <a class="month-button" href="{{ route('applicant.appointments.index', ['month' => $month->copy()->subMonth()->format('Y-m')]) }}#calendar" aria-label="{{ __('Previous month') }}"><x-icon class="fa-solid fa-chevron-left" aria-hidden="true" /></a>
                             <strong>{{ $month->locale(app()->getLocale())->translatedFormat('F Y') }}</strong>
-                            <a class="month-button" href="{{ route('applicant.appointments.index', ['month' => $month->copy()->addMonth()->format('Y-m')]) }}#calendar" aria-label="{{ __('Next month') }}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></a>
+                            <a class="month-button" href="{{ route('applicant.appointments.index', ['month' => $month->copy()->addMonth()->format('Y-m')]) }}#calendar" aria-label="{{ __('Next month') }}"><x-icon class="fa-solid fa-chevron-right" aria-hidden="true" /></a>
                             <a class="today-button" href="{{ route('applicant.appointments.index') }}#calendar">{{ __('Today') }}</a>
                         </div>
                     </div>
@@ -226,7 +225,7 @@
                     <section class="side-panel-section upcoming-panel" id="upcoming-list" aria-labelledby="upcoming-appointments-title">
                         <h2 class="side-panel-heading" id="upcoming-appointments-title">
                             <span class="heading-title">
-                                <i class="fa-regular fa-calendar-check" aria-hidden="true"></i>
+                                <x-icon class="fa-regular fa-calendar-check" aria-hidden="true" />
                                 <span class="heading-copy">
                                     <strong>{{ __('Upcoming Appointments') }}</strong>
                                     <small>{{ __('Published appointments scheduled from today onward') }}</small>
@@ -242,7 +241,7 @@
                             </div>
                         @else
                             <div class="appointment-empty">
-                                <i class="fa-regular fa-calendar-xmark" aria-hidden="true"></i>
+                                <x-icon class="fa-regular fa-calendar-xmark" aria-hidden="true" />
                                 <strong>{{ __('No upcoming appointments') }}</strong>
                                 <span>{{ __('Published appointments will appear here when they are scheduled.') }}</span>
                             </div>
@@ -254,7 +253,7 @@
                     </section>
                     <div class="side-panel-section">
                         <div class="appointment-note">
-                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                            <x-icon class="fa-solid fa-circle-info" aria-hidden="true" />
                             <span>{{ __('Stay on track. Check your upcoming appointments and prepare any documents requested by the PESO office.') }}</span>
                         </div>
                     </div>

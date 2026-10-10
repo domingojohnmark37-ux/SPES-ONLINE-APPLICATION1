@@ -56,7 +56,7 @@
     .requirements-table .requirement-name { color: var(--text); font-size: .92rem; font-weight: 700; line-height: 1.4; }
     .requirements-table .requirement-description { max-width: 300px; margin-top: 5px; color: var(--text-muted); font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
     .requirements-table .requirement-meta { display: grid; gap: 8px; min-width: 190px; color: var(--text-muted); font-size: .8rem; }
-    .requirements-table .requirement-meta i { width: 16px; color: var(--primary); }
+    .requirements-table .requirement-meta svg.icon { width: 16px; color: var(--primary); }
     .requirements-table .requirement-edit-fields { display: grid; gap: 9px; min-width: 210px; }
     .requirements-table .requirement-edit-fields input:not([type="checkbox"]):not([type="file"]),
     .requirements-table .requirement-edit-fields select { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--white); color: var(--text); font: inherit; font-size: .82rem; }
@@ -111,7 +111,7 @@
 <div class="card requirement-create-card">
     <div class="card-header">
         <div class="requirement-create-heading">
-            <span class="requirement-create-icon" aria-hidden="true"><i class="fa-solid fa-folder-plus"></i></span>
+            <span class="requirement-create-icon" aria-hidden="true"><x-icon class="fa-solid fa-folder-plus" /></span>
             <div>
                 <h2>Decide What Applicants Must Submit</h2>
                 <p>Create a checklist item and choose when applicants can access it.</p>
@@ -155,7 +155,7 @@
                 <div class="requirement-field-template">
                     <div class="requirement-upload-section">
                         <div class="requirement-upload-heading">
-                            <span class="requirement-upload-icon" aria-hidden="true"><i class="fa-solid fa-paperclip"></i></span>
+                            <span class="requirement-upload-icon" aria-hidden="true"><x-icon class="fa-solid fa-paperclip" /></span>
                             <div>
                                 <strong>Downloadable files <span style="color:var(--text-muted);font-weight:400;">Optional</span></strong>
                                 <p>Files are grouped under this requirement for applicants. Add up to 20 PDF or Word files, up to 10 MB each.</p>
@@ -178,7 +178,7 @@
                 </div>
                 <input type="hidden" name="is_active" value="1">
                 <div class="requirement-form-actions">
-                    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add requirement</button>
+                    <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-plus" aria-hidden="true" /> Add requirement</button>
                 </div>
             </div>
         </form>
@@ -188,15 +188,15 @@
 <div class="card requirements-card">
     <div class="card-header">
         <div class="checklist-header-copy">
-            <h2><i class="fa-solid fa-list-check"></i> Applicant Checklist Additions</h2>
+            <h2><x-icon class="fa-solid fa-list-check" /> Applicant Checklist Additions</h2>
             <p>Manage the content, submission details, and applicant access for each requirement.</p>
         </div>
-        <span class="checklist-total"><i class="fa-solid fa-folder-open" aria-hidden="true"></i>{{ $requirements->count() }} {{ \Illuminate\Support\Str::plural('requirement', $requirements->count()) }}</span>
+        <span class="checklist-total"><x-icon class="fa-solid fa-folder-open" aria-hidden="true" />{{ $requirements->count() }} {{ \Illuminate\Support\Str::plural('requirement', $requirements->count()) }}</span>
     </div>
     <div class="card-body">
         @if($requirements->isEmpty())
             <div style="padding:38px 20px;text-align:center;">
-                <i class="fa-regular fa-folder-open" aria-hidden="true" style="margin-bottom:10px;color:var(--text-muted);font-size:1.8rem;"></i>
+                <x-icon class="fa-regular fa-folder-open" aria-hidden="true" style="margin-bottom:10px;color:var(--text-muted);font-size:1.8rem;" />
                 <p style="color:var(--text);font-weight:700;">No requirements yet</p>
                 <p style="margin-top:5px;color:var(--text-muted);font-size:.85rem;">Use the form above to add the first applicant requirement.</p>
             </div>
@@ -239,15 +239,15 @@
                                 <td style="min-width:230px;">
                                             <div data-requirement-display class="requirement-meta requirement-file-list">
                                                 @if($requirement->template_original_name)
-                                                    <span><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>{{ $requirement->template_original_name }}</span>
+                                                    <span><x-icon class="fa-solid fa-file-arrow-down" aria-hidden="true" />{{ $requirement->template_original_name }}</span>
                                                 @endif
                                                 @foreach($requirement->templates as $template)
-                                                    <span><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>{{ $template->original_name }}</span>
+                                                    <span><x-icon class="fa-solid fa-file-arrow-down" aria-hidden="true" />{{ $template->original_name }}</span>
                                                 @endforeach
                                                 @unless($requirement->template_original_name || $requirement->templates->isNotEmpty())
                                                     <span>No downloadable files</span>
                                                 @endunless
-                                                <span><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ $requirement->due_at?->format('M j, Y g:i A') ?? 'No deadline' }}</span>
+                                                <span><x-icon class="fa-regular fa-clock" aria-hidden="true" />{{ $requirement->due_at?->format('M j, Y g:i A') ?? 'No deadline' }}</span>
                                             </div>
                                             <div class="requirement-edit-fields requirement-edit-field" data-requirement-edit-field hidden>
                                         @if($requirement->template_original_name)
@@ -304,13 +304,13 @@
                                 </td>
                                 <td>
                                     <div class="requirement-actions">
-                                        <button class="btn btn-outline btn-sm" type="button" data-requirement-edit aria-expanded="false"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit</button>
-                                        <button form="requirement-update-{{ $requirement->id }}" class="btn btn-primary btn-sm" type="submit" data-requirement-save hidden><i class="fa-solid fa-check" aria-hidden="true"></i> Save</button>
+                                        <button class="btn btn-outline btn-sm" type="button" data-requirement-edit aria-expanded="false"><x-icon class="fa-solid fa-pen" aria-hidden="true" /> Edit</button>
+                                        <button form="requirement-update-{{ $requirement->id }}" class="btn btn-primary btn-sm" type="submit" data-requirement-save hidden><x-icon class="fa-solid fa-check" aria-hidden="true" /> Save</button>
                                         <button class="btn btn-cancel btn-sm" type="button" data-requirement-cancel data-unsaved-cancel="requirement-update-{{ $requirement->id }}" hidden>Cancel</button>
                                         <form method="POST" action="{{ route('admin.additional-requirements.destroy', $requirement) }}" style="display:inline;" onsubmit="return confirm('Delete this requirement, all its downloadable files, and all applicant uploads? This cannot be undone.')">
                                             @csrf
                                             @method('DELETE')
-                                            <button class="btn btn-danger btn-sm" type="submit"><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button>
+                                            <button class="btn btn-danger btn-sm" type="submit"><x-icon class="fa-regular fa-trash-can" aria-hidden="true" /> Delete</button>
                                         </form>
                                     </div>
                                 </td>

@@ -32,7 +32,8 @@
     .settings-table { width:100%; border-collapse:collapse; font-size:.8rem; }
     .settings-table th,.settings-table td { padding:10px 9px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
     .settings-table th { color:var(--text-muted); font-weight:650; }
-    #admin-audit nav[role="navigation"] svg { display:block; width:1rem; height:1rem; }
+    #admin-audit .settings-table-wrap { max-height:min(60vh,520px); overscroll-behavior:contain; scrollbar-gutter:stable; }
+    #admin-audit .settings-table thead th { position:sticky; top:0; z-index:1; background:var(--white); }
     .admin-audit-filters { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-bottom:16px; padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--white); }
     .admin-audit-filters label { display:grid; min-width:160px; gap:5px; color:var(--text-muted); font-size:.75rem; font-weight:700; }
     .admin-audit-filters select,.admin-audit-filters input { min-height:38px; padding:8px 10px; border:1px solid var(--border); border-radius:7px; background:var(--white); color:var(--text); font:inherit; font-size:.82rem; }
@@ -69,7 +70,7 @@
     </nav>
 
     <section class="settings-section" id="preferences" aria-labelledby="preferences-heading">
-        <div class="card-header"><h2 id="preferences-heading"><i class="fa-solid fa-sliders" aria-hidden="true"></i> {{ __('Preferences') }}</h2></div>
+        <div class="card-header"><h2 id="preferences-heading"><x-icon class="fa-solid fa-sliders" aria-hidden="true" /> {{ __('Preferences') }}</h2></div>
         <div class="card-body">
             <p class="settings-description" style="margin-bottom:16px;">{{ __('Choose how the admin portal looks and behaves on this account.') }}</p>
             <form method="POST" action="{{ route('admin.preferences.update') }}">
@@ -112,13 +113,13 @@
                         @error('font_size')<p style="color:var(--danger);margin-top:5px;">{{ $message }}</p>@enderror
                     </div>
                 </div>
-                <button class="btn btn-primary settings-save" type="submit"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> {{ __('Save Preferences') }}</button>
+                <button class="btn btn-primary settings-save" type="submit"><x-icon class="fa-solid fa-floppy-disk" aria-hidden="true" /> {{ __('Save Preferences') }}</button>
             </form>
         </div>
     </section>
 
     <section class="settings-section" id="manual" aria-labelledby="manual-heading">
-        <div class="card-header"><h2 id="manual-heading"><i class="fa-solid fa-book-open" aria-hidden="true"></i> {{ __('Admin Guide') }}</h2></div>
+        <div class="card-header"><h2 id="manual-heading"><x-icon class="fa-solid fa-book-open" aria-hidden="true" /> {{ __('Admin Guide') }}</h2></div>
         <div class="card-body" style="display:grid;gap:18px;line-height:1.65;">
             <section>
                 <h3>{{ __('Applications') }}</h3>
@@ -149,7 +150,7 @@
     </section>
 
     <section class="settings-section" id="admin-audit" aria-labelledby="admin-audit-heading">
-        <div class="card-header"><h2 id="admin-audit-heading"><i class="fa-solid fa-user-shield" aria-hidden="true"></i> {{ __('Admin Audit Logs') }}</h2></div>
+        <div class="card-header"><h2 id="admin-audit-heading"><x-icon class="fa-solid fa-user-shield" aria-hidden="true" /> {{ __('Admin Audit Logs') }}</h2></div>
         <div class="card-body">
             <form method="GET" action="{{ route('admin.preferences') }}#admin-audit" class="admin-audit-filters">
                 <label>{{ __('Administrator') }}
@@ -169,13 +170,13 @@
                 </label>
                 <label>{{ __('From') }} <input type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}"></label>
                 <label>{{ __('To') }} <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}"></label>
-                <button class="btn btn-primary" type="submit"><i class="fa-solid fa-filter" aria-hidden="true"></i> {{ __('Apply') }}</button>
+                <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-filter" aria-hidden="true" /> {{ __('Apply') }}</button>
                 <a class="btn btn-outline" href="{{ route('admin.preferences') }}#admin-audit">{{ __('Reset') }}</a>
             </form>
             @if($adminAuditLogs->isEmpty())
                 <p style="color:var(--text-muted);padding:16px 0;">{{ __('No administrator audit activity matches the selected filters.') }}</p>
             @else
-                <div class="settings-table-wrap">
+                <div class="settings-table-wrap" role="region" aria-label="{{ __('Administrator audit log entries') }}" tabindex="0">
                     <table class="settings-table">
                         <thead><tr><th>{{ __('Date and time') }}</th><th>{{ __('Administrator') }}</th><th>{{ __('Event') }}</th><th>{{ __('Related applicant') }}</th><th>{{ __('Result') }}</th><th>{{ __('IP address') }}</th><th>{{ __('Details') }}</th></tr></thead>
                         <tbody>
@@ -193,31 +194,19 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="audit-table-footer">
-                    @if($showAllAdminAuditLogs)
-                        <span>{{ __('Showing :first–:last of :total admin audit logs', ['first' => $adminAuditLogs->firstItem(), 'last' => $adminAuditLogs->lastItem(), 'total' => $adminAuditLogs->total()]) }}</span>
-                        {{ $adminAuditLogs->links() }}
-                        <a class="btn btn-outline btn-sm" href="{{ route('admin.preferences', array_merge(request()->query(), ['show_all_admin_audit_logs' => null, 'admin_audit_page' => null])) }}#admin-audit">{{ __('Show recent 5') }}</a>
-                    @else
-                        <span>{{ __('Showing :count recent of :total admin audit logs', ['count' => $adminAuditLogs->count(), 'total' => $adminAuditLogs->total()]) }}</span>
-                        @if($adminAuditLogs->total() > 5)
-                            <a class="btn btn-outline btn-sm" href="{{ route('admin.preferences', array_merge(request()->query(), ['show_all_admin_audit_logs' => 1, 'admin_audit_page' => 1])) }}#admin-audit">{{ __('Show more admin audit logs') }}</a>
-                        @endif
-                    @endif
-                </div>
             @endif
         </div>
     </section>
 
     <section class="settings-section" id="backup" aria-labelledby="backup-heading">
-        <div class="card-header"><h2 id="backup-heading"><i class="fa-solid fa-database" aria-hidden="true"></i> {{ __('Backup') }}</h2></div>
+        <div class="card-header"><h2 id="backup-heading"><x-icon class="fa-solid fa-database" aria-hidden="true" /> {{ __('Backup') }}</h2></div>
         <div class="card-body" style="max-width:820px;">
             <h3 style="margin-bottom:8px;">{{ __('Download a Backup') }}</h3>
             <p style="line-height:1.6;margin-bottom:12px;">{{ __('The archive includes every database table (including application transactions and audit logs), files from private and public storage, application log files, and a checksum manifest.') }}</p>
             <p style="line-height:1.6;margin-bottom:18px;"><strong>{{ __('Protect this archive:') }}</strong> {{ __('it contains applicant information and uploaded documents. Download it only to an approved secure location. Environment files, credentials, and application source code are not included.') }}</p>
-            <form method="POST" action="{{ route('admin.backup.download') }}" onsubmit="return confirm(@js(__('Create and download a backup containing the database and stored applicant files? Handle it as confidential information.')));">
+            <form method="POST" action="{{ route('admin.backup.download') }}" data-request-download onsubmit="return confirm(@js(__('Create and download a backup containing the database and stored applicant files? Handle it as confidential information.')));">
                 @csrf
-                <button class="btn btn-primary" type="submit"><i class="fa-solid fa-download" aria-hidden="true"></i> {{ __('Create and Download Backup') }}</button>
+                <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-download" aria-hidden="true" /> {{ __('Create and Download Backup') }}</button>
             </form>
 
             <hr style="margin:24px 0;border:0;border-top:1px solid var(--border);">
@@ -271,7 +260,7 @@
                         <input id="restore_confirmation" name="confirmation" type="text" autocomplete="off" required>
                     </label>
                 </div>
-                <button class="btn btn-primary" type="submit"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> {{ __('Validate and Merge Backup') }}</button>
+                <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-rotate-left" aria-hidden="true" /> {{ __('Validate and Merge Backup') }}</button>
             </form>
         </div>
     </section>

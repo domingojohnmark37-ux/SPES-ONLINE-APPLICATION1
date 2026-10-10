@@ -6,11 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditAction;
 use App\Models\AuditLog;
 use App\Models\SystemSetting;
+use App\Mail\SpesMailConfigurationTest;
+use App\Services\ApplicantNotificationService;
 use App\Services\ApplicationApprovalCapacity;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 class SettingsController extends Controller
 {
@@ -46,6 +51,7 @@ class SettingsController extends Controller
         Request $request,
         AuditLogger $auditLogger,
         ApplicationApprovalCapacity $capacity,
+        ApplicantNotificationService $notifications,
     )
     {
         $validated = $request->validate([
@@ -85,7 +91,7 @@ class SettingsController extends Controller
             'approved_applicant_limit' => $validated['approved_applicant_limit'],
         ];
 
-        DB::transaction(function () use ($settings, $validated, $oldValues, $auditValues, $auditLogger, $request, $capacity, &$pendingApplications): void {
+        DB::transaction(function () use ($settings, $validated, $oldValues, $auditValues, $auditLogger, $request, $capacity, $notifications, &$pendingApplications): void {
             $settings->update($validated);
             $auditLogger->recordChanges(
                 $oldValues,
@@ -102,7 +108,7 @@ class SettingsController extends Controller
 
         $settings = $settings->fresh();
         if ($pendingApplications->isNotEmpty()) {
-            $capacity->notifyClosedApplicants($pendingApplications, (int) $settings->approved_applicant_limit);
+            $capacity->notifyClosedApplicants($pendingApplications, (int) $settings->approved_applicant_limit, $notifications);
         }
 
         if ($capacity->isFull($settings)) {
@@ -112,6 +118,51 @@ class SettingsController extends Controller
         }
 
         return back()->with('success', 'Application period and approval limit updated successfully.');
+    }
+
+    public function sendTestEmail(Request $request)
+    {
+        $mailer = config('mail.default');
+        $sender = config('mail.from.address');
+        $smtpHost = config('mail.mailers.smtp.host');
+        $smtpPort = config('mail.mailers.smtp.port');
+        $smtpUsername = config('mail.mailers.smtp.username');
+        $smtpPassword = config('mail.mailers.smtp.password');
+
+        if (
+            ! is_string($sender)
+            || ! filter_var($sender, FILTER_VALIDATE_EMAIL)
+            || ! is_string($mailer)
+            || in_array($mailer, ['log', 'array'], true)
+            || ($mailer === 'smtp' && (
+                ! filled($smtpHost)
+                || ! is_numeric($smtpPort)
+                || ! filled($smtpUsername)
+                || ! filled($smtpPassword)
+            ))
+        ) {
+            return back()->withErrors([
+                'email_test' => 'Email delivery is not configured. Set a valid MAIL_FROM_ADDRESS and SMTP mailer credentials in the server environment.',
+            ]);
+        }
+
+        try {
+            Mail::to($request->user()->email)->send(
+                new SpesMailConfigurationTest(route('login')),
+            );
+        } catch (Throwable $exception) {
+            Log::error('SPES administrator mail configuration test failed.', [
+                'admin_id' => $request->user()->id,
+                'mailer' => $mailer,
+                'exception' => class_basename($exception),
+            ]);
+
+            return back()->withErrors([
+                'email_test' => 'The test email could not be delivered. Check the mail server logs and SMTP provider settings.',
+            ]);
+        }
+
+        return back()->with('email_test_success', 'A test email was delivered to your registered administrator email address.');
     }
 
     private function applicationPeriodStatistics(): array

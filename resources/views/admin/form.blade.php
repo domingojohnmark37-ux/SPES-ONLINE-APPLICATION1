@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>SPES Application Form</title>
+    <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <style>
    
         body { font-family: "Arial Narrow", Arial, sans-serif; font-size: 11px; display: flex; justify-content: center; background: #999; padding: 20px; }
@@ -286,7 +287,7 @@
         </div>
 
         <div class="form-buttons">
-            <button type="submit" class="btn btn-submit"><i class="fas fa-paper-plane"></i> Submit Application</button>
+            <button type="submit" class="btn btn-submit"><x-icon class="fas fa-paper-plane" /> Submit Application</button>
             <button type="reset" class="btn btn-reset">Clear Form</button>
         </div>
     </form>
@@ -303,5 +304,6 @@
     @endif
 </div>
 
+<script src="{{ asset('js/request-loading.js') }}?v={{ filemtime(public_path('js/request-loading.js')) }}"></script>
 </body>
 </html>

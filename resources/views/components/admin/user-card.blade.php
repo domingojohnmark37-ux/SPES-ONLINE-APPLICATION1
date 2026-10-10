@@ -34,16 +34,16 @@
     </div>
 
     <div class="user-contact-list">
-        <div class="user-contact-row"><i class="fa-solid fa-envelope" aria-hidden="true"></i><span>{{ $user->email }}</span></div>
-        <div class="user-contact-row"><i class="fa-solid fa-phone" aria-hidden="true"></i><span>{{ filled($phone) ? $phone : 'No phone provided' }}</span></div>
-        <div class="user-contact-row"><i class="fa-solid fa-location-dot" aria-hidden="true"></i><span>{{ filled($address) ? $address : 'No address provided' }}</span></div>
+        <div class="user-contact-row"><x-icon class="fa-solid fa-envelope" aria-hidden="true" /><span>{{ $user->email }}</span></div>
+        <div class="user-contact-row"><x-icon class="fa-solid fa-phone" aria-hidden="true" /><span>{{ filled($phone) ? $phone : 'No phone provided' }}</span></div>
+        <div class="user-contact-row"><x-icon class="fa-solid fa-location-dot" aria-hidden="true" /><span>{{ filled($address) ? $address : 'No address provided' }}</span></div>
     </div>
 
     <div class="user-card-footer">
         <span class="user-registered">Registered {{ $user->created_at->format('M d, Y') }}</span>
         <div class="user-actions">
             <a class="user-action" data-user-view href="{{ route('admin.users.show', ['user' => $user->id]) }}">
-                <i class="fa-solid fa-eye" aria-hidden="true"></i> View
+                <x-icon class="fa-solid fa-eye" aria-hidden="true" /> View
             </a>
         </div>
     </div>

@@ -10,6 +10,7 @@ class ApplicationAdditionalRequirement extends Model
     protected $fillable = [
         'application_id',
         'additional_requirement_id',
+        'file_number',
         'file_path',
         'original_name',
     ];

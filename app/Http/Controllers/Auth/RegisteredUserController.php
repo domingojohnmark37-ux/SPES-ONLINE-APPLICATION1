@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Mail\RegistrationVerificationCode;
 use App\Models\PendingRegistration;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class RegisteredUserController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $email = mb_strtolower(trim((string) $request->input('email')));
         $request->merge(['email' => $email]);
@@ -55,6 +56,14 @@ class RegisteredUserController extends Controller
 
         if (! $pending) {
             if (! $this->verificationMailerIsSafe()) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'errors' => [
+                            'email' => ['Email verification is unavailable. Please try again later.'],
+                        ],
+                    ], 422);
+                }
+
                 return back()
                     ->withInput($request->except(['password', 'password_confirmation']))
                     ->withErrors(['email' => 'Email verification is unavailable. Please try again later.']);
@@ -78,6 +87,10 @@ class RegisteredUserController extends Controller
             'pending_registration_token' => $pending->token,
             'pending_registration_email' => $pending->email,
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['redirect' => route('registration.verify', absolute: false)]);
+        }
 
         return redirect()->route('registration.verify');
     }

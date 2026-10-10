@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'PESO LAL-LO') }} - Applicant Docs</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <style>
         * {
             margin: 0;
@@ -125,8 +125,33 @@
         }
 
         .applicants-list-body {
-            max-height: 600px;
+            max-height: min(68vh, 600px);
             overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+        }
+
+        .applicant-item,
+        .applicant-name,
+        .applicant-email {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
+        .files-table-scroll {
+            max-height: min(68vh, 720px);
+            overflow: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        .files-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #f5f5f5;
         }
 
         .applicant-item {
@@ -328,13 +353,13 @@
 <body>
     <div class="admin-container">
         <div class="sidebar">
-            <h2><i class="fa-solid fa-shield"></i> Admin</h2>
+            <h2><x-icon class="fa-solid fa-shield" /> Admin</h2>
             <nav>
-                <a href="{{ route('admin.dashboard') }}"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
-                <a href="{{ route('admin.applications.index') }}"><i class="fa-solid fa-file-circle-check"></i> Applications</a>
-                <a href="{{ route('admin.applicant-docs') }}" style="background: rgba(255, 255, 255, 0.2);"><i class="fa-solid fa-folder-open"></i> Applicant Docs</a>
-                <a href="#"><i class="fa-solid fa-user"></i> Users</a>
-                <a href="#"><i class="fa-solid fa-file-lines"></i> Exports</a>
+                <a href="{{ route('admin.dashboard') }}"><x-icon class="fa-solid fa-chart-line" /> Dashboard</a>
+                <a href="{{ route('admin.applications.index') }}"><x-icon class="fa-solid fa-file-circle-check" /> Applications</a>
+                <a href="{{ route('admin.applicant-docs') }}" style="background: rgba(255, 255, 255, 0.2);"><x-icon class="fa-solid fa-folder-open" /> Applicant Docs</a>
+                <a href="#"><x-icon class="fa-solid fa-user" /> Users</a>
+                <a href="#"><x-icon class="fa-solid fa-file-lines" /> Exports</a>
             </nav>
         </div>
         <div class="main-content">
@@ -347,7 +372,7 @@
                     <span>{{ Auth::user()->email }}</span>
                     <form method="POST" action="{{ route('logout') }}" style="display: inline;">
                         @csrf
-                        <button type="submit" class="logout-btn"><i class="fa-solid fa-sign-out-alt"></i> Logout</button>
+                        <button type="submit" class="logout-btn"><x-icon class="fa-solid fa-sign-out-alt" /> Logout</button>
                     </form>
                 </div>
             </div>
@@ -357,16 +382,16 @@
                 <div class="applicants-list">
                     <div class="applicants-list-header">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span><i class="fa-solid fa-users"></i> Applicants name</span>
+                            <span><x-icon class="fa-solid fa-users" /> Applicants name</span>
                             <input type="text" id="searchApplicants" placeholder="Search..." onkeyup="searchApplicants()" style="width: 120px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; background: rgba(255,255,255,0.1); color: white; font-size: 0.85rem;">
                         </div>
                     </div>
                     <div class="applicants-list-body">
                         @forelse($applicants as $applicant)
-                            <div class="applicant-item" onclick="loadApplicantFiles('{{ $applicant->applicant_name }}', '{{ $applicant->applicant_email }}', this)">
+                            <div class="applicant-item" data-request-loading data-loading-label="Loading documents..." onclick="loadApplicantFiles('{{ $applicant->applicant_name }}', '{{ $applicant->applicant_email }}', this)">
                                 <div class="applicant-info">
                                     <div class="applicant-name">
-                                        <i class="fa-solid fa-user-circle" style="margin-right: 8px;"></i>
+                                        <x-icon class="fa-solid fa-user-circle" style="margin-right: 8px;" />
                                         {{ $applicant->applicant_name }}
                                     </div>
                                     <div class="applicant-email">{{ $applicant->applicant_email }}</div>
@@ -387,13 +412,13 @@
                 <div class="files-section">
                     <div class="files-header">
                         <div class="files-header-title" id="selected-applicant">
-                            <i class="fa-solid fa-folder"></i> Select an applicant to view documents
+                            <x-icon class="fa-solid fa-folder" /> Select an applicant to view documents
                         </div>
                     </div>
 
                     <div id="files-content">
                         <div class="empty-state">
-                            <div class="empty-state-icon"><i class="fa-solid fa-inbox"></i></div>
+                            <div class="empty-state-icon"><x-icon class="fa-solid fa-inbox" /></div>
                             <p>Select an applicant to view their documents</p>
                         </div>
                     </div>
@@ -402,6 +427,7 @@
         </div>
     </div>
 
+    <script src="{{ asset('js/request-loading.js') }}?v={{ filemtime(public_path('js/request-loading.js')) }}"></script>
     <script>
         function loadApplicantFiles(applicantName, applicantEmail, element) {
             // Update active state
@@ -412,23 +438,27 @@
 
             // Update header
             document.getElementById('selected-applicant').innerHTML = 
-                `<i class="fa-solid fa-folder"></i> Applicants / ${applicantName} / Documents`;
+                `<x-icon class="fa-solid fa-folder" /> Applicants / ${applicantName} / Documents`;
 
             // Fetch files for this applicant
             fetch(`/admin/applicant-files?applicant_name=${encodeURIComponent(applicantName)}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error('Could not load applicant files.');
+                    return response.json();
+                })
                 .then(data => {
                     let content = '';
                     
                     if(data.applications.length === 0) {
                         content = `
                             <div class="empty-state">
-                                <div class="empty-state-icon"><i class="fa-solid fa-file"></i></div>
+                                <div class="empty-state-icon"><x-icon class="fa-solid fa-file" /></div>
                                 <p>No documents found for this applicant</p>
                             </div>
                         `;
                     } else {
                         content = `
+                            <div class="files-table-scroll" role="region" aria-label="Applicant documents" tabindex="0">
                             <table class="files-table">
                                 <thead>
                                     <tr>
@@ -454,7 +484,7 @@
                                         <tr class="file-row">
                                             <td class="checkbox-col"><input type="checkbox" class="file-checkbox"></td>
                                             <td>
-                                                <i class="fa-solid fa-file file-icon"></i>
+                                                <x-icon class="fa-solid fa-file file-icon" />
                                                 ${fileName}
                                             </td>
                                             <td>${new Date(app.created_at).toLocaleDateString()}</td>
@@ -462,10 +492,10 @@
                                             <td>${statusBadge}</td>
                                             <td class="actions-col">
                                                 <a href="{{ asset('storage') }}/${file}" class="btn btn-download" download>
-                                                    <i class="fa-solid fa-download"></i> Download
+                                                    <x-icon class="fa-solid fa-download" /> Download
                                                 </a>
                                                 <a href="/admin/applications/${app.id}/view-form" class="btn btn-view">
-                                                    <i class="fa-solid fa-eye"></i> View
+                                                    <x-icon class="fa-solid fa-eye" /> View
                                                 </a>
                                             </td>
                                         </tr>
@@ -478,7 +508,7 @@
                                     <tr class="file-row">
                                         <td class="checkbox-col"><input type="checkbox" class="file-checkbox"></td>
                                         <td>
-                                            <i class="fa-solid fa-file file-icon"></i>
+                                            <x-icon class="fa-solid fa-file file-icon" />
                                             Application Form Submission
                                         </td>
                                         <td>${new Date(app.created_at).toLocaleDateString()}</td>
@@ -486,7 +516,7 @@
                                         <td>${statusBadge}</td>
                                         <td class="actions-col">
                                             <a href="/admin/applications/${app.id}/view-form" class="btn btn-view">
-                                                <i class="fa-solid fa-eye"></i> View Form
+                                                <x-icon class="fa-solid fa-eye" /> View Form
                                             </a>
                                         </td>
                                     </tr>
@@ -496,6 +526,7 @@
                         content += `
                                 </tbody>
                             </table>
+                            </div>
         `;
                     }
                     

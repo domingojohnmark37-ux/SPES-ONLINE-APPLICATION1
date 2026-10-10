@@ -10,7 +10,24 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\RegistrationVerificationController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+Route::get('auth/recovery', function (Request $request) {
+    $user = $request->user();
+    if (! $user) {
+        return response()->json(['authenticated' => false]);
+    }
+
+    $destination = $user->role === 'admin'
+        ? route('admin.dashboard', absolute: false)
+        : route('dashboard', absolute: false);
+
+    return response()->json([
+        'authenticated' => true,
+        'redirect' => $destination,
+    ]);
+})->name('auth.recovery');
 
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])

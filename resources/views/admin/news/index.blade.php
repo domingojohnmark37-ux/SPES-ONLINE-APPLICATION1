@@ -9,9 +9,9 @@
 <div class="card">
     <div class="card-header">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2><i class="fa-solid fa-newspaper"></i> All News</h2>
+            <h2><x-icon class="fa-solid fa-newspaper" /> All News</h2>
             <a href="{{ route('admin.news.create') }}" class="btn btn-primary btn-sm">
-                <i class="fa-solid fa-plus"></i> New Announcement
+                <x-icon class="fa-solid fa-plus" /> New Announcement
             </a>
         </div>
     </div>
@@ -42,7 +42,7 @@
                         </td>
                         <td>
                             <span class="badge {{ $item->is_published ? 'badge-approved' : 'badge-pending' }}">
-                                <i class="fa-solid {{ $item->is_published ? 'fa-circle-check' : 'fa-circle-pause' }}"></i>
+                                <x-icon class="fa-solid {{ $item->is_published ? 'fa-circle-check' : 'fa-circle-pause' }}" />
                                 {{ $item->is_published ? 'Published' : 'Draft' }}
                             </span>
                         </td>
@@ -62,12 +62,12 @@
                         <td>
                             <div style="display: flex; gap: 6px;">
                                 <a href="{{ route('admin.news.edit', $item) }}" class="btn btn-info btn-sm">
-                                    <i class="fa-solid fa-pen"></i> Edit
+                                    <x-icon class="fa-solid fa-pen" /> Edit
                                 </a>
                                 <form method="POST" action="{{ route('admin.news.toggle', $item) }}" style="display: inline;">
                                     @csrf
                                     <button type="submit" class="btn {{ $item->is_published ? 'btn-warning' : 'btn-success' }} btn-sm">
-                                        <i class="fa-solid {{ $item->is_published ? 'fa-eye-slash' : 'fa-eye' }}"></i>
+                                        <x-icon class="fa-solid {{ $item->is_published ? 'fa-eye-slash' : 'fa-eye' }}" />
                                         {{ $item->is_published ? 'Unpublish' : 'Publish' }}
                                     </button>
                                 </form>
@@ -75,7 +75,7 @@
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this news? This action cannot be undone.')">
-                                        <i class="fa-solid fa-trash"></i> Delete
+                                        <x-icon class="fa-solid fa-trash" /> Delete
                                     </button>
                                 </form>
                             </div>

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('Settings') }} - {{ __('SPES Applicant Portal') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         :root {
             --primary:#8b0000;
@@ -192,7 +191,7 @@
 
         <div class="settings-grid">
             <section class="settings-card">
-                <h2><i class="fa-solid fa-user"></i> {{ __('Account') }}</h2>
+                <h2><x-icon class="fa-solid fa-user" /> {{ __('Account') }}</h2>
                 <p>{{ __('Keep your account details and login credentials secure.') }}</p>
 
                 <div class="settings-row">
@@ -264,7 +263,7 @@
             </section>
 
             <section class="settings-card">
-                <h2><i class="fa-solid fa-shield-halved"></i> {{ __('Security') }}</h2>
+                <h2><x-icon class="fa-solid fa-shield-halved" /> {{ __('Security') }}</h2>
                 <p>{{ __('Protect your account with reminder and verification choices.') }}</p>
                 <form method="POST" action="{{ route('settings.preferences.update') }}">
                     @csrf
@@ -290,7 +289,7 @@
             </section>
 
             <section class="settings-card">
-                <h2><i class="fa-solid fa-bell"></i> {{ __('Notifications') }}</h2>
+                <h2><x-icon class="fa-solid fa-bell" /> {{ __('Notifications') }}</h2>
                 <p>{{ __('Choose the system and email alerts you want to receive.') }}</p>
                 <form method="POST" action="{{ route('settings.notifications.update') }}">
                     @csrf
@@ -323,7 +322,7 @@
             </section>
 
             <section class="settings-card">
-                <h2><i class="fa-solid fa-palette"></i> {{ __('Appearance & Language') }}</h2>
+                <h2><x-icon class="fa-solid fa-palette" /> {{ __('Appearance & Language') }}</h2>
                 <p>{{ __('Adjust your display and local preferences for the dashboard.') }}</p>
                 <form method="POST" action="{{ route('settings.preferences.update') }}">
                     @csrf

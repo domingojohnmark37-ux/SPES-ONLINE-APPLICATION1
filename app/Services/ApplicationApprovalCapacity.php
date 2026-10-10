@@ -92,10 +92,14 @@ class ApplicationApprovalCapacity
         return $pending;
     }
 
-    public function notifyClosedApplicants(Collection $applications, int $limit): void
+    public function notifyClosedApplicants(
+        Collection $applications,
+        int $limit,
+        ApplicantNotificationService $notifications,
+    ): void
     {
         foreach ($applications as $application) {
-            $application->user->notify(new ApplicantPortalUpdate(
+            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
                 'notify_documents',
                 'SPES application period closed',
                 "The SPES program has reached its limit of {$limit} approved applicants. Your application was not included in the approved list. Please try again next SPES season.",
@@ -105,7 +109,7 @@ class ApplicationApprovalCapacity
                     'event' => 'approval_limit_reached',
                     'approved_applicant_limit' => $limit,
                 ],
-            ));
+            ), "application:{$application->id}:approval-limit-reached");
         }
     }
 }

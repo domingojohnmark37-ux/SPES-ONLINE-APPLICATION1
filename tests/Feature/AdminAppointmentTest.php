@@ -112,6 +112,110 @@ class AdminAppointmentTest extends TestCase
             ->assertSee('PESO Office');
     }
 
+    public function test_dashboard_shows_a_centered_popup_for_unread_appointment_notifications(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 10)->setTime(9, 0));
+        $admin = User::factory()->create(['role' => 'admin']);
+        $applicant = User::factory()->create();
+        $appointment = Appointment::create([
+            'title' => 'Document verification',
+            'description' => 'Bring the original documents.',
+            'location' => 'PESO Lal-lo',
+            'starts_at' => now()->setTime(14, 30),
+            'is_published' => true,
+            'target_audience' => 'all_applicants',
+            'created_by' => $admin->id,
+        ]);
+        $applicant->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_appointments',
+            'Appointment reminder',
+            'Your appointment is today. Bring the original documents.',
+            [
+                'appointment_id' => $appointment->id,
+                'appointment_date' => $appointment->starts_at->toIso8601String(),
+                'appointment_location' => $appointment->location,
+            ],
+        ));
+        Appointment::create([
+            'title' => 'Tomorrow appointment',
+            'starts_at' => now()->addDay(),
+            'is_published' => true,
+            'target_audience' => 'all_applicants',
+            'created_by' => $admin->id,
+        ]);
+        Appointment::create([
+            'title' => 'Draft appointment today',
+            'starts_at' => now()->setTime(15, 0),
+            'is_published' => false,
+            'target_audience' => 'all_applicants',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($applicant)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-appointment-day-popup', false)
+            ->assertSee('Appointment reminders')
+            ->assertSee('Appointment reminder')
+            ->assertSee('Bring the original documents.')
+            ->assertSee('PESO Lal-lo')
+            ->assertSee('role="dialog"', false)
+            ->assertSee('aria-modal="true"', false)
+            ->assertSee('Mark as read')
+            ->assertSee('This reminder will close in 10 seconds.')
+            ->assertSee('data-appointment-day-read', false)
+            ->assertDontSee('data-appointment-day-read disabled', false)
+            ->assertSee(route('notifications.read', $applicant->notifications()->firstOrFail()->id), false)
+            ->assertSee(route('applicant.appointments.index'), false)
+            ->assertDontSee('Draft appointment today');
+    }
+
+    public function test_applicant_can_mark_an_appointment_notification_as_read_to_close_the_popup(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 10)->setTime(9, 0));
+        $applicant = User::factory()->create();
+        $appointment = Appointment::create([
+            'title' => 'Document verification',
+            'description' => 'Bring your original documents.',
+            'starts_at' => now()->setTime(14, 30),
+            'is_published' => true,
+            'target_audience' => 'all_applicants',
+        ]);
+        $applicant->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_appointments',
+            'Appointment today: Document verification',
+            'Your appointment is today.',
+            [
+                'appointment_id' => $appointment->id,
+                'appointment_title' => $appointment->title,
+                'appointment_description' => $appointment->description,
+                'appointment_date' => $appointment->starts_at->format('M j, Y g:i A'),
+                'appointment_location' => $appointment->location,
+                'event' => 'appointment_day_of',
+            ],
+        ));
+        $dayOfNotification = $applicant->notifications()->firstOrFail();
+        $applicant->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            'Application update',
+            'This notification must not be changed.',
+        ));
+        $unrelatedNotification = $applicant->notifications()
+            ->whereJsonContains('data->title', 'Application update')
+            ->firstOrFail();
+
+        $this->actingAs($applicant)
+            ->from(route('dashboard'))
+            ->post(route('notifications.read', $dayOfNotification->id), ['redirect_to' => 'back'])
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertNotNull($dayOfNotification->fresh()->read_at);
+        $this->assertNull($unrelatedNotification->fresh()->read_at);
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('data-appointment-day-popup', false);
+    }
+
     public function test_picker_includes_all_user_role_accounts_but_not_admin_accounts(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

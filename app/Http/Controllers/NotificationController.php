@@ -26,10 +26,35 @@ class NotificationController extends Controller
         return response()->json(['ok' => false], 404);
     }
 
+    public function markAsUnread(Request $request, $id)
+    {
+        $notification = $request->user()->notifications()->whereKey($id)->firstOrFail();
+        $notification->update(['read_at' => null]);
+
+        return redirect()->back()->with('status', __('Notification marked as unread.'));
+    }
+
+    public function dismiss(Request $request, $id)
+    {
+        $notification = $request->user()->notifications()->whereKey($id)->firstOrFail();
+        $notification->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()->back()->with('status', __('Notification dismissed.'));
+    }
+
     public function markAllRead(Request $request)
     {
         $user = $request->user();
         $user->unreadNotifications->markAsRead();
+
+        if ($request->input('redirect_to') === 'back' && ! $request->expectsJson()) {
+            return redirect()->back()->with('status', __('All notifications marked as read.'));
+        }
+
         return response()->json(['ok' => true]);
     }
 }

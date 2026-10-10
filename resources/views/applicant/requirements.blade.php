@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('Additional Requirements') }} — {{ __('SPES Portal') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <x-applicant-text-styles />
     <style>
         :root {
@@ -47,18 +46,18 @@
         .document-name { display:flex; align-items:center; gap:11px; color:var(--type-primary-color); font-size:var(--type-secondary); font-weight:650; }
         .document-description { margin:4px 0 0 45px; color:var(--type-caption-color); font-size:var(--type-caption); line-height:1.4; }
         .document-deadline { margin:7px 0 0 45px; color:#806000; font-size:var(--type-caption); font-weight:650; line-height:1.45; }
-        .document-deadline i { margin-right:4px; }
+        .document-deadline svg.icon { margin-right:4px; }
         .download-link { display:inline-flex; min-height:34px; align-items:center; justify-content:center; gap:7px; margin:0 0 7px; padding:7px 10px; border:1px solid var(--primary); border-radius:7px; background:transparent; color:var(--primary); font-size:var(--type-caption); font-weight:700; text-decoration:none; white-space:nowrap; }
         .download-link:hover,.download-link:focus-visible { background:rgba(139,0,0,.08); }
         .template-locked { display:block; margin-bottom:7px; color:var(--type-caption-color); font-size:var(--type-caption); }
         .approved-next-steps { display:flex; align-items:flex-start; gap:12px; padding:16px 18px; border:1px solid #e7c85b; border-left:5px solid #c99400; border-radius:11px; background:#fffbed; color:#514a36; font-size:var(--type-secondary); line-height:1.6; }
-        .approved-next-steps > i { margin-top:3px; color:#a57900; font-size:1.1rem; }
+        .approved-next-steps > svg.icon { margin-top:3px; color:#a57900; font-size:1.1rem; }
         .approved-next-steps strong { color:#5d4700; }
         html[data-theme="dark"] .approved-next-steps { border-color:#806d35; background:#3b3422; color:#e2d8b8; }
         html[data-theme="dark"] .approved-next-steps strong { color:#ffe18a; }
         .application-capacity-popup { position:fixed; right:22px; bottom:22px; z-index:1300; display:flex; width:min(460px,calc(100vw - 28px)); align-items:flex-start; gap:13px; padding:17px 18px; border:1px solid rgba(198,40,40,.2); border-left:5px solid #c62828; border-radius:12px; background:var(--white); color:var(--text); box-shadow:0 16px 45px rgba(17,24,39,.22); }
         .application-capacity-popup[hidden] { display:none; }
-        .application-capacity-popup > i { margin-top:2px; color:#c62828; font-size:1.1rem; }
+        .application-capacity-popup > svg.icon { margin-top:2px; color:#c62828; font-size:1.1rem; }
         .application-capacity-copy { flex:1; min-width:0; }
         .application-capacity-copy strong { display:block; margin-bottom:5px; }
         .application-capacity-copy p { margin:0; color:var(--text-muted); font-size:var(--type-caption); line-height:1.5; }
@@ -77,7 +76,7 @@
         .action-view { background:transparent; color:var(--primary); }
         .action-view:hover,.action-view:focus-visible { background:rgba(139,0,0,.08); color:var(--primary-dark); }
         .empty-state { display:flex; align-items:flex-start; gap:10px; margin:0 20px 18px; padding:12px 14px; border-radius:8px; background:rgba(212,167,44,.14); color:var(--type-secondary-color); font-size:var(--type-caption); line-height:1.5; }
-        .empty-state i { margin-top:2px; color:#8a6800; }
+        .empty-state svg.icon { margin-top:2px; color:#8a6800; }
         @media(max-width:768px) {
             .topbar { left:0; padding:0 14px; }
             .hamburger { display:block; }
@@ -98,7 +97,7 @@
     <x-applicant-sidebar />
     <header class="topbar">
         <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Toggle applicant navigation">
-            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            <x-icon class="fa-solid fa-bars" aria-hidden="true" />
         </button>
         <div>
             <h1>My Application</h1>
@@ -110,7 +109,7 @@
             <p class="intro">{{ __('Submit the documents requested by PESO. For each requirement listed here, upload a PDF, Word document, or image (JPG or PNG).') }}</p>
             @if($application?->status === 'approved')
                 <aside class="approved-next-steps" aria-label="{{ __('Next steps for your proposed SPES application') }}">
-                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                    <x-icon class="fa-solid fa-circle-info" aria-hidden="true" />
                     <div>
                         <strong>{{ __('Your application is approved as a proposed SPES applicant—not yet final program confirmation.') }}</strong>
                         <p>{{ __('Download each requested form, complete and sign it as instructed, then upload a clear photo or scanned copy here as soon as possible. After uploading, bring the completed printed forms to the PESO office in Lal-lo and follow the staff’s instructions for the next step. Check the due date shown with each requirement and follow any additional instructions from LGU Lal-lo PESO.') }}</p>
@@ -119,35 +118,35 @@
                 </aside>
             @elseif($hasLockedRequirements)
                 <aside class="approved-next-steps" aria-label="{{ __('Additional requirements access information') }}">
-                    <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                    <x-icon class="fa-solid fa-lock" aria-hidden="true" />
                     <div>{{ __('Second-phase requirements will be available here after your application is approved.') }}</div>
                 </aside>
             @endif
             @if(session('success'))
-                <p class="empty-state" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>{{ session('success') }}</span></p>
+                <p class="empty-state" role="status"><x-icon class="fa-solid fa-circle-check" aria-hidden="true" /><span>{{ session('success') }}</span></p>
             @endif
             <section class="panel" aria-labelledby="requirements-heading">
                 <div class="panel-header">
                     <div>
-                        <h2 id="requirements-heading"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> {{ __('Additional Requirements') }}</h2>
+                        <h2 id="requirements-heading"><x-icon class="fa-solid fa-folder-open" aria-hidden="true" /> {{ __('Additional Requirements') }}</h2>
                         <p>{{ __('Only documents requested by PESO are listed here.') }}</p>
                     </div>
                     @if(!$application)
-                        <a class="action" href="{{ route('applications.create') }}"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> {{ __('Apply Now') }}</a>
+                        <a class="action" href="{{ route('applications.create') }}"><x-icon class="fa-solid fa-paper-plane" aria-hidden="true" /> {{ __('Apply Now') }}</a>
                     @elseif($application->status === 'denied')
-                        <a class="action" href="{{ route('applications.edit') }}"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> {{ __('Update Application') }}</a>
+                        <a class="action" href="{{ route('applications.edit') }}"><x-icon class="fa-solid fa-rotate-right" aria-hidden="true" /> {{ __('Update Application') }}</a>
                     @endif
                 </div>
-                <div class="progress-summary" aria-label="{{ $submittedRequirements }} of {{ $totalRequirements }} documents submitted">
-                    <div class="progress-icon" aria-hidden="true"><i class="fa-solid fa-file-circle-check"></i></div>
+                <div class="progress-summary" aria-label="{{ $submittedFiles }} of {{ $requiredFiles }} requested files submitted">
+                    <div class="progress-icon" aria-hidden="true"><x-icon class="fa-solid fa-file-circle-check" /></div>
                     <div class="progress-copy">
                         <strong>{{ __('Admin-requested documents') }}</strong>
-                            <span>{{ __(':submitted of :total requested documents submitted', ['submitted' => $submittedRequirements, 'total' => $totalRequirements]) }}</span>
+                        <span>{{ __(':submitted of :total requested files submitted', ['submitted' => $submittedFiles, 'total' => $requiredFiles]) }}</span>
                     </div>
-                    <div class="progress-count">{{ $submittedRequirements }}/{{ $totalRequirements }}</div>
+                    <div class="progress-count">{{ $submittedFiles }}/{{ $requiredFiles }}</div>
                 </div>
-                <div class="progress-track" role="progressbar" aria-label="{{ __('Documents submitted') }}" aria-valuemin="0" aria-valuemax="{{ $totalRequirements }}" aria-valuenow="{{ $submittedRequirements }}">
-                    <div class="progress-fill" style="width:{{ $totalRequirements ? $submittedRequirements / $totalRequirements * 100 : 0 }}%"></div>
+                <div class="progress-track" role="progressbar" aria-label="{{ __('Files submitted') }}" aria-valuemin="0" aria-valuemax="{{ $requiredFiles }}" aria-valuenow="{{ $submittedFiles }}">
+                    <div class="progress-fill" style="width:{{ $requiredFiles ? min(100, $submittedFiles / $requiredFiles * 100) : 0 }}%"></div>
                 </div>
                 <div class="table-wrap">
                     <table class="requirements-table">
@@ -161,11 +160,25 @@
                         </thead>
                         <tbody>
                             @foreach($additionalRequirements as $requirement)
-                                @php($submission = $requirement->submissions->first())
+                                @php
+                                    $expectedSubmissionCount = $requirement->expectedSubmissionCount($requirement->submissions->max('file_number'));
+                                    $submissionsBySlot = $requirement->submissions->keyBy('file_number');
+                                    $templateLabels = collect();
+                                    if ($requirement->template_path) {
+                                        $templateLabels->push($requirement->template_original_name ?: $requirement->name);
+                                    }
+                                    foreach ($requirement->templates as $template) {
+                                        $templateLabels->push($template->original_name);
+                                    }
+                                    if ($templateLabels->isEmpty()) {
+                                        $templateLabels->push($requirement->name);
+                                    }
+                                    $missingSlots = array_values(array_diff(range(1, $expectedSubmissionCount), $submissionsBySlot->keys()->map(fn ($slot) => (int) $slot)->all()));
+                                @endphp
                                 <tr>
                                     <td>
                                         <div class="document-name">
-                                            <span class="document-icon" aria-hidden="true"><i class="fa-regular fa-file-lines"></i></span>
+                                            <span class="document-icon" aria-hidden="true"><x-icon class="fa-regular fa-file-lines" /></span>
                                             {{ $requirement->name }}
                                             @if($requirement->is_required)
                                                 <span aria-label="{{ __('Required') }}" title="{{ __('Required') }}">*</span>
@@ -175,60 +188,75 @@
                                             <p class="document-description">{{ __($requirement->description) }}</p>
                                         @endif
                                         @if($requirement->due_at)
-                                            <p class="document-deadline"><i class="fa-regular fa-clock" aria-hidden="true"></i> {{ __('Due') }}: <time datetime="{{ $requirement->due_at->toIso8601String() }}">{{ $requirement->due_at->locale(app()->getLocale())->translatedFormat('F j, Y g:i A') }}</time></p>
+                                            <p class="document-deadline"><x-icon class="fa-regular fa-clock" aria-hidden="true" /> {{ __('Due') }}: <time datetime="{{ $requirement->due_at->toIso8601String() }}">{{ $requirement->due_at->locale(app()->getLocale())->translatedFormat('F j, Y g:i A') }}</time></p>
                                         @else
                                             <p class="document-deadline">{{ __('Submit as soon as possible; follow any deadline announced by PESO.') }}</p>
                                         @endif
-                                        @if($submission)
-                                            <p class="document-description">{{ __('File') }}: {{ $submission->original_name }}</p>
-                                        @endif
+                                        <p class="document-description">{{ __(':submitted of :total files submitted', ['submitted' => $submissionsBySlot->count(), 'total' => $expectedSubmissionCount]) }}</p>
                                     </td>
                                     <td>
-                                        @if($submission)
-                                            <span class="status status-submitted"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> {{ __('Submitted') }}</span>
+                                        @if($submissionsBySlot->count() >= $expectedSubmissionCount)
+                                            <span class="status status-submitted"><x-icon class="fa-solid fa-circle-check" aria-hidden="true" /> {{ __('Submitted') }}</span>
+                                        @elseif($submissionsBySlot->isNotEmpty())
+                                            <span class="status status-required"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ __(':count files remaining', ['count' => count($missingSlots)]) }}</span>
                                         @elseif($requirement->is_required)
-                                            <span class="status status-required"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {{ __('Required') }}</span>
+                                            <span class="status status-required"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ __('Required') }}</span>
                                         @else
-                                            <span class="status status-optional"><i class="fa-solid fa-minus" aria-hidden="true"></i> {{ __('Optional') }}</span>
+                                            <span class="status status-optional"><x-icon class="fa-solid fa-minus" aria-hidden="true" /> {{ __('Optional') }}</span>
                                         @endif
                                     </td>
-                                    <td>{{ $submission?->created_at?->format('M j, Y') ?? '—' }}</td>
+                                    <td>{{ $submissionsBySlot->max('created_at')?->format('M j, Y') ?? '—' }}</td>
                                     <td>
                                         @if($requirement->template_path)
                                             @if($requirement->isAvailableTo($application))
                                                 <a class="download-link" href="{{ route('applicant.requirements.template', $requirement) }}">
-                                                    <i class="fa-solid fa-download" aria-hidden="true"></i> {{ __('Download form') }}
+                                                    <x-icon class="fa-solid fa-download" aria-hidden="true" /> {{ __('Download form') }}
                                                 </a>
                                             @else
-                                                <span class="template-locked"><i class="fa-solid fa-lock" aria-hidden="true"></i> {{ __('Available after approval') }}</span>
+                                                <span class="template-locked"><x-icon class="fa-solid fa-lock" aria-hidden="true" /> {{ __('Available after approval') }}</span>
                                             @endif
                                         @endif
                                         @foreach($requirement->templates as $template)
                                             @if($requirement->isAvailableTo($application))
                                                 <a class="download-link" href="{{ route('applicant.requirements.template-file', ['additionalRequirement' => $requirement, 'template' => $template]) }}">
-                                                    <i class="fa-solid fa-download" aria-hidden="true"></i> {{ $template->original_name }}
+                                                    <x-icon class="fa-solid fa-download" aria-hidden="true" /> {{ $template->original_name }}
                                                 </a>
                                             @else
-                                                <span class="template-locked"><i class="fa-solid fa-lock" aria-hidden="true"></i> {{ __('Available after approval') }}</span>
+                                                <span class="template-locked"><x-icon class="fa-solid fa-lock" aria-hidden="true" /> {{ __('Available after approval') }}</span>
                                             @endif
                                         @endforeach
-                                        @if($submission)
-                                            <a class="action action-view" href="{{ route('applications.additional-requirements.document', ['application' => $application->id, 'additionalRequirement' => $requirement->id]) }}" target="_blank" rel="noopener">
-                                                <i class="fa-solid fa-eye" aria-hidden="true"></i> {{ __('View') }}
-                                            </a>
-                                        @elseif($application && $approvalCapacityClosed && $application->status !== 'approved')
-                                            <span class="template-locked"><i class="fa-solid fa-lock" aria-hidden="true"></i> {{ __('Uploads closed for this SPES season') }}</span>
-                                        @elseif($application && $requirement->is_active && $requirement->isAvailableTo($application))
+                                        @if($submissionsBySlot->isNotEmpty())
+                                            <div style="display:grid;gap:6px;margin-bottom:8px;">
+                                                @foreach($submissionsBySlot as $slot => $submission)
+                                                    <a class="action action-view" href="{{ route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $requirement->id, 'submission' => $submission->id]) }}" target="_blank" rel="noopener">
+                                                        <x-icon class="fa-solid fa-eye" aria-hidden="true" /> {{ __('View file :number', ['number' => $slot]) }}: {{ $submission->original_name }}
+                                                    </a>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        @if($application && $approvalCapacityClosed && $application->status !== 'approved')
+                                            <span class="template-locked"><x-icon class="fa-solid fa-lock" aria-hidden="true" /> {{ __('Uploads closed for this SPES season') }}</span>
+                                        @elseif($application && $requirement->is_active && $requirement->isAvailableTo($application) && $missingSlots !== [])
                                             <form method="POST" action="{{ route('applicant.requirements.upload', $requirement) }}" enctype="multipart/form-data">
                                                 @csrf
-                                                <input type="file" name="document" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required aria-label="{{ __('Choose :document file', ['document' => $requirement->name]) }}" style="max-width:190px;font:inherit;font-size:var(--type-caption);">
-                                                <button class="action" type="submit"><i class="fa-solid fa-upload" aria-hidden="true"></i> {{ __('Upload') }}</button>
-                                                @error('document')
+                                                @foreach($missingSlots as $slot)
+                                                    <label style="display:block;margin:0 0 8px;color:var(--type-secondary-color);">
+                                                        {{ __('File :number', ['number' => $slot]) }} — {{ $templateLabels->get($slot - 1, $requirement->name) }}
+                                                        <input type="file" name="documents[{{ $slot }}]" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required aria-label="{{ __('Choose file :number for :document', ['number' => $slot, 'document' => $requirement->name]) }}" style="display:block;max-width:240px;margin-top:4px;font:inherit;font-size:var(--type-caption);">
+                                                    </label>
+                                                @endforeach
+                                                <button class="action" type="submit"><x-icon class="fa-solid fa-upload" aria-hidden="true" /> {{ __('Submit :count files', ['count' => count($missingSlots)]) }}</button>
+                                                @error('documents')
                                                     <span role="alert" style="display:block;color:#b42318;font-size:var(--type-caption);">{{ $message }}</span>
                                                 @enderror
+                                                @foreach($missingSlots as $slot)
+                                                    @error("documents.$slot")
+                                                        <span role="alert" style="display:block;color:#b42318;font-size:var(--type-caption);">{{ $message }}</span>
+                                                    @enderror
+                                                @endforeach
                                             </form>
                                         @elseif(!$application)
-                                            <a class="action" href="{{ route('applications.create') }}"><i class="fa-solid fa-upload" aria-hidden="true"></i> {{ __('Apply First') }}</a>
+                                            <a class="action" href="{{ route('applications.create') }}"><x-icon class="fa-solid fa-upload" aria-hidden="true" /> {{ __('Apply First') }}</a>
                                         @else
                                             <span>{{ __('Not submitted') }}</span>
                                         @endif
@@ -239,7 +267,7 @@
                                 <tr>
                                     <td colspan="4">
                                         <p class="empty-state" style="margin:0;">
-                                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                            <x-icon class="fa-solid fa-circle-info" aria-hidden="true" />
                                             <span>{{ __('No additional documents have been requested by PESO.') }}</span>
                                         </p>
                                     </td>
@@ -253,12 +281,12 @@
     </main>
     @if($approvalCapacityClosed)
         <aside class="application-capacity-popup" role="alert" aria-live="assertive" data-application-capacity-popup>
-            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+            <x-icon class="fa-solid fa-lock" aria-hidden="true" />
             <div class="application-capacity-copy">
                 <strong>{{ __('SPES applications are closed') }}</strong>
                 <p>{{ __('The approved-applicant limit has been reached. Additional requirement uploads are closed for this season. This does not affect applicants who have already been approved.') }}</p>
             </div>
-            <button type="button" aria-label="{{ __('Dismiss notice') }}" data-dismiss-capacity-popup><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            <button type="button" aria-label="{{ __('Dismiss notice') }}" data-dismiss-capacity-popup><x-icon class="fa-solid fa-xmark" aria-hidden="true" /></button>
         </aside>
         <script>
             document.querySelector('[data-dismiss-capacity-popup]')?.addEventListener('click', function () {

@@ -210,7 +210,7 @@
             }
 
             .upload-circle {
-                position: static;
+                position: relative;
                 right: auto;
                 top: auto;
                 width: 72px;

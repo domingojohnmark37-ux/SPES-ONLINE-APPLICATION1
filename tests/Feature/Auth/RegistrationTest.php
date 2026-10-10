@@ -29,7 +29,13 @@ class RegistrationTest extends TestCase
             ->assertDontSee('Full Name')
             ->assertSee(route('terms'))
             ->assertSeeText('I have read, understood, and agree to the Terms and Conditions.')
-            ->assertSee('disabled', false);
+            ->assertSee('disabled', false)
+            ->assertSee('data-auth-form="register"', false)
+            ->assertSee('data-loading-label="Creating account..."', false)
+            ->assertSee('data-auth-spinner', false)
+            ->assertSee('data-auth-request-status', false)
+            ->assertSee('data-auth-submit', false)
+            ->assertSee('data-recovery-success-url=', false);
     }
 
     public function test_terms_and_conditions_page_can_be_rendered(): void
@@ -40,6 +46,26 @@ class RegistrationTest extends TestCase
             ->assertSee('1. Purpose of the Online Application')
             ->assertSee('11. Applicant Confirmation')
             ->assertSee('By continuing with your application, you acknowledge that you have read, understood, and agreed to these Terms and Conditions.');
+    }
+
+    public function test_registration_can_return_a_json_redirect_for_the_async_auth_form(): void
+    {
+        Mail::fake();
+        $this->mockUncompromisedVerifier(true);
+
+        $this->postJson('/register', [
+            'email' => 'jane.doe@example.com',
+            'password' => 'Strong passphrase 123!',
+            'password_confirmation' => 'Strong passphrase 123!',
+            'terms_accepted' => '1',
+        ])
+            ->assertOk()
+            ->assertJsonPath('redirect', route('registration.verify', absolute: false));
+
+        $this->assertDatabaseHas('pending_registrations', [
+            'email' => 'jane.doe@example.com',
+        ]);
+        $this->assertDatabaseCount('users', 0);
     }
 
     public function test_registration_requires_terms_acceptance(): void
@@ -57,6 +83,20 @@ class RegistrationTest extends TestCase
         $this->assertGuest();
         $this->assertDatabaseCount('users', 0);
         $this->assertDatabaseCount('pending_registrations', 0);
+    }
+
+    public function test_async_registration_returns_json_validation_errors(): void
+    {
+        $this->postJson('/register', [
+            'email' => 'invalid-email',
+            'password' => 'weak',
+            'password_confirmation' => 'different',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email', 'password', 'terms_accepted']);
+
+        $this->assertDatabaseCount('pending_registrations', 0);
+        $this->assertDatabaseCount('users', 0);
     }
 
     public function test_registration_rejects_passwords_that_are_too_short(): void

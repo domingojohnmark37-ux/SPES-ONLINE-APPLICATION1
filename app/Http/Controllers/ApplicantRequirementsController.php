@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use RuntimeException;
+use Throwable;
 
 class ApplicantRequirementsController extends Controller
 {
@@ -26,16 +27,20 @@ class ApplicantRequirementsController extends Controller
         $additionalRequirements = AdditionalRequirement::query()
             ->where('is_active', true)
             ->orWhereHas('submissions', fn ($query) => $query->where('application_id', $application?->id ?? 0))
-            ->with(['submissions' => fn ($query) => $query->where('application_id', $application?->id ?? 0)])
+            ->with([
+                'submissions' => fn ($query) => $query
+                    ->where('application_id', $application?->id ?? 0)
+                    ->orderBy('file_number'),
+            ])
             ->with('templates')
             ->orderBy('name')
             ->get()
             ->filter(fn (AdditionalRequirement $requirement) => $requirement->isAvailableTo($application))
             ->values();
-        $submittedRequirements = $application
-            ? $additionalRequirements->filter(fn ($requirement) => $requirement->submissions->isNotEmpty())->count()
-            : 0;
-        $totalRequirements = $additionalRequirements->count();
+        $submittedFiles = $additionalRequirements->sum(fn ($requirement) => $requirement->submissions->count());
+        $requiredFiles = $additionalRequirements->sum(fn ($requirement) => $requirement->expectedSubmissionCount(
+            $requirement->submissions->max('file_number'),
+        ));
         $hasLockedRequirements = $application !== null
             && $application->status !== 'approved'
             && AdditionalRequirement::where('is_active', true)
@@ -47,8 +52,8 @@ class ApplicantRequirementsController extends Controller
         return view('applicant.requirements', compact(
             'application',
             'additionalRequirements',
-            'submittedRequirements',
-            'totalRequirements',
+            'submittedFiles',
+            'requiredFiles',
             'hasLockedRequirements',
             'approvalCapacityClosed',
         ));
@@ -96,47 +101,105 @@ class ApplicantRequirementsController extends Controller
             return redirect()->route('applicant.requirements')
                 ->with('approval_capacity_closed', true);
         }
-        $validated = $request->validate([
-            'document' => ['required', 'file', 'mimes:pdf,doc,docx,jpg,jpeg,png', 'max:5120'],
-        ]);
+        $storedPaths = [];
+        try {
+            DB::transaction(function () use ($request, $application, $additionalRequirement, $auditLogger, &$storedPaths): void {
+                $application = Application::query()->whereKey($application->id)->lockForUpdate()->firstOrFail();
+                $requirement = AdditionalRequirement::query()
+                    ->with('templates')
+                    ->whereKey($additionalRequirement->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $existingSlots = ApplicationAdditionalRequirement::query()
+                    ->where('application_id', $application->id)
+                    ->where('additional_requirement_id', $requirement->id)
+                    ->pluck('file_number')
+                    ->map(fn ($number): int => (int) $number)
+                    ->all();
+                $lastSubmittedFileNumber = $existingSlots === [] ? null : max($existingSlots);
+                $missingSlots = array_values(array_diff(
+                    range(1, $requirement->expectedSubmissionCount($lastSubmittedFileNumber)),
+                    $existingSlots,
+                ));
 
-        $existingSubmission = ApplicationAdditionalRequirement::where('application_id', $application->id)
-            ->where('additional_requirement_id', $additionalRequirement->id)
-            ->first();
-        $file = $validated['document'];
-        $path = $file->store("applications/{$application->id}/additional-requirements", 'local');
-        if (!is_string($path)) {
-            throw new RuntimeException('Unable to store the uploaded application requirement.');
+                if ($missingSlots === []) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'documents' => ['All files for this requirement have already been submitted.'],
+                    ]);
+                }
+
+                $validated = $request->validate([
+                    'documents' => ['required', 'array', 'size:'.count($missingSlots)],
+                    'documents.*' => ['required', 'file', 'mimes:pdf,doc,docx,jpg,jpeg,png', 'max:5120'],
+                ]);
+                $submittedSlots = array_map('intval', array_keys($validated['documents']));
+                sort($submittedSlots);
+                $expectedSlots = $missingSlots;
+                sort($expectedSlots);
+                if ($submittedSlots !== $expectedSlots) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'documents' => ['Select one file for each remaining requirement template.'],
+                    ]);
+                }
+
+                foreach ($missingSlots as $slot) {
+                    $file = $validated['documents'][$slot];
+                    $path = $file->store("applications/{$application->id}/additional-requirements", 'local');
+                    if (!is_string($path)) {
+                        throw new RuntimeException('Unable to store an uploaded application requirement.');
+                    }
+                    $storedPaths[] = $path;
+
+                    ApplicationAdditionalRequirement::create([
+                        'application_id' => $application->id,
+                        'additional_requirement_id' => $requirement->id,
+                        'file_number' => $slot,
+                        'file_path' => $path,
+                        'original_name' => $file->getClientOriginalName(),
+                    ]);
+                }
+
+                $auditLogger->record(
+                    AuditAction::DOCUMENT_SUBMITTED,
+                    'Application Documents',
+                    Auth::user(),
+                    Auth::user(),
+                    $application,
+                    ['description' => $requirement->name.' submitted ('.count($missingSlots).' files)'],
+                );
+            });
+        } catch (Throwable $exception) {
+            if ($storedPaths !== []) {
+                Storage::disk('local')->delete($storedPaths);
+            }
+            throw $exception;
         }
 
-        DB::transaction(function () use ($existingSubmission, $application, $additionalRequirement, $path, $file, $auditLogger): void {
-            if ($existingSubmission) {
-                Storage::disk('local')->delete($existingSubmission->file_path);
-                $existingSubmission->update([
-                    'file_path' => $path,
-                    'original_name' => $file->getClientOriginalName(),
-                ]);
-            } else {
-                ApplicationAdditionalRequirement::create([
-                    'application_id' => $application->id,
-                    'additional_requirement_id' => $additionalRequirement->id,
-                    'file_path' => $path,
-                    'original_name' => $file->getClientOriginalName(),
-                ]);
-            }
-
-            $auditLogger->record(
-                AuditAction::DOCUMENT_SUBMITTED,
-                'Application Documents',
-                Auth::user(),
-                Auth::user(),
-                $application,
-                ['description' => $additionalRequirement->name.' submitted'],
-            );
-        });
-
         return redirect()->route('applicant.requirements')
-            ->with('success', "{$additionalRequirement->name} uploaded successfully.");
+            ->with('success', "{$additionalRequirement->name} files uploaded successfully.");
+    }
+
+    public function viewSubmission(
+        Application $application,
+        AdditionalRequirement $additionalRequirement,
+        ApplicationAdditionalRequirement $submission,
+    ) {
+        $user = Auth::user();
+        abort_unless($user->role === 'admin' || $application->user_id === $user->id, 403);
+        abort_unless(
+            $user->role === 'admin' || $additionalRequirement->isAvailableTo($application),
+            403,
+        );
+        abort_unless(
+            $submission->application_id === $application->id
+                && $submission->additional_requirement_id === $additionalRequirement->id,
+            404,
+        );
+        abort_unless(Storage::disk('local')->exists($submission->file_path), 404);
+
+        return response()->file(Storage::disk('local')->path($submission->file_path), [
+            'Content-Disposition' => 'inline; filename="'.str_replace(['"', "\r", "\n"], '', basename($submission->original_name)).'"',
+        ]);
     }
 
     public function viewDocument(Application $application, AdditionalRequirement $additionalRequirement)

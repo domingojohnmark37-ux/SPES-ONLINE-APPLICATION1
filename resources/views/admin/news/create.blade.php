@@ -8,7 +8,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h2><i class="fa-solid fa-pen-to-square"></i> New Announcement</h2>
+        <h2><x-icon class="fa-solid fa-pen-to-square" /> New Announcement</h2>
     </div>
     <div class="card-body">
         <form method="POST" action="{{ route('admin.news.store') }}">
@@ -27,7 +27,7 @@
                        onfocus="this.style.borderColor='var(--primary)'" 
                        onblur="this.style.borderColor='{{ $errors->has('title') ? 'var(--danger)' : 'var(--border)' }}'">
                 @error('title')
-                    <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><i class="fa-solid fa-circle-exclamation"></i> {{ $message }}</div>
+                    <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><x-icon class="fa-solid fa-circle-exclamation" /> {{ $message }}</div>
                 @enderror
             </div>
 
@@ -43,7 +43,7 @@
                           onfocus="this.style.borderColor='var(--primary)'" 
                           onblur="this.style.borderColor='{{ $errors->has('content') ? 'var(--danger)' : 'var(--border)' }}'">{{ old('content') }}</textarea>
                 @error('content')
-                    <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><i class="fa-solid fa-circle-exclamation"></i> {{ $message }}</div>
+                    <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><x-icon class="fa-solid fa-circle-exclamation" /> {{ $message }}</div>
                 @enderror
                 <small style="color: var(--text-muted); display: block; margin-top: 6px;">
                     You can format your text with HTML or plain text. The article will be saved as a draft first.
@@ -61,14 +61,14 @@
                         <option value="portal" {{ old('display_on') === 'portal' ? 'selected' : '' }}>Student Portal Only</option>
                     </select>
                     @error('display_on')
-                        <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><i class="fa-solid fa-circle-exclamation"></i> {{ $message }}</div>
+                        <div style="color: var(--danger); font-size: .8rem; margin-top: 4px;"><x-icon class="fa-solid fa-circle-exclamation" /> {{ $message }}</div>
                     @enderror
                 </div>
 
             {{-- Form Actions --}}
             <div style="display: flex; gap: 12px; align-items: center;">
                 <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;">
-                    <i class="fa-solid fa-floppy-disk"></i> Save as Draft
+                    <x-icon class="fa-solid fa-floppy-disk" /> Save as Draft
                 </button>
                 <a href="{{ route('admin.news.index') }}" class="btn btn-outline">Cancel</a>
             </div>

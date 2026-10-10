@@ -86,7 +86,7 @@ class ApplicationApprovalCapacityTest extends TestCase
             ->assertSee('Additional requirement uploads are closed for this season');
 
         $this->post(route('applicant.requirements.upload', $requirement), [
-            'document' => UploadedFile::fake()->create('proof.pdf', 20, 'application/pdf'),
+            'documents' => [1 => UploadedFile::fake()->create('proof.pdf', 20, 'application/pdf')],
         ])->assertRedirect(route('applicant.requirements'));
 
         $this->assertDatabaseMissing('application_additional_requirements', [
@@ -97,7 +97,7 @@ class ApplicationApprovalCapacityTest extends TestCase
         $approvedApplication = $approvedApplicant->applications()->firstOrFail();
         $this->actingAs($approvedApplicant)
             ->post(route('applicant.requirements.upload', $requirement), [
-                'document' => UploadedFile::fake()->create('approved-proof.pdf', 20, 'application/pdf'),
+                'documents' => [1 => UploadedFile::fake()->create('approved-proof.pdf', 20, 'application/pdf')],
             ])
             ->assertRedirect(route('applicant.requirements'))
             ->assertSessionHasNoErrors();

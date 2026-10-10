@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('Recent Notifications') }} — {{ __('SPES Portal') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <x-applicant-text-styles />
     <style>
         :root {
@@ -78,7 +77,7 @@
         }
         .notification-read:hover,.notification-read:focus-visible { background:var(--primary); color:#fff; }
         .notification-empty { padding:42px 20px; color:var(--type-secondary-color); font-size:var(--type-secondary); text-align:center; }
-        .notification-empty i { display:block; margin-bottom:10px; color:var(--type-caption-color); font-size:1.8rem; }
+        .notification-empty svg.icon { display:block; margin-bottom:10px; color:var(--type-caption-color); font-size:1.8rem; }
         @media(max-width:768px) {
             .topbar { left:0; padding:0 14px; }
             .hamburger { display:block; }
@@ -100,11 +99,11 @@
     <x-applicant-sidebar />
     <header class="topbar">
         <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Toggle applicant navigation') }}">
-            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            <x-icon class="fa-solid fa-bars" aria-hidden="true" />
         </button>
         <div>
             <h1>{{ __('Recent Notifications') }}</h1>
-            <p>{{ __('Stay updated with the latest announcements from the PESO office.') }}</p>
+            <p>{{ __('Unread notifications and items received in the last 24 hours.') }}</p>
         </div>
     </header>
     <main class="page-wrapper">
@@ -118,14 +117,14 @@
                         @foreach($recentNotifications as $notification)
                             <article class="notification-item">
                                 <span class="notification-icon" aria-hidden="true">
-                                    <i class="fa-solid {{ $notification['status'] === 'approved' ? 'fa-circle-check' : ($notification['status'] === 'denied' ? 'fa-circle-xmark' : 'fa-bell') }}"></i>
+                                    <x-icon class="fa-solid {{ $notification['status'] === 'approved' ? 'fa-circle-check' : ($notification['status'] === 'denied' ? 'fa-circle-xmark' : 'fa-bell') }}" />
                                 </span>
                                 <div class="notification-copy">
                                     <h3>{{ $notification['title'] }}</h3>
                                     <p>{{ $notification['message'] }}</p>
                                     @if($notification['appointment_date'] ?? null)
                                         <p class="notification-state">
-                                            <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
+                                            <x-icon class="fa-solid fa-calendar-check" aria-hidden="true" />
                                             {{ __('Appointment date') }}: {{ $notification['appointment_date']->locale(app()->getLocale())->translatedFormat('l, F j, Y · g:i A') }}
                                             @if($notification['appointment_location'])
                                                 · {{ $notification['appointment_location'] }}
@@ -134,7 +133,7 @@
                                     @endif
                                     @if($notification['id'])
                                         <p class="notification-state">
-                                            <i class="fa-solid {{ $notification['read_at'] ? 'fa-envelope-open' : 'fa-envelope' }}" aria-hidden="true"></i>
+                                            <x-icon class="fa-solid {{ $notification['read_at'] ? 'fa-envelope-open' : 'fa-envelope' }}" aria-hidden="true" />
                                             {{ $notification['read_at'] ? __('Read :date', ['date' => $notification['read_at']->format('M j, Y · g:i A')]) : __('Unread') }}
                                         </p>
                                     @endif
@@ -152,7 +151,7 @@
                     </div>
                 @else
                     <div class="notification-empty">
-                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                        <x-icon class="fa-regular fa-bell" aria-hidden="true" />
                         {{ __('No recent notifications. New announcements and application status updates will appear here.') }}
                     </div>
                 @endif

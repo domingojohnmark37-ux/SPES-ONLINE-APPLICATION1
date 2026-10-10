@@ -1,17 +1,26 @@
 // Auth Form Validation and Effects
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('form');
+    const form = document.querySelector('[data-auth-form]') || document.querySelector('form');
     
     if (form) {
         const submitBtn = form.querySelector('.btn-submit');
+        const authSubmitBtn = form.querySelector('[data-auth-submit]');
+        const buttonLabel = form.querySelector('[data-auth-button-label]');
+        const spinner = form.querySelector('[data-auth-spinner]');
+        const requestStatus = form.querySelector('[data-auth-request-status]');
         const termsCheckbox = form.querySelector('#terms_accepted');
         const termsError = document.getElementById('terms-error');
+        const initialButtonLabel = buttonLabel?.textContent.trim() ?? '';
+
+        if (buttonLabel) {
+            buttonLabel.dataset.initialLabel = initialButtonLabel;
+        }
 
         if (termsCheckbox && submitBtn) {
             submitBtn.disabled = !termsCheckbox.checked;
 
             termsCheckbox.addEventListener('change', function() {
-                submitBtn.disabled = !this.checked;
+                submitBtn.disabled = !this.checked || form.dataset.submissionLocked === 'true';
                 if (this.checked && termsError) {
                     termsError.hidden = true;
                 }
@@ -25,9 +34,41 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // Form submission handler
         form.addEventListener('submit', function(e) {
-            // Disable submit button to prevent double submission
+            if (form.hasAttribute('data-auth-form')) {
+                e.preventDefault();
+
+                if (form.dataset.submissionLocked === 'true') {
+                    return;
+                }
+
+                form.dataset.submissionLocked = 'true';
+                form.setAttribute('aria-busy', 'true');
+
+                if (authSubmitBtn) {
+                    authSubmitBtn.disabled = true;
+                    authSubmitBtn.classList.add('is-loading');
+                    authSubmitBtn.setAttribute('aria-busy', 'true');
+                }
+
+                if (buttonLabel) {
+                    buttonLabel.textContent = form.dataset.loadingLabel;
+                }
+
+                if (spinner) {
+                    spinner.hidden = false;
+                }
+
+                if (requestStatus) {
+                    requestStatus.textContent = form.dataset.loadingMessage;
+                    requestStatus.hidden = false;
+                    requestStatus.classList.remove('is-error', 'is-success');
+                }
+
+                void submitAuthForm(form);
+                return;
+            }
+
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.style.opacity = '0.7';
@@ -57,6 +98,182 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+async function submitAuthForm(form) {
+    try {
+        const response = await fetch(form.action, {
+            method: form.method.toUpperCase(),
+            body: new FormData(form),
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+        });
+        const contentType = response.headers.get('content-type') ?? '';
+        const responseBody = contentType.includes('application/json')
+            ? await response.json()
+            : await response.text();
+
+        if (!response.ok) {
+            if (response.status >= 500 && await recoverAuthRequest(form)) {
+                return;
+            }
+            const errorMessage = response.status >= 500
+                ? form.dataset.serverError
+                : extractAuthErrors(responseBody) || form.dataset.serverError;
+            restoreAuthForm(form, errorMessage, 'error');
+            return;
+        }
+
+        if (typeof responseBody?.redirect === 'string') {
+            const destination = new URL(responseBody.redirect, window.location.href);
+            if (destination.origin !== window.location.origin) {
+                restoreAuthForm(form, form.dataset.serverError, 'error');
+                return;
+            }
+
+            if (destination.href !== window.location.href) {
+                window.location.assign(destination.href);
+                return;
+            }
+
+            restoreAuthForm(
+                form,
+                extractAuthErrors(responseBody) || form.dataset.validationError,
+                'error'
+            );
+            return;
+        }
+
+        if (typeof responseBody === 'string' && responseBody !== '') {
+            restoreAuthForm(form, form.dataset.serverError, 'error');
+            return;
+        }
+
+        restoreAuthForm(form, form.dataset.successMessage, 'success');
+    } catch {
+        const recovered = await recoverAuthRequest(form);
+        if (recovered) {
+            return;
+        }
+
+        restoreAuthForm(form, form.dataset.networkError, 'error');
+    }
+}
+
+async function recoverAuthRequest(form) {
+    try {
+        const response = await fetch(form.dataset.recoveryUrl, {
+            credentials: 'same-origin',
+            headers: { Accept: form.dataset.authForm === 'login' ? 'application/json' : 'text/html' },
+        });
+
+        if (!response.ok) {
+            return false;
+        }
+
+        if (form.dataset.authForm === 'login') {
+            const recoveryResult = await response.json();
+            if (!recoveryResult.authenticated || typeof recoveryResult.redirect !== 'string') {
+                return false;
+            }
+
+            const loginDestination = new URL(recoveryResult.redirect, window.location.href);
+            if (loginDestination.origin !== window.location.origin) {
+                return false;
+            }
+
+            window.location.assign(loginDestination.href);
+            return true;
+        }
+
+        if (!response.redirected) {
+            const recoverySuccess = form.dataset.recoverySuccessUrl
+                ? new URL(form.dataset.recoverySuccessUrl, window.location.href)
+                : null;
+            const recoveryDestination = new URL(response.url);
+            if (
+                recoverySuccess
+                && recoveryDestination.origin === window.location.origin
+                && recoveryDestination.pathname === recoverySuccess.pathname
+            ) {
+                window.location.assign(recoveryDestination.href);
+                return true;
+            }
+
+            return false;
+        }
+
+        const destination = new URL(response.url);
+        const recoveryPage = new URL(form.dataset.recoveryUrl, window.location.href);
+        if (destination.origin !== window.location.origin) {
+            return false;
+        }
+
+        const recoverySuccessPage = form.dataset.recoverySuccessUrl
+            ? new URL(form.dataset.recoverySuccessUrl, window.location.href)
+            : null;
+        const reachedSuccessPage = recoverySuccessPage
+            ? destination.pathname === recoverySuccessPage.pathname
+            : response.redirected && destination.pathname !== recoveryPage.pathname;
+
+        if (reachedSuccessPage) {
+            window.location.assign(destination.href);
+            return true;
+        }
+    } catch {
+        return false;
+    }
+
+    return false;
+}
+
+function extractAuthErrors(html) {
+    if (html && typeof html === 'object') {
+        const validationErrors = Object.values(html.errors ?? {}).flat()
+            .filter(message => typeof message === 'string');
+        if (validationErrors.length > 0) {
+            return [...new Set(validationErrors)].join(' ');
+        }
+        if (typeof html.message === 'string') {
+            return html.message;
+        }
+        return '';
+    }
+
+    const parsedPage = new DOMParser().parseFromString(html, 'text/html');
+    const messages = Array.from(parsedPage.querySelectorAll('.alert-danger, .error-message:not([hidden])'))
+        .map(element => element.textContent.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+
+    return [...new Set(messages)].join(' ');
+}
+
+function restoreAuthForm(form, message = '', messageType = '') {
+    const button = form.querySelector('[data-auth-submit]');
+    const buttonLabel = form.querySelector('[data-auth-button-label]');
+    const spinner = form.querySelector('[data-auth-spinner]');
+    const requestStatus = form.querySelector('[data-auth-request-status]');
+    const termsCheckbox = form.querySelector('#terms_accepted');
+
+    delete form.dataset.submissionLocked;
+    form.removeAttribute('aria-busy');
+    button?.classList.remove('is-loading');
+    button?.removeAttribute('aria-busy');
+    if (button) {
+        button.disabled = Boolean(termsCheckbox && !termsCheckbox.checked);
+    }
+    if (buttonLabel) {
+        buttonLabel.textContent = buttonLabel.dataset.initialLabel ?? buttonLabel.textContent;
+    }
+    if (spinner) {
+        spinner.hidden = true;
+    }
+    if (requestStatus) {
+        requestStatus.textContent = message;
+        requestStatus.hidden = message === '';
+        requestStatus.classList.toggle('is-error', messageType === 'error');
+        requestStatus.classList.toggle('is-success', messageType === 'success');
+    }
+}
+
 // Validate individual field
 function validateField(field) {
     const value = field.type === 'password' ? field.value : field.value.trim();
@@ -68,7 +285,7 @@ function validateField(field) {
         const password = document.querySelector('input[name="password"]');
         isValid = value !== '' && value === password.value;
         field.setCustomValidity(value !== '' && !isValid ? 'Passwords do not match.' : '');
-    } else if (field.name === 'password') {
+    } else if (field.name === 'password' && field.form?.dataset.authForm === 'register') {
         const length = Array.from(value).length;
         const requirements = [
             [length >= 12, 'The password must be at least 12 characters.'],
@@ -79,6 +296,9 @@ function validateField(field) {
         const failedRequirement = requirements.find(([passes]) => !passes);
         isValid = !failedRequirement;
         field.setCustomValidity(failedRequirement?.[1] ?? '');
+    } else if (field.name === 'password') {
+        isValid = value.length > 0;
+        field.setCustomValidity('');
     } else if (field.name === 'name') {
         isValid = value.length >= 2;
     } else {
@@ -177,6 +397,34 @@ document.addEventListener('DOMContentLoaded', () => {
             mobileMenu.classList.remove('active');
         });
     });
+
+    const announcementLauncher = document.getElementById('announcement-launcher');
+    const announcementPopup = document.getElementById('announcement-popup');
+    const announcementCloseButtons = announcementPopup?.querySelectorAll('[data-announcement-close]') ?? [];
+
+    function openAnnouncements() {
+        if (!announcementPopup || announcementPopup.open) return;
+
+        announcementPopup.showModal();
+        announcementLauncher?.setAttribute('aria-expanded', 'true');
+        announcementPopup.querySelector('[data-announcement-close]')?.focus();
+    }
+
+    function closeAnnouncements() {
+        if (announcementPopup?.open) announcementPopup.close();
+    }
+
+    announcementLauncher?.addEventListener('click', openAnnouncements);
+    announcementCloseButtons.forEach(button => button.addEventListener('click', closeAnnouncements));
+    announcementPopup?.addEventListener('close', () => {
+        announcementLauncher?.setAttribute('aria-expanded', 'false');
+    });
+    announcementPopup?.addEventListener('click', event => {
+        if (event.target === announcementPopup) closeAnnouncements();
+    });
+
+    if (announcementPopup?.dataset.autoOpen === 'true') openAnnouncements();
+
 
     // Close menu when clicking outside
     document.addEventListener('click', (e) => {

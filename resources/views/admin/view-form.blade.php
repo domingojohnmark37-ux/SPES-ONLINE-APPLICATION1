@@ -245,9 +245,9 @@
     <div class="view-header">
         <h2>View Application Form</h2>
         <div>
-            <a href="{{ route('admin.applications.export', $application->id) }}" class="btn btn-download"><i class="fas fa-download"></i> Download</a>
-            <button onclick="window.print()" class="btn btn-print"><i class="fas fa-print"></i> Print</button>
-            <a href="{{ url()->previous() }}" class="btn btn-back"><i class="fas fa-arrow-left"></i> Back</a>
+            <a href="{{ route('admin.applications.export', $application->id) }}" class="btn btn-download"><x-icon class="fas fa-download" /> Download</a>
+            <button onclick="window.print()" class="btn btn-print"><x-icon class="fas fa-print" /> Print</button>
+            <a href="{{ url()->previous() }}" class="btn btn-back"><x-icon class="fas fa-arrow-left" /> Back</a>
         </div>
     </div>
 

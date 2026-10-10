@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Application;
 use App\Models\User;
+use App\Notifications\ApplicantPortalUpdate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,16 @@ class ApplicationTest extends TestCase
         $this->assertSame('2nd year', $application->grade_year_level);
         $this->assertSame('birth-certificate.pdf', $application->document_original_names['resume']);
         $this->assertSame('certificate-of-enrollment.pdf', $application->document_original_names['certificate_enrollment']);
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $user->id,
+            'type' => ApplicantPortalUpdate::class,
+        ]);
+        $this->assertDatabaseHas('applicant_notification_deliveries', [
+            'user_id' => $user->id,
+            'event_hash' => hash('sha256', "application:{$application->id}:submitted:{$application->created_at->getTimestamp()}"),
+            'channel' => 'mail',
+            'status' => 'sent',
+        ]);
     }
 
     /** @test */
@@ -331,7 +342,7 @@ class ApplicationTest extends TestCase
             ->assertSee(route('applicant.requirements'));
     }
 
-    public function test_applicant_navigation_is_shared_across_application_pages_and_updates(): void
+    public function test_applicant_navigation_is_shared_and_legacy_updates_redirect_to_notifications(): void
     {
         $user = User::factory()->create();
         $this->actingAs($user);
@@ -358,9 +369,12 @@ class ApplicationTest extends TestCase
         Application::factory()->for($user)->create(['status' => 'approved']);
 
         $this->get(route('updates'))
+            ->assertRedirect(route('applicant.notifications.recent'));
+
+        $this->get(route('applicant.notifications.recent'))
             ->assertOk()
             ->assertSee('Application Status')
-            ->assertSee('Updates')
+            ->assertDontSee('href="'.route('updates').'"', false)
             ->assertSee('FAQs')
             ->assertSee('data-open-portal-help', false);
     }

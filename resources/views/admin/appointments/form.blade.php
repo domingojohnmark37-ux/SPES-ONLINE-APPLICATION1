@@ -28,7 +28,7 @@
     .appointment-form { display: grid; gap: 25px; max-width: 1120px; margin: 0 auto; }
     .appointment-section { display: grid; gap: 17px; }
     .appointment-section-heading { display: flex; align-items: center; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); color: var(--text); font-size: .98rem; font-weight: 750; }
-    .appointment-section-heading i { color: var(--primary); }
+    .appointment-section-heading svg.icon { color: var(--primary); }
     .appointment-section-heading small { margin-left: auto; color: var(--text-muted); font-size: .75rem; font-weight: 500; }
     .appointment-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; }
     .appointment-field { min-width: 0; }
@@ -48,7 +48,7 @@
     .appointment-field-hint { display: block; margin-top: 6px; color: var(--text-muted); font-size: .78rem; line-height: 1.45; }
     .appointment-error { margin-top: 6px; color: var(--danger); font-size: .8rem; }
     .appointment-notice { display: flex; align-items: flex-start; gap: 11px; padding: 13px 15px; border: 1px solid rgba(21,101,192,.18); border-radius: 9px; background: rgba(21,101,192,.06); color: var(--text-muted); font-size: .82rem; line-height: 1.5; }
-    .appointment-notice i { margin-top: 2px; color: var(--info); }
+    .appointment-notice svg.icon { margin-top: 2px; color: var(--info); }
     .appointment-form-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 18px; border-top: 1px solid var(--border); }
     .appointment-form-actions .btn { min-height: 42px; padding: 10px 18px; border-radius: 8px; font-weight: 700; }
     .applicant-picker { position: relative; }
@@ -80,7 +80,7 @@
 </style>
 <div class="card appointment-card">
     <div class="card-header appointment-header">
-        <span class="appointment-header-icon" aria-hidden="true"><i class="fa-solid fa-calendar-plus"></i></span>
+        <span class="appointment-header-icon" aria-hidden="true"><x-icon class="fa-solid fa-calendar-plus" /></span>
         <div>
             <h2>{{ $appointment->exists ? 'Update appointment details' : 'Create an appointment' }}</h2>
             <p>Set when applicants need to attend and who should receive the reminder.</p>
@@ -95,7 +95,7 @@
 
             <section class="appointment-section" aria-labelledby="appointment-details-heading">
                 <div class="appointment-section-heading" id="appointment-details-heading">
-                    <i class="fa-regular fa-clipboard" aria-hidden="true"></i>
+                    <x-icon class="fa-regular fa-clipboard" aria-hidden="true" />
                     <span>Appointment details</span>
                     <small>Required fields are marked <span class="required-mark">*</span></small>
                 </div>
@@ -126,7 +126,7 @@
             </section>
             <section class="appointment-section" aria-labelledby="appointment-recipients-heading">
                 <div class="appointment-section-heading" id="appointment-recipients-heading">
-                    <i class="fa-solid fa-users" aria-hidden="true"></i>
+                    <x-icon class="fa-solid fa-users" aria-hidden="true" />
                     <span>Choose recipients</span>
                 </div>
                 <div class="appointment-fields">
@@ -206,7 +206,7 @@
                 @endif
                 </div>
                 <div class="appointment-notice">
-                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                    <x-icon class="fa-solid fa-circle-info" aria-hidden="true" />
                     <span>Status-based appointments go to applicants whose latest application matches the selected status. New appointments are saved as drafts; publish them from the appointment list when they are ready.</span>
                 </div>
             </section>

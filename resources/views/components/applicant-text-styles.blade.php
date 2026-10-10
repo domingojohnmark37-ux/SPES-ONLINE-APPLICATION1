@@ -419,8 +419,8 @@
         color:var(--theme-success) !important;
     }
 
-    .page-wrapper[data-app-theme="dark"] .hero-ill i,
-    .page-wrapper[data-app-theme="dark"] .quick-action-link i {
+    .page-wrapper[data-app-theme="dark"] .hero-ill svg.icon,
+    .page-wrapper[data-app-theme="dark"] .quick-action-link svg.icon {
         color:var(--theme-mustard-bright) !important;
     }
 

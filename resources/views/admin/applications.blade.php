@@ -9,31 +9,31 @@
 {{-- Stats mini row --}}
 <div class="stats-grid" style="margin-bottom:20px;">
     <div class="stat-card">
-        <div class="stat-icon teal"><i class="fa-solid fa-file-lines"></i></div>
+        <div class="stat-icon teal"><x-icon class="fa-solid fa-file-lines" /></div>
         <div><div class="stat-num">{{ $stats['total'] }}</div><div class="stat-label">Total</div></div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon orange"><i class="fa-solid fa-clock"></i></div>
+        <div class="stat-icon orange"><x-icon class="fa-solid fa-clock" /></div>
         <div><div class="stat-num">{{ $stats['pending'] }}</div><div class="stat-label">Pending</div></div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon green"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-icon green"><x-icon class="fa-solid fa-circle-check" /></div>
         <div><div class="stat-num">{{ $stats['approved'] }}</div><div class="stat-label">Approved</div></div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon red"><i class="fa-solid fa-circle-xmark"></i></div>
+        <div class="stat-icon red"><x-icon class="fa-solid fa-circle-xmark" /></div>
         <div><div class="stat-num">{{ $stats['denied'] }}</div><div class="stat-label">Denied</div></div>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h2><i class="fa-solid fa-list"></i> All Applications</h2>
+        <h2><x-icon class="fa-solid fa-list" /> All Applications</h2>
     </div>
     <div class="card-body">
         @if($approvalCapacity['limit'])
             <div class="alert {{ $approvalCapacity['full'] ? 'alert-danger' : 'alert-info' }}" role="status">
-                <i class="fa-solid {{ $approvalCapacity['full'] ? 'fa-lock' : 'fa-chart-simple' }}" aria-hidden="true"></i>
+                <x-icon class="fa-solid {{ $approvalCapacity['full'] ? 'fa-lock' : 'fa-chart-simple' }}" aria-hidden="true" />
                 <span>
                     <strong>{{ $approvalCapacity['approved'] }} of {{ $approvalCapacity['limit'] }} approved this season.</strong>
                     @if($approvalCapacity['full'])
@@ -55,7 +55,7 @@
                         <option value="{{ $b }}" {{ request('barangay')===$b ? 'selected':'' }}>{{ $b }}</option>
                     @endforeach
                 </select>
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
+                <button type="submit" class="btn btn-primary btn-sm"><x-icon class="fa-solid fa-magnifying-glass" /> Filter</button>
                 <a href="{{ route('admin.applications.index') }}" class="btn btn-outline btn-sm">Clear</a>
             </form>
         </div>
@@ -93,32 +93,32 @@
                         </td>
                         <td>
                             <span class="badge badge-{{ $app->status }}">
-                                <i class="fa-solid {{ $app->status === 'approved' ? 'fa-circle-check' : ($app->status === 'denied' ? 'fa-circle-xmark' : 'fa-clock') }}"></i>
+                                <x-icon class="fa-solid {{ $app->status === 'approved' ? 'fa-circle-check' : ($app->status === 'denied' ? 'fa-circle-xmark' : 'fa-clock') }}" />
                                 {{ ucfirst($app->status) }}
                             </span>
                         </td>
                         <td style="font-size:.78rem;color:var(--text-muted)">@adminDate($app->created_at)</td>
                         <td>
                             <a href="{{ route('admin.applications.show', $app) }}" class="btn btn-info btn-sm" style="margin-bottom:4px;">
-                                <i class="fa-solid fa-eye"></i> View
+                                <x-icon class="fa-solid fa-eye" /> View
                             </a>
                             @if($app->status === 'pending' && !$approvalCapacity['full'])
                                 <form method="POST" action="{{ route('admin.applications.approve', $app) }}" style="display:inline;">
                                     @csrf
                                     <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve this application?')" style="margin-bottom:4px;">
-                                        <i class="fa-solid fa-check"></i> Approve
+                                        <x-icon class="fa-solid fa-check" /> Approve
                                     </button>
                                 </form>
                             @elseif($app->status === 'pending' && $approvalCapacity['full'])
                                 <button type="button" class="btn btn-success btn-sm" disabled aria-disabled="true" title="Approval limit reached">
-                                    <i class="fa-solid fa-lock" aria-hidden="true"></i> Approval limit reached
+                                    <x-icon class="fa-solid fa-lock" aria-hidden="true" /> Approval limit reached
                                 </button>
                             @endif
                             @if($app->status === 'pending')
                                 <form method="POST" action="{{ route('admin.applications.deny', $app) }}" style="display:inline;">
                                     @csrf
                                     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Deny this application?')">
-                                        <i class="fa-solid fa-xmark"></i> Deny
+                                        <x-icon class="fa-solid fa-xmark" /> Deny
                                     </button>
                                 </form>
                             @endif

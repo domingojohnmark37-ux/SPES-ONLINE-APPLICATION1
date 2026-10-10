@@ -17,7 +17,7 @@
 @endphp
 <div class="card">
     <div class="card-header">
-        <h2><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> Audit Detail</h2>
+        <h2><x-icon class="fa-solid fa-clipboard-check" aria-hidden="true" /> Audit Detail</h2>
         <a href="{{ $auditLog->applicant_id ? route('admin.applicant-audit.show', ['applicant' => $auditLog->applicant_id, 'application_id' => $auditLog->application_id]) : route('admin.applicant-audit.index') }}" class="btn btn-outline btn-sm">Back</a>
     </div>
     <div class="card-body">

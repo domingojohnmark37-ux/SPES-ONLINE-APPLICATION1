@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('Profile') }} — {{ __('SPES Applicant Portal') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         :root {
@@ -109,7 +108,7 @@
     <header class="topbar">
         <div style="display:flex;align-items:center;">
             <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Toggle applicant navigation">
-                <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-bars" aria-hidden="true" />
             </button>
             <div>
                 <span class="text-primary-line">SPES Applicant Portal</span>
@@ -122,7 +121,7 @@
         <div class="page-content">
             @if (session('status') === 'profile-updated')
                 <div style="background:#fff;border-left:4px solid #22c55e;padding:16px 20px;border-radius:12px;box-shadow:var(--shadow);margin-bottom:20px;">
-                    <p style="margin:0;color:#14532d;"><i class="fa-solid fa-circle-check"></i> Profile updated successfully.</p>
+                    <p style="margin:0;color:#14532d;"><x-icon class="fa-solid fa-circle-check" /> Profile updated successfully.</p>
                 </div>
             @endif
 

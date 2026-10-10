@@ -38,11 +38,8 @@ class AdminSettingsFeatureController extends Controller
             'date_from' => null,
             'date_to' => null,
         ], $filters);
-        $showAllAdminAuditLogs = $request->boolean('show_all_admin_audit_logs');
         $adminAuditLogs = $auditQuery->userAuditQuery($filters, 'admin')
-            ->paginate($showAllAdminAuditLogs ? 20 : 5, ['*'], 'admin_audit_page')
-            ->withQueryString()
-            ->fragment('admin-audit');
+            ->get();
         $annualBackups = $backupService->annualArchives();
 
         return view('admin.settings-features.index', compact(
@@ -50,7 +47,6 @@ class AdminSettingsFeatureController extends Controller
             'administrators',
             'filters',
             'adminAuditLogs',
-            'showAllAdminAuditLogs',
             'annualBackups',
         ));
     }

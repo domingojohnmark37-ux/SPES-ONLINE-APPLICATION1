@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
 use App\Services\AuditLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,7 +25,7 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request, AuditLogger $auditLogger): RedirectResponse
+    public function store(LoginRequest $request, AuditLogger $auditLogger): RedirectResponse|JsonResponse
     {
         $request->authenticate($auditLogger);
 
@@ -41,11 +42,16 @@ class AuthenticatedSessionController extends Controller
             }
         }
         
-        if ($user->role === 'admin') {
-            return redirect()->intended(route('admin.dashboard', absolute: false));
+        $destination = $user->role === 'admin'
+            ? route('admin.dashboard', absolute: false)
+            : route('dashboard', absolute: false);
+        $redirect = redirect()->intended($destination);
+
+        if ($request->expectsJson()) {
+            return response()->json(['redirect' => $redirect->getTargetUrl()]);
         }
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return $redirect;
     }
 
     /**

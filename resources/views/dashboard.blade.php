@@ -15,7 +15,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('User Dashboard — SPES') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -35,7 +34,7 @@
             --shadow: 0 2px 12px rgba(0,0,0,.08);
             --sidebar-w: 220px;
         }
-        body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+        body { min-width: 320px; overflow-x: hidden; font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
 
         /* Sidebar */
         .sidebar {
@@ -56,13 +55,13 @@
             text-decoration: none; padding: 9px 10px; border-radius: 9px; font-size: .86rem;
             transition: background .18s, color .18s, transform .08s; margin-bottom: 0;
         }
-        .nav-link i { width: 18px; text-align: center; }
+        .nav-link svg.icon { width: 18px; text-align: center; }
         .nav-link:hover { background: rgba(255,255,255,.08); transform: translateX(2px); color: #fff; }
         button.nav-link { background: transparent; border: 0; font: inherit; text-align: left; cursor: pointer; }
         .nav-link.active {
             background: var(--accent); color: var(--primary-dark); font-weight: 700; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05);
         }
-        .nav-link.active i { color: var(--primary-dark); }
+        .nav-link.active svg.icon { color: var(--primary-dark); }
         .nav-count { margin-left: auto; min-width: 18px; padding: 2px 5px; border-radius: 999px; background: #e53935; color: #fff; font-size: .68rem; font-weight: 800; text-align: center; }
         .sidebar-user {
             padding: 16px 14px; border-top: 1px solid rgba(255,255,255,.08);
@@ -81,10 +80,11 @@
             background: var(--white); box-shadow: var(--shadow); display: flex; align-items: center;
             justify-content: space-between; padding: 0 22px; z-index: 90;
         }
-        .topbar .brand { display: flex; align-items: center; gap: 12px; }
+        .topbar .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .topbar .brand > div { min-width: 0; }
         .topbar h1 { font-size: var(--type-title); font-weight: 700; color: var(--type-primary-color); }
         .topbar p { font-size: var(--type-secondary); color: var(--type-secondary-color); margin-top: .25rem; }
-        .topbar-right { display: flex; align-items: center; gap: 16px; }
+        .topbar-right { display: flex; align-items: center; gap: 16px; flex: 0 0 auto; }
         .date-pill {
             background: #f9f5ea; border: 1px solid var(--border); padding: 8px 12px;
             border-radius: 10px; color: var(--primary); font-weight: 700;
@@ -92,14 +92,21 @@
         .notif { position:relative; }
         .notif .bell { position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:10px; background:#f3f6f5; cursor:pointer; }
         .notif .count { position:absolute; top:-6px; right:-6px; background:#e53935; color:#fff; font-size:.72rem; padding:3px 6px; border-radius:999px; font-weight:700; }
-        .notif-dropdown { position:absolute; right:0; top:48px; width:320px; background:#fff; box-shadow:0 10px 30px rgba(0,0,0,.08); border-radius:10px; display:none; z-index:120; }
-        .notif-dropdown.open { display:block; }
+        .notif-dropdown { position:absolute; right:0; top:48px; display:none; width:min(360px,calc(100vw - 24px)); max-height:min(72vh,620px); overflow:hidden; border:1px solid var(--border); border-radius:10px; background:var(--white); box-shadow:0 10px 30px rgba(0,0,0,.14); z-index:120; }
+        .notif-dropdown.open { display:flex; flex-direction:column; }
+        .notif-list { min-height:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-gutter:stable; }
+        .notif-list:focus-visible { outline:3px solid var(--accent); outline-offset:-3px; }
         .notif-item { padding:12px; border-bottom:1px solid #f1f5f6; display:flex; gap:10px; align-items:flex-start; }
         .notif-item:last-child { border-bottom:none; }
-        .notif-item .meta { font-size:.9rem; }
-        .notif-empty { padding:12px; color:#6b7680; }
-        .user-pill { display: flex; align-items: center; gap: 10px; }
+        .notif-item > :first-child { flex:0 0 36px; }
+        .notif-item .meta { min-width:0; flex:1; font-size:.9rem; overflow-wrap:anywhere; word-break:break-word; }
+        .notif-footer { flex:0 0 auto; padding:10px; border-top:1px solid var(--border); background:var(--white); text-align:center; }
+        .notif-footer button { min-height:36px; padding:6px 10px; }
+        .notif-empty { padding:12px; color:var(--text-muted); overflow-wrap:anywhere; }
+        .user-pill { display: flex; align-items: center; gap: 10px; min-width: 0; }
         .user-pill img { width: 38px; height: 38px; border-radius: 50%; }
+        .user-pill > div { min-width: 0; }
+        .user-pill > div > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
         .badge-pending  { background: #fff8e1; color: #e65100; }
@@ -123,6 +130,7 @@
 
         /* Stat cards */
         .stats-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+        .stats-row.summary-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
         .stat-card {
             background: var(--white); border-radius: 12px; padding: 18px; box-shadow: var(--shadow);
             display:flex; align-items:center; gap:14px; border: 1px solid rgba(139,0,0,.04);
@@ -136,6 +144,7 @@
 
         /* Hero / welcome */
         .layout-grid { display: grid; grid-template-columns: minmax(0,1.75fr) minmax(280px,1fr); gap: 14px; align-items: start; }
+        .layout-grid > div { min-width: 0; }
         .hero { display: flex; gap: 18px; align-items: center; padding: 20px; }
         .hero-ill {
             width: 84px; height: 84px; background: linear-gradient(135deg, var(--accent-soft), #f8f3d9);
@@ -206,12 +215,12 @@
         .notification-view-all:focus-visible { outline:3px solid var(--primary); outline-offset:3px; }
         .quick-action-list { display: grid; gap: 8px; }
         .quick-action-link { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-size: .84rem; font-weight: 700; text-decoration: none; }
-        .quick-action-link i { width: 18px; color: var(--primary); }
+        .quick-action-link svg.icon { width: 18px; color: var(--primary); }
         .quick-action-link:hover { border-color: var(--primary); background: #fffafa; }
         .requirement-list { display: grid; gap: 11px; }
         .requirement-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .82rem; }
         .requirement-item span:first-child { display: flex; align-items: center; gap: 8px; }
-        .requirement-item i { color: var(--primary); }
+        .requirement-item svg.icon { color: var(--primary); }
         .requirement-state { color: var(--text-muted); font-size: .73rem; white-space: nowrap; }
         .requirement-state.complete { color: var(--success); font-weight: 700; }
         .empty-announcements { color: var(--text-muted); font-size: .86rem; line-height: 1.5; }
@@ -224,6 +233,43 @@
         .btn-primary { background: var(--primary); color: #fff; }
         .btn-primary:hover { opacity: .92; }
         .btn-outline { background: transparent; border: 1.5px solid var(--primary); color: var(--primary); }
+        .appointment-day-backdrop {
+            position:fixed; inset:0; z-index:130; display:grid; place-items:center; padding:20px;
+            background:rgba(17,24,39,.58); backdrop-filter:blur(3px);
+        }
+        .appointment-day-backdrop[hidden] { display:none; }
+        .appointment-day-popup {
+            width:min(520px,calc(100vw - 32px)); max-height:min(82vh,680px); overflow:auto;
+            border:1px solid var(--border); border-top:5px solid var(--accent); border-radius:14px;
+            background:var(--white); color:var(--text); box-shadow:0 24px 70px rgba(17,24,39,.34);
+        }
+        .appointment-day-popup-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px 17px 10px; }
+        .appointment-day-popup-header h2 { color:var(--primary); font-size:1.05rem; }
+        .appointment-day-popup-header p { margin-top:4px; color:var(--text-muted); font-size:.82rem; line-height:1.45; }
+        .appointment-day-list { display:grid; gap:0; padding:0 17px 12px; }
+        .appointment-day-item { padding:11px 0; border-top:1px solid var(--border); }
+        .appointment-day-item h3 { margin:0 0 5px; color:var(--type-primary-color); font-size:.95rem; overflow-wrap:anywhere; }
+        .appointment-day-item p { margin:4px 0 0; color:var(--type-secondary-color); font-size:.82rem; line-height:1.45; overflow-wrap:anywhere; white-space:pre-wrap; }
+        .appointment-day-item .appointment-day-time { color:var(--primary); font-weight:700; }
+        .appointment-day-popup-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:0 17px 17px; }
+        .appointment-day-popup-footer a { color:var(--primary); font-size:.82rem; font-weight:700; }
+        .appointment-day-popup-footer a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+        .appointment-day-read-form { margin:0; }
+        .appointment-day-read-button { display:inline-flex; min-height:42px; align-items:center; justify-content:center; gap:8px; padding:9px 14px; border:1px solid var(--primary-dark); border-radius:8px; background:var(--primary-dark); color:#fff; font:inherit; font-size:.84rem; font-weight:700; cursor:pointer; }
+        .appointment-day-read-button:hover:not(:disabled),.appointment-day-read-button:focus-visible:not(:disabled) { background:var(--primary); }
+        .appointment-day-read-button:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+        .appointment-day-read-button:disabled { cursor:not-allowed; opacity:.7; }
+        .appointment-day-wait { color:var(--text-muted); font-size:.76rem; }
+        .appointment-day-dismiss-countdown { padding:0 17px 12px; color:var(--text-muted); font-size:.76rem; }
+        @media(max-width:767.98px) {
+            .appointment-day-backdrop { padding:12px; }
+            .appointment-day-popup { width:min(520px,calc(100vw - 24px)); max-height:82vh; }
+            .appointment-day-popup-footer { align-items:stretch; flex-direction:column-reverse; }
+            .appointment-day-read-form,.appointment-day-read-button { width:100%; }
+        }
+        @media(prefers-color-scheme:dark) {
+            html[data-theme="system"] .appointment-day-popup { --white:#24272d; --text:#f2f4f7; --text-muted:#c0c6d0; --border:#434852; }
+        }
 
         .hamburger { display: none; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--primary); margin-right: 10px; }
         @media(max-width:900px) { .hamburger { display:block; } }
@@ -235,16 +281,28 @@
             background: #fff; color: var(--primary-dark); border: 1px solid rgba(0,0,0,.08); font-weight: 700;
             box-shadow: 0 2px 6px rgba(0,0,0,.06);
         }
-        .btn-logout i { color: var(--primary-dark); }
+        .btn-logout svg.icon { color: var(--primary-dark); }
         .btn-logout:hover { transform: translateY(-1px); }
 
-        @media(max-width:900px) {
+        @media(max-width:1100px) {
             .layout-grid { grid-template-columns: 1fr; }
+        }
+        @media(max-width:900px) {
             .stats-row { grid-template-columns: repeat(2,minmax(0,1fr)); }
             .topbar { left: 0; }
             .page-wrapper { margin-left: 0; padding-top: 72px; }
-            .sidebar { transform: translateX(-100%); transition: transform .24s; }
-            .sidebar.open { transform: translateX(0); }
+            .applicant-sidebar:not(.open) { transform: translateX(-100%); }
+            .applicant-sidebar.open { transform: translateX(0); }
+            .applicant-sidebar .sidebar-brand .sidebar-close { display: inline-flex; }
+            .applicant-sidebar + .sidebar-backdrop:not([hidden]) {
+                position: fixed;
+                inset: 0;
+                z-index: 99;
+                display: block;
+                border: 0;
+                background: rgba(17,24,39,.5);
+                cursor: pointer;
+            }
         }
         @media(max-width:767.98px) {
             .topbar { height: 60px; padding: 0 12px; gap: 8px; }
@@ -253,16 +311,16 @@
             .topbar p { display: none; }
             .hamburger { flex: 0 0 auto; margin-right: 0; }
             .topbar-right { flex: 0 0 auto; gap: 8px; }
-            .user-pill { display: none; }
+            .user-pill > div { display: none; }
+            .user-pill img { width: 34px; height: 34px; }
             .page-wrapper { padding-top: 60px; }
-            .page-content { min-width: 0; padding: 14px; }
+            .page-content { min-width: 0; padding: 14px clamp(12px, 3.5vw, 20px); }
             .stats-row { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
             .stat-card { min-width: 0; padding: 14px; }
             .summary-card { padding: 12px; gap: 8px; }
             .summary-card .stat-icon { width: 34px; height: 34px; font-size: .88rem; }
             .summary-card .stat-num { font-size: 1rem; }
             .stat-card > div:last-child { min-width: 0; }
-            .layout-grid, .layout-grid > div { min-width: 0; }
             .layout-grid { gap: 14px; }
             .hero {
                 display: grid;
@@ -274,8 +332,7 @@
             .hero h3 { font-size: 1rem; }
             .hero p { font-size: .9rem; line-height: 1.45; overflow-wrap: anywhere; }
             .hero > div:nth-child(2) { min-width: 0; }
-            .hero > div:last-child { grid-column: 1 / -1; min-width: 0 !important; width: 100%; }
-            .hero > div:last-child .qa { min-width: 0; padding: 10px 6px; font-size: .82rem; }
+            .hero .btn { max-width: 100%; justify-content: center; text-align: center; }
             .progress { min-width: 0; padding: 14px; }
             .progress .card-body { padding: 14px 0 0; }
             .progress-track {
@@ -289,6 +346,12 @@
             .notification-item { grid-template-columns:34px minmax(0,1fr); gap:9px; padding:12px 0; }
             .notification-icon { width:32px; height:32px; }
             .notification-time { grid-column:2; grid-row:2; white-space:normal; }
+            .notif-dropdown { position:fixed; top:66px; right:10px; width:min(360px,calc(100vw - 20px)); max-height:min(70vh,560px); }
+            .card-header { align-items: flex-start; gap: 10px; padding: 14px; }
+            .card-header h2 { min-width: 0; overflow-wrap: anywhere; }
+            .card-header a { flex: 0 0 auto; text-align: right; }
+            .card-body { padding: 14px; }
+            .quick-action-link { min-height: 44px; }
             body > footer {
                 margin-left: 0 !important;
                 padding: 14px 16px !important;
@@ -298,6 +361,14 @@
             body > footer > span:last-child { display: flex; flex-wrap: wrap; gap: 10px 14px; }
             body > footer a { overflow-wrap: anywhere; }
         }
+        @media(max-width:380px) {
+            .stats-row.summary-stats { grid-template-columns: 1fr; }
+            .summary-card { align-items: center; padding: 14px; }
+            .summary-card .stat-icon { width: 40px; height: 40px; font-size: 1rem; }
+            .summary-card .stat-num { font-size: 1.1rem; }
+            .topbar { padding-right: 10px; padding-left: 10px; }
+            .topbar-right { gap: 6px; }
+        }
     </style>
 </head>
 <body>
@@ -306,7 +377,7 @@
 
 <header class="topbar">
     <div class="brand" style="display:flex;align-items:center;">
-        <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Toggle applicant navigation') }}"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
+        <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Toggle applicant navigation') }}"><x-icon class="fa-solid fa-bars" aria-hidden="true" /></button>
         <div>
             <h1>{{ __('Welcome back, :name!', ['name' => explode(' ', Auth::user()->name)[0]]) }}</h1>
             <p>{{ __('SPES Applicant Portal') }}</p>
@@ -315,23 +386,25 @@
     <div class="topbar-right">
         <div class="notif">
             <div class="bell" id="notifBellUser" title="{{ __('Notifications') }}">
-                <i class="fa-solid fa-bell" style="color:var(--primary);"></i>
+                <x-icon class="fa-solid fa-bell" style="color:var(--primary);" />
                 @if($unread_u > 0)
                     <div class="count" id="notifCountUser">{{ $unread_u }}</div>
                 @endif
             </div>
             <div class="notif-dropdown" id="notifDropdownUser">
                 @if($notes_u->count())
-                    @foreach($notes_u as $n)
-                        <div class="notif-item" data-id="{{ $n->id }}">
-                            <div style="width:36px;height:36px;border-radius:8px;background:#eef7ff;display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-info" style="color:#1e6fb3"></i></div>
-                            <div class="meta">
-                                <div style="font-weight:700;">{{ $n->data['message'] ?? 'Notification' }}</div>
-                                <div style="font-size:.8rem;color:#6b7680;margin-top:4px;">{{ optional($n->created_at)->diffForHumans() }}</div>
+                    <div class="notif-list" role="region" aria-label="{{ __('Unread notifications') }}" tabindex="0">
+                        @foreach($notes_u as $n)
+                            <div class="notif-item" data-id="{{ $n->id }}" data-request-loading data-loading-label="Marking as read...">
+                                <div style="width:36px;height:36px;border-radius:8px;background:#eef7ff;display:flex;align-items:center;justify-content:center;"><x-icon class="fa-solid fa-info" style="color:#1e6fb3" /></div>
+                                <div class="meta">
+                                    <div style="font-weight:700;">{{ $n->data['message'] ?? 'Notification' }}</div>
+                                    <div style="font-size:.8rem;color:var(--text-muted);margin-top:4px;">{{ optional($n->created_at)->diffForHumans() }}</div>
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
-                    <div style="padding:10px;text-align:center;border-top:1px solid #f1f5f6;"><a href="#" id="markAllReadUser" style="color:var(--primary);text-decoration:none;font-weight:700;">{{ __('Mark all as read') }}</a></div>
+                        @endforeach
+                    </div>
+                    <div class="notif-footer"><button type="button" id="markAllReadUser" data-request-loading data-loading-label="Marking as read..." style="border:0;background:transparent;color:var(--primary);font:inherit;font-weight:700;cursor:pointer;">{{ __('Mark all as read') }}</button></div>
                 @else
                     <div class="notif-empty">{{ __('No new notifications') }}</div>
                 @endif
@@ -355,9 +428,9 @@ document.addEventListener('DOMContentLoaded', function(){
         document.addEventListener('click', (e)=>{ if (!bellU.contains(e.target) && !ddU.contains(e.target)) ddU.classList.remove('open'); });
     }
     if (markAllU) {
-        markAllU.addEventListener('click', function(e){ e.preventDefault(); fetch('{{ route('notifications.readAll') }}', { method: 'POST', headers: {'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(()=>{ document.getElementById('notifCountUser')?.remove(); ddU.innerHTML = '<div class="notif-empty">' + @json(__('No new notifications')) + '</div>'; }) });
+        markAllU.addEventListener('click', function(){ fetch('{{ route('notifications.readAll') }}', { method: 'POST', headers: {'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(response=>{ if (!response.ok) throw new Error('Could not mark notifications as read.'); document.getElementById('notifCountUser')?.remove(); ddU.innerHTML = '<div class="notif-empty">' + @json(__('No new notifications')) + '</div>'; }).catch(error=>console.error(error)); });
     }
-    ddU?.addEventListener('click', function(e){ let item = e.target.closest('.notif-item'); if (!item) return; const id = item.getAttribute('data-id'); fetch('/notifications/'+id+'/read', { method:'POST', headers:{'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(()=> { item.remove(); const cnt = document.getElementById('notifCountUser'); if (cnt) { let v = parseInt(cnt.innerText)-1; if (v<=0) cnt.remove(); else cnt.innerText = v; } }); });
+    ddU?.addEventListener('click', function(e){ let item = e.target.closest('.notif-item'); if (!item) return; const id = item.getAttribute('data-id'); fetch('/notifications/'+id+'/read', { method:'POST', headers:{'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(response=> { if (!response.ok) throw new Error('Could not mark notification as read.'); item.remove(); const cnt = document.getElementById('notifCountUser'); if (cnt) { let v = parseInt(cnt.innerText)-1; if (v<=0) cnt.remove(); else cnt.innerText = v; } }).catch(error=>console.error(error)); });
 });
 </script>
 </header>
@@ -366,13 +439,13 @@ document.addEventListener('DOMContentLoaded', function(){
 <div class="page-content">
 
     @if(session('success'))
-        <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ session('success') }}</div>
+        <div class="alert alert-success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
     @endif
     @if(session('info'))
-        <div class="alert alert-info"><i class="fa-solid fa-circle-info"></i> {{ session('info') }}</div>
+        <div class="alert alert-info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
     @endif
     @if(session('error'))
-        <div class="alert alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> {{ session('error') }}</div>
+        <div class="alert alert-warning"><x-icon class="fa-solid fa-triangle-exclamation" /> {{ session('error') }}</div>
     @endif
 
     @php
@@ -382,9 +455,9 @@ document.addEventListener('DOMContentLoaded', function(){
     @endphp
 
     {{-- Application overview --}}
-    <div class="stats-row" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+    <div class="stats-row summary-stats">
         <div class="stat-card summary-card">
-            <div class="stat-icon" style="background:#e7f9f1;color:#0b6f45;"><i class="fa-solid fa-file-circle-check"></i></div>
+            <div class="stat-icon" style="background:#e7f9f1;color:#0b6f45;"><x-icon class="fa-solid fa-file-circle-check" /></div>
             <div>
                 <div class="stat-num">{{ __($application ? 'Submitted' : 'Not started') }}</div>
                 <div class="stat-label">{{ __('Application') }}</div>
@@ -392,7 +465,7 @@ document.addEventListener('DOMContentLoaded', function(){
             </div>
         </div>
         <div class="stat-card summary-card">
-            <div class="stat-icon" style="background:#fff4bf;color:#946b00;"><i class="fa-solid fa-folder-open"></i></div>
+            <div class="stat-icon" style="background:#fff4bf;color:#946b00;"><x-icon class="fa-solid fa-folder-open" /></div>
             <div>
                 <div class="stat-num">{{ $uploadedRequirements }} / 2</div>
                 <div class="stat-label">{{ __('Required documents') }}</div>
@@ -405,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <div>
             <div class="card">
                 <div class="card-body hero">
-                    <div class="hero-ill"><i class="fa-solid fa-clipboard-check" style="font-size:28px;color:var(--primary);"></i></div>
+                    <div class="hero-ill"><x-icon class="fa-solid fa-clipboard-check" style="font-size:28px;color:var(--primary);" /></div>
                     <div style="flex:1;">
                         <h2 class="text-primary-line">{{ __('Welcome back, :name!', ['name' => explode(' ', Auth::user()->name)[0]]) }}</h2>
                         <p class="text-secondary">{{ __($application ? 'Your application is on file. Review your submitted information and documents here.' : 'Start your SPES application by completing your personal information and required documents.') }}</p>
@@ -416,9 +489,9 @@ document.addEventListener('DOMContentLoaded', function(){
 
             <div class="card dashboard-section" id="announcements">
                 <div class="card-header">
-                    <h2 class="text-section"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i> {{ __('Announcements') }}</h2>
+                    <h2 class="text-section"><x-icon class="fa-solid fa-bullhorn" aria-hidden="true" /> {{ __('Announcements') }}</h2>
                     @if($application && $application->status === 'approved')
-                        <a href="{{ route('updates') }}">{{ __('View all') }} →</a>
+                        <a href="{{ route('applicant.notifications.recent') }}">{{ __('View all notifications') }} →</a>
                     @endif
                 </div>
                 <div class="card-body">
@@ -440,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
             <div class="card dashboard-section" id="appointments">
                 <div class="card-header">
-                    <h2 class="text-section"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> {{ __('Upcoming Appointments') }}</h2>
+                    <h2 class="text-section"><x-icon class="fa-solid fa-calendar-check" aria-hidden="true" /> {{ __('Upcoming Appointments') }}</h2>
                 </div>
                 <div class="card-body">
                     @if($appointments->isNotEmpty())
@@ -450,7 +523,7 @@ document.addEventListener('DOMContentLoaded', function(){
                                     <span class="announcement-date text-caption">{{ __('Attend on') }} {{ $appointment->starts_at->format('M j, Y · g:i A') }}</span>
                                     <h3 class="text-primary-line">{{ $appointment->title }}</h3>
                                     @if($appointment->location)
-                                        <p class="text-secondary"><i class="fa-solid fa-location-dot"></i> {{ $appointment->location }}</p>
+                                        <p class="text-secondary"><x-icon class="fa-solid fa-location-dot" /> {{ $appointment->location }}</p>
                                     @endif
                                     @if($appointment->description)
                                         <p class="text-secondary">{{ $appointment->description }}</p>
@@ -463,6 +536,34 @@ document.addEventListener('DOMContentLoaded', function(){
                     @endif
                 </div>
             </div>
+
+            <div class="card dashboard-section">
+                <div class="card-header"><h2 class="text-section">{{ __('How to Apply') }}</h2></div>
+                <div class="card-body">
+                    <div class="how-list">
+                        <div class="how-item">
+                            <div class="num" aria-hidden="true">1</div>
+                            <x-info-item :description="__('Open Apply Now and complete the personal, education, family, and contact information in the application form.')">{{ __('Complete the application form') }}</x-info-item>
+                        </div>
+                        <div class="how-item">
+                            <div class="num" aria-hidden="true">2</div>
+                            <x-info-item :description="__('Upload your Birth Certificate and Certificate of Enrollment as PDF files. Each file must be 5 MB or smaller.')">{{ __('Add the required documents') }}</x-info-item>
+                        </div>
+                        <div class="how-item">
+                            <div class="num" aria-hidden="true">3</div>
+                            <x-info-item :description="__('Review your information and submit the form. Your application status will be Pending while PESO reviews it.')">{{ __('Submit for PESO review') }}</x-info-item>
+                        </div>
+                        <div class="how-item">
+                            <div class="num" aria-hidden="true">4</div>
+                            <x-info-item :description="__('Check My Application and Notifications for status updates or PESO feedback. If your application is denied, use Update Application to make corrections and reapply.')">{{ __('Track your application') }}</x-info-item>
+                        </div>
+                        <div class="how-item">
+                            <div class="num" aria-hidden="true">5</div>
+                            <x-info-item :description="__('If approved as a proposed applicant, open Additional Requirements, download requested forms, complete and sign them by hand, then upload the requested files. Bring printed forms to the PESO office and follow the listed deadlines and instructions.')">{{ __('Complete the next steps if approved') }}</x-info-item>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div>
@@ -471,19 +572,19 @@ document.addEventListener('DOMContentLoaded', function(){
                 <div class="card-body">
                     <div class="quick-action-list">
                         <a class="quick-action-link" href="{{ $application ? route('applications.myApplication') : route('applications.create') }}">
-                            <i class="fa-solid fa-file-circle-plus"></i>{{ __($application ? 'View My Application' : 'Start Application') }}
+                            <x-icon class="fa-solid fa-file-circle-plus" />{{ __($application ? 'View My Application' : 'Start Application') }}
                         </a>
                         <a class="quick-action-link" href="{{ route('profile.edit') }}">
-                            <i class="fa-solid fa-user"></i>{{ __('Profile') }}
+                            <x-icon class="fa-solid fa-user" />{{ __('Profile') }}
                         </a>
                         <a class="quick-action-link" href="#announcements">
-                            <i class="fa-solid fa-bullhorn"></i>{{ __('View Announcements') }}
+                            <x-icon class="fa-solid fa-bullhorn" />{{ __('View Announcements') }}
                         </a>
                         <a class="quick-action-link" href="{{ route('applicant.appointments.index') }}">
-                            <i class="fa-solid fa-calendar-check"></i>{{ __('View Appointments') }}
+                            <x-icon class="fa-solid fa-calendar-check" />{{ __('View Appointments') }}
                         </a>
                         <a class="quick-action-link" href="{{ route('applicant.notifications.recent') }}">
-                            <i class="fa-solid fa-bullhorn"></i>{{ __('Recent Notifications') }}
+                            <x-icon class="fa-solid fa-bullhorn" />{{ __('Recent Notifications') }}
                         </a>
                     </div>
                 </div>
@@ -508,13 +609,13 @@ document.addEventListener('DOMContentLoaded', function(){
                 <div class="card-body">
                     <div class="requirement-list">
                         <div class="requirement-item">
-                            <span class="text-primary-line"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> {{ __('Birth Certificate') }}</span>
+                            <span class="text-primary-line"><x-icon class="fa-solid fa-file-pdf" aria-hidden="true" /> {{ __('Birth Certificate') }}</span>
                             <span class="requirement-state text-caption {{ $application && filled($application->resume) ? 'complete' : '' }}">
                                 {{ __($application && filled($application->resume) ? 'Submitted' : 'Required') }}
                             </span>
                         </div>
                         <div class="requirement-item">
-                            <span class="text-primary-line"><i class="fa-solid fa-file-circle-check" aria-hidden="true"></i> {{ __('Certificate of Enrollment') }}</span>
+                            <span class="text-primary-line"><x-icon class="fa-solid fa-file-circle-check" aria-hidden="true" /> {{ __('Certificate of Enrollment') }}</span>
                             <span class="requirement-state text-caption {{ $application && filled($application->certificate_enrollment) ? 'complete' : '' }}">
                                 {{ __($application && filled($application->certificate_enrollment) ? 'Submitted' : 'Required') }}
                             </span>
@@ -524,30 +625,134 @@ document.addEventListener('DOMContentLoaded', function(){
                 </div>
             </div>
 
-            <div class="card dashboard-section">
-                <div class="card-header"><h2 class="text-section">{{ __('How to Apply') }}</h2></div>
-                <div class="card-body">
-                    <div class="how-list">
-                        <div class="how-item"><div class="num" aria-hidden="true">1</div><x-info-item :description="__('Gather your Birth Certificate, Application Letter, and Certificate of Indigency.')">{{ __('Prepare your documents') }}</x-info-item></div>
-                        <div class="how-item"><div class="num" aria-hidden="true">2</div><x-info-item :description="__('Click Apply Now and complete all required fields.')">{{ __('Fill out the form') }}</x-info-item></div>
-                        <div class="how-item"><div class="num" aria-hidden="true">3</div><x-info-item :description="__('Upload PDF files only. Each file must be 5 MB or smaller.')">{{ __('Upload your documents') }}</x-info-item></div>
-                        <div class="how-item"><div class="num" aria-hidden="true">4</div><x-info-item :description="__('The PESO officer will review your application.')">{{ __('Submit and wait') }}</x-info-item></div>
-                        <div class="how-item"><div class="num" aria-hidden="true">5</div><x-info-item :description="__('Review any admin comments in My Application.')">{{ __('Check for feedback') }}</x-info-item></div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
 </div>
 </div>
 
+@if($appointmentNotifications->isNotEmpty())
+    <div class="appointment-day-backdrop" data-appointment-day-backdrop>
+        <section
+            class="appointment-day-popup"
+            data-appointment-day-popup
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="appointment-day-popup-title"
+            aria-describedby="appointment-day-popup-copy"
+            tabindex="-1"
+        >
+            <div class="appointment-day-popup-header">
+                <div>
+                    <h2 id="appointment-day-popup-title"><x-icon class="fa-solid fa-calendar-day" aria-hidden="true" /> {{ __('Appointment reminders') }}</h2>
+                    <p id="appointment-day-popup-copy">{{ __('You have :count unread appointment notification(s).', ['count' => $appointmentNotifications->count()]) }}</p>
+                </div>
+            </div>
+            <div class="appointment-day-list">
+                @foreach($appointmentNotifications as $appointmentNotification)
+                    @php($appointmentDate = $appointmentNotification->data['appointment_date'] ?? null)
+                    <article class="appointment-day-item">
+                        <h3>{{ $appointmentNotification->data['title'] ?? __('Appointment reminder') }}</h3>
+                        <p>{{ $appointmentNotification->data['message'] ?? __('You have a scheduled appointment.') }}</p>
+                        @if($appointmentDate)
+                            <p class="appointment-day-time">
+                                <x-icon class="fa-regular fa-clock" aria-hidden="true" />
+                                {{ \Illuminate\Support\Carbon::parse($appointmentDate)->locale(app()->getLocale())->translatedFormat('l, F j, Y · g:i A') }}
+                            </p>
+                        @endif
+                        @if($location = ($appointmentNotification->data['appointment_location'] ?? null))
+                            <p><x-icon class="fa-solid fa-location-dot" aria-hidden="true" /> {{ $location }}</p>
+                        @endif
+                        <p class="appointment-day-wait">{{ __('Received :date', ['date' => $appointmentNotification->created_at->format('M j, Y · g:i A')]) }}</p>
+                        <form class="appointment-day-read-form" method="POST" action="{{ route('notifications.read', $appointmentNotification->id) }}" data-appointment-read-form data-notification-id="{{ $appointmentNotification->id }}">
+                            @csrf
+                            <input type="hidden" name="redirect_to" value="back">
+                            <button class="appointment-day-read-button" type="submit" data-appointment-day-read data-request-loading data-loading-label="{{ __('Marking as read...') }}">
+                                <x-icon class="fa-solid fa-envelope-open" aria-hidden="true" />
+                                {{ __('Mark as read') }}
+                            </button>
+                        </form>
+                    </article>
+                @endforeach
+            </div>
+            <div class="appointment-day-popup-footer">
+                <a href="{{ route('applicant.appointments.index') }}">{{ __('View appointments') }} →</a>
+            </div>
+            <p class="appointment-day-dismiss-countdown" data-appointment-popup-countdown role="status" aria-live="polite">
+                {{ __('This reminder will close in :seconds seconds.', ['seconds' => 10]) }}
+            </p>
+        </section>
+    </div>
+    <script>
+        (() => {
+            const popup = document.querySelector('[data-appointment-day-popup]');
+            if (!popup) return;
+            const backdrop = document.querySelector('[data-appointment-day-backdrop]');
+            const countdownLabel = popup.querySelector('[data-appointment-popup-countdown]');
+            const notificationIds = [...popup.querySelectorAll('[data-notification-id]')]
+                .map((form) => form.dataset.notificationId)
+                .sort();
+            const storageKey = `spes-appointment-popup-dismissed-${notificationIds.join('-')}`;
+            const startedAt = Date.now();
+            const stayDuration = 10000;
+            let popupStayTimer = null;
+
+            const closePopup = () => {
+                window.clearInterval(popupStayTimer);
+                popup.hidden = true;
+                backdrop.hidden = true;
+                try {
+                    sessionStorage.setItem(storageKey, 'dismissed');
+                } catch (error) {
+                    console.warn('Could not save appointment popup dismissal for this session.', error);
+                }
+            };
+
+            try {
+                if (sessionStorage.getItem(storageKey) === 'dismissed') {
+                    popup.hidden = true;
+                    backdrop.hidden = true;
+                    return;
+                }
+            } catch (error) {
+                console.warn('Could not read appointment popup dismissal for this session.', error);
+            }
+            const updatePopupStay = () => {
+                const secondsRemaining = Math.max(0, Math.ceil((startedAt + stayDuration - Date.now()) / 1000));
+                countdownLabel.textContent = @json(__('This reminder will close in :seconds seconds.', ['seconds' => ':seconds']))
+                    .replace(':seconds', String(secondsRemaining));
+                if (secondsRemaining === 0) closePopup();
+            };
+            popupStayTimer = window.setInterval(updatePopupStay, 250);
+            updatePopupStay();
+            popup.focus();
+            popup.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    return;
+                }
+                if (event.key !== 'Tab') return;
+                const focusable = [...popup.querySelectorAll('a[href],button:not(:disabled)')];
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
+        })();
+    </script>
+@endif
+
 {{-- Footer --}}
 <footer style="margin-left:var(--sidebar-w);background:#fff;border-top:1px solid var(--border);padding:14px 24px;font-size:.78rem;color:var(--text-muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <span>&copy; {{ date('Y') }} SPES Management System — PESO LAL-LO</span>
     <span>
-        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><i class="fa-brands fa-facebook"></i> Facebook</a>
-        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><i class="fa-solid fa-envelope"></i> lgulalloinformationoffice@gmail.com</a>
+        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><x-icon class="fa-brands fa-facebook" /> Facebook</a>
+        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><x-icon class="fa-solid fa-envelope" /> lgulalloinformationoffice@gmail.com</a>
     </span>
 </footer>
 <x-portal-help-chat />

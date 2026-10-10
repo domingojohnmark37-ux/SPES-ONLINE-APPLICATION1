@@ -6,7 +6,6 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>SPES Application Form - View</title>
     <link rel="stylesheet" href="{{ asset('css/form.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
             box-sizing: border-box;
@@ -425,14 +424,14 @@
     </div>
 
     <div class="form-buttons">
-        <button type="button" class="btn btn-submit" disabled><i class="fas fa-paper-plane"></i> Submit Application</button>
+        <button type="button" class="btn btn-submit" disabled><x-icon class="fas fa-paper-plane" /> Submit Application</button>
         <button type="button" class="btn btn-reset" disabled>Clear Form</button>
     </div>
 </div>
 
 <div class="bottom-buttons">
-    <button class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i> Back</button>
-    <button class="print-btn" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+    <button class="back-btn" onclick="window.history.back()"><x-icon class="fas fa-arrow-left" /> Back</button>
+    <button class="print-btn" onclick="window.print()"><x-icon class="fas fa-print" /> Print</button>
 </div>
 
 </body>

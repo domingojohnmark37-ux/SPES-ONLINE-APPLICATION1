@@ -9,7 +9,6 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 
 class ApplicantAuditQuery
 {
@@ -77,33 +76,6 @@ class ApplicantAuditQuery
         }
 
         return $query;
-    }
-
-    public function applicantRows(array $filters, int $perPage = 10)
-    {
-        $aggregates = $this->filteredLogs($filters)
-            ->whereNotNull('applicant_id')
-            ->selectRaw('applicant_id, application_id, MAX(created_at) as last_activity, COUNT(*) as events_count')
-            ->groupBy('applicant_id', 'application_id');
-
-        $query = DB::query()
-            ->fromSub($aggregates, 'audit_summary')
-            ->leftJoin('users as applicants', 'applicants.id', '=', 'audit_summary.applicant_id')
-            ->leftJoin('applications', 'applications.id', '=', 'audit_summary.application_id')
-            ->select([
-                'audit_summary.applicant_id',
-                'audit_summary.application_id',
-                'audit_summary.last_activity',
-                'audit_summary.events_count',
-                'applicants.name as applicant_name',
-                'applications.ref_id as application_ref',
-                'applications.status as application_status',
-                'applications.created_at as application_created_at',
-            ]);
-
-        return $query->orderByDesc('audit_summary.last_activity')
-            ->paginate($perPage)
-            ->withQueryString();
     }
 
     public function summary(array $filters): array

@@ -40,6 +40,19 @@
         flex-direction:column;
         gap:10px;
     }
+    .users-list-scroll {
+        max-height:min(68vh, 720px);
+        overflow-y:auto;
+        overflow-x:hidden;
+        overscroll-behavior:contain;
+        scrollbar-gutter:stable;
+        padding:2px 5px 2px 2px;
+        border-radius:10px;
+    }
+    .users-list-scroll:focus-visible {
+        outline:3px solid var(--accent);
+        outline-offset:2px;
+    }
     .user-card {
         display:grid;
         grid-template-columns:minmax(210px, .95fr) minmax(0, 2fr) minmax(190px, .8fr);
@@ -100,7 +113,7 @@
         font-size:.82rem;
         line-height:1.4;
     }
-    .user-contact-row i { width:15px; margin-top:2px; color:var(--primary); text-align:center; flex:0 0 15px; }
+    .user-contact-row svg.icon { width:15px; margin-top:2px; color:var(--primary); text-align:center; flex:0 0 15px; }
     .user-contact-row span { min-width:0; overflow-wrap:anywhere; }
     .user-card-footer {
         display:flex;
@@ -162,7 +175,9 @@
     <x-admin.search-add-bar />
 </div>
 
-<x-admin.user-grid :users="$users" />
+<section class="users-list-scroll" role="region" aria-label="Applicant records" tabindex="0">
+    <x-admin.user-grid :users="$users" />
+</section>
 
 <div class="pagination">
     {{ $users->links('pagination::simple-bootstrap-4') }}

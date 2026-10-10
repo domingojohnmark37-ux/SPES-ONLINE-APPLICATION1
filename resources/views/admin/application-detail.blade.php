@@ -8,7 +8,7 @@
 
 <div style="margin-bottom:16px;">
     <a href="{{ route('admin.applications.index') }}" class="btn btn-outline btn-sm">
-        <i class="fa-solid fa-arrow-left"></i> Back to List
+        <x-icon class="fa-solid fa-arrow-left" /> Back to List
     </a>
 </div>
 
@@ -18,7 +18,7 @@
     <div>
         <div class="card" style="margin-bottom:20px;">
             <div class="card-header">
-                <h2><i class="fa-solid fa-id-card"></i> Personal Information</h2>
+                <h2><x-icon class="fa-solid fa-id-card" /> Personal Information</h2>
                 <span class="badge badge-{{ $application->status }}">{{ ucfirst($application->status) }}</span>
             </div>
             <div class="detail-grid">
@@ -65,22 +65,26 @@
                                         {{ $application->document_original_names[$doc['key']] }}
                                     </div>
                                 @endif
-                                <button type="button" onclick="openDocumentModal('{{ route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) }}', '{{ $doc['label'] }}')"
+                                <button type="button" data-no-request-loading onclick="openDocumentModal('{{ route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) }}', '{{ $doc['label'] }}', this)"
                                    class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
                                     View
                                 </button>
+                                <a href="{{ route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) }}"
+                                   download class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+                                    Download
+                                </a>
                             @else
                                 <span style="font-size:.78rem;color:var(--text-muted);">Not uploaded</span>
                             @endif
                         </div>
                     @endforeach
-                    @foreach($application->additionalRequirementSubmissions as $submission)
+                    @foreach($application->additionalRequirementSubmissions->sortBy('file_number') as $submission)
                         <div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-                            <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;">{{ $submission->requirement->name }}</div>
+                            <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;">{{ $submission->requirement->name }} — {{ __('File :number', ['number' => $submission->file_number]) }}</div>
                             <div style="margin-bottom:8px;color:var(--text-muted);font-size:.75rem;">{{ $submission->original_name }}</div>
-                            <a href="{{ route('applications.additional-requirements.document', ['application' => $application->id, 'additionalRequirement' => $submission->additional_requirement_id]) }}"
+                            <a href="{{ route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $submission->additional_requirement_id, 'submission' => $submission->id]) }}"
                                target="_blank" rel="noopener" class="btn btn-primary btn-sm">
-                                View
+                                {{ __('View file :number', ['number' => $submission->file_number]) }}
                             </a>
                         </div>
                     @endforeach
@@ -94,7 +98,7 @@
         <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); background:#f8fafb;">
             <strong id="documentModalTitle" style="font-size:1rem; color:var(--primary);">Document Preview</strong>
             <button type="button" onclick="closeDocumentModal()" class="btn btn-outline btn-sm" aria-label="Close preview">
-                <i class="fa-solid fa-xmark"></i> Close
+                <x-icon class="fa-solid fa-xmark" /> Close
             </button>
         </div>
         <div style="padding:12px; background:#f5f5f5; height:80vh;">
@@ -104,21 +108,37 @@
 </div>
 
 <script>
-    function openDocumentModal(url, title) {
+    function openDocumentModal(url, title, trigger) {
         const modal = document.getElementById('documentModal');
         const frame = document.getElementById('documentFrame');
         const titleEl = document.getElementById('documentModalTitle');
+        const request = window.requestLoading.start(trigger);
 
         titleEl.textContent = title + ' Preview';
         modal.style.display = 'flex';
 
         fetch(url)
-            .then(response => response.blob())
+            .then(response => {
+                if (!response.ok) throw new Error(`Preview request failed (${response.status}).`);
+                return response.blob();
+            })
             .then(blob => {
                 const objectUrl = URL.createObjectURL(blob);
                 frame.src = objectUrl;
+                request.success('Document preview loaded.');
             })
-            .catch(() => {
+            .catch(error => {
+                console.error('Document preview fetch failed; trying the document stream directly.', error);
+                frame.onload = () => {
+                    frame.onload = null;
+                    frame.onerror = null;
+                    request.success('Document preview loaded.');
+                };
+                frame.onerror = () => {
+                    frame.onload = null;
+                    frame.onerror = null;
+                    request.error('The document preview could not be loaded. Please try again.');
+                };
                 frame.src = url;
             });
     }
@@ -144,7 +164,7 @@
     <div>
         {{-- Submission info --}}
         <div class="card" style="margin-bottom:16px;">
-            <div class="card-header"><h2><i class="fa-solid fa-info-circle"></i> Submission Info</h2></div>
+            <div class="card-header"><h2><x-icon class="fa-solid fa-info-circle" /> Submission Info</h2></div>
             <div class="card-body" style="font-size:.875rem;">
                 <p><strong>Reference ID:</strong><br><code>{{ $application->ref_id }}</code></p>
                 <p style="margin-top:10px;"><strong>Submitted:</strong><br>@adminDate($application->created_at, true)</p>
@@ -153,7 +173,7 @@
         </div>
 
         <div class="card" style="margin-bottom:16px;">
-            <div class="card-header"><h2><i class="fa-solid fa-circle-question"></i> Possible Applicant Errors</h2></div>
+            <div class="card-header"><h2><x-icon class="fa-solid fa-circle-question" /> Possible Applicant Errors</h2></div>
             <div class="card-body" style="font-size:.84rem;">
                 <p style="color:var(--text-muted);margin-bottom:12px;">
                     These FAQ-style suggestions point out possible mistakes in the submitted application. Select a question to see what to check. They are not confirmed errors; open the application and documents to verify.
@@ -161,7 +181,7 @@
                 @forelse($reviewSuggestions as $suggestion)
                     <details style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;background:#f8fafb;overflow:hidden;">
                         <summary style="padding:11px 12px;cursor:pointer;font-weight:600;color:var(--text);">
-                            <i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);margin-right:6px;" aria-hidden="true"></i>
+                            <x-icon class="fa-solid fa-triangle-exclamation" style="color:var(--danger);margin-right:6px;" aria-hidden="true" />
                             {{ $suggestion['title'] }}
                         </summary>
                         <p style="padding:0 12px 12px 34px;color:var(--text-muted);">{{ $suggestion['message'] }}</p>
@@ -175,11 +195,11 @@
         {{-- Actions --}}
         @if($application->status === 'pending')
         <div class="card" style="margin-bottom:16px;">
-            <div class="card-header"><h2><i class="fa-solid fa-gavel"></i> Decision</h2></div>
+            <div class="card-header"><h2><x-icon class="fa-solid fa-gavel" /> Decision</h2></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
                 @if($approvalCapacity['limit'])
                     <div class="alert {{ $approvalCapacity['full'] ? 'alert-danger' : 'alert-info' }}" role="status">
-                        <i class="fa-solid {{ $approvalCapacity['full'] ? 'fa-lock' : 'fa-chart-simple' }}" aria-hidden="true"></i>
+                        <x-icon class="fa-solid {{ $approvalCapacity['full'] ? 'fa-lock' : 'fa-chart-simple' }}" aria-hidden="true" />
                         <span>{{ $approvalCapacity['approved'] }} of {{ $approvalCapacity['limit'] }} approved this season.
                             @if($approvalCapacity['full'])
                                 The limit is full; approval is disabled.
@@ -193,18 +213,18 @@
                     <form method="POST" action="{{ route('admin.applications.approve', $application) }}">
                         @csrf
                         <button type="submit" class="btn btn-success" style="width:100%;" onclick="return confirm('Approve this application?')">
-                            <i class="fa-solid fa-circle-check"></i> Approve Application
+                            <x-icon class="fa-solid fa-circle-check" /> Approve Application
                         </button>
                     </form>
                 @else
                     <button type="button" class="btn btn-success" style="width:100%;" disabled aria-disabled="true">
-                        <i class="fa-solid fa-lock" aria-hidden="true"></i> Approval limit reached
+                        <x-icon class="fa-solid fa-lock" aria-hidden="true" /> Approval limit reached
                     </button>
                 @endif
                 <form method="POST" action="{{ route('admin.applications.deny', $application) }}">
                     @csrf
                     <button type="submit" class="btn btn-danger" style="width:100%;" onclick="return confirm('Deny this application?')">
-                        <i class="fa-solid fa-circle-xmark"></i> Deny Application
+                        <x-icon class="fa-solid fa-circle-xmark" /> Deny Application
                     </button>
                 </form>
             </div>
@@ -213,7 +233,7 @@
 
         {{-- Admin Comment --}}
         <div class="card">
-            <div class="card-header"><h2><i class="fa-solid fa-comment-dots"></i> Admin Comment / Feedback</h2></div>
+            <div class="card-header"><h2><x-icon class="fa-solid fa-comment-dots" /> Admin Comment / Feedback</h2></div>
             <div class="card-body">
                 @if($application->admin_comment)
                     <div style="background:#f5f7fa;border-left:4px solid var(--primary);padding:12px;border-radius:6px;margin-bottom:14px;font-size:.875rem;">
@@ -229,7 +249,7 @@
                         <div style="color:var(--danger);font-size:.78rem;margin-top:4px;">{{ $message }}</div>
                     @enderror
                     <button type="submit" class="btn btn-primary" style="margin-top:10px;width:100%;">
-                        <i class="fa-solid fa-floppy-disk"></i> Save Comment
+                        <x-icon class="fa-solid fa-floppy-disk" /> Save Comment
                     </button>
                 </form>
             </div>

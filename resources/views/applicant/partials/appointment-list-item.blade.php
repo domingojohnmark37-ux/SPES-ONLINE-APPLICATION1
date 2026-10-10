@@ -11,9 +11,9 @@
                 <span class="next-badge">{{ __('Next up') }}</span>
             @endif
         </div>
-        <p><i class="fa-regular fa-clock" aria-hidden="true"></i> {{ $appointment->starts_at->format('g:i A') }}</p>
+        <p><x-icon class="fa-regular fa-clock" aria-hidden="true" /> {{ $appointment->starts_at->format('g:i A') }}</p>
         @if($appointment->location)
-            <p><i class="fa-solid fa-location-dot" aria-hidden="true"></i> {{ $appointment->location }}</p>
+            <p><x-icon class="fa-solid fa-location-dot" aria-hidden="true" /> {{ $appointment->location }}</p>
         @endif
         @if(($showDescription ?? false) && filled($appointment->description))
             <p class="appointment-description">{{ $appointment->description }}</p>

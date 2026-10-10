@@ -7,8 +7,9 @@ use App\Models\AuditAction;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Notifications\ApplicantPortalUpdate;
-use App\Services\ApplicationReviewSuggestions;
 use App\Services\ApplicationApprovalCapacity;
+use App\Services\ApplicantNotificationService;
+use App\Services\ApplicationReviewSuggestions;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -93,7 +94,11 @@ class ApplicationController extends Controller
     /**
      * Store a new application with file uploads.
      */
-    public function store(Request $request, AuditLogger $auditLogger)
+    public function store(
+        Request $request,
+        AuditLogger $auditLogger,
+        ApplicantNotificationService $notifications,
+    )
     {
         $this->normalizeLegacyApplicationData($request);
 
@@ -191,7 +196,7 @@ class ApplicationController extends Controller
         ], fn ($part) => ! empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
 
         $applicant = Auth::user();
-        DB::transaction(function () use ($validated, $fullName, $resumePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): void {
+        $createdApplication = DB::transaction(function () use ($validated, $fullName, $resumePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): Application {
             $application = Application::create([
                 'user_id' => Auth::id(),
                 'full_name' => $fullName,
@@ -223,6 +228,7 @@ class ApplicationController extends Controller
                 'document_original_names' => $documentOriginalNames,
                 'status' => 'pending',
             ]);
+            $createdApplication = $application;
 
             $auditLogger->record(
                 AuditAction::APPLICATION_SUBMITTED,
@@ -244,13 +250,30 @@ class ApplicationController extends Controller
                     $auditLogger->recordDocumentSubmitted($applicant, $application, $label);
                 }
             }
+
+            return $application;
         });
+
+        $notifications->notifyApplicant($applicant, new ApplicantPortalUpdate(
+            'notify_documents',
+            'Application received',
+            'Your SPES application has been received and is pending review by PESO.',
+            [
+                'application_id' => $createdApplication->id,
+                'status' => 'pending',
+                'event' => 'application_submitted',
+            ],
+        ), "application:{$createdApplication->id}:submitted:{$createdApplication->created_at?->getTimestamp()}");
 
         return redirect()->route('applications.myApplication')
             ->with('success', 'Your application has been submitted successfully!');
     }
 
-    public function update(Request $request, AuditLogger $auditLogger)
+    public function update(
+        Request $request,
+        AuditLogger $auditLogger,
+        ApplicantNotificationService $notifications,
+    )
     {
         $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
         $settings = SystemSetting::current();
@@ -362,7 +385,8 @@ class ApplicationController extends Controller
             'document_original_names' => $documentOriginalNames,
         ]);
 
-        if ($application->status === 'denied') {
+        $wasDenied = $application->status === 'denied';
+        if ($wasDenied) {
             $updates['status'] = 'pending';
             $updates['admin_comment'] = null;
         }
@@ -391,6 +415,19 @@ class ApplicationController extends Controller
                 $auditLogger->recordDocumentSubmitted($applicant, $application, $documentLabel);
             }
         });
+
+        if ($wasDenied) {
+            $notifications->notifyApplicant($applicant, new ApplicantPortalUpdate(
+                'notify_documents',
+                'Application resubmitted',
+                'Your updated SPES application has been submitted and is pending review by PESO.',
+                [
+                    'application_id' => $application->id,
+                    'status' => 'pending',
+                    'event' => 'application_resubmitted',
+                ],
+            ), "application:{$application->id}:resubmitted:{$application->updated_at?->getTimestamp()}");
+        }
 
         return redirect()->route('applications.myApplication')
             ->with('success', 'Your application has been updated successfully!');
@@ -624,6 +661,7 @@ class ApplicationController extends Controller
         Application $application,
         AuditLogger $auditLogger,
         ApplicationApprovalCapacity $capacity,
+        ApplicantNotificationService $notifications,
     )
     {
         $settings = SystemSetting::current();
@@ -690,6 +728,7 @@ class ApplicationController extends Controller
             $capacity->notifyClosedApplicants(
                 $newlyDenied,
                 (int) $settings->fresh()->approved_applicant_limit,
+                $notifications,
             );
 
             return back()
@@ -698,16 +737,20 @@ class ApplicationController extends Controller
         }
 
         if ($justApproved) {
-            $application->user->notify(new ApplicantPortalUpdate(
+            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
                 'notify_documents',
                 'Application approved',
                 'Your SPES application has been approved. Review your application status for next steps.',
                 ['application_id' => $application->id, 'status' => 'approved', 'event' => 'application_approved'],
-            ));
+            ), "application:{$application->id}:approved:{$application->updated_at?->getTimestamp()}");
         }
 
         if ($capacityReached) {
-            $capacity->notifyClosedApplicants($newlyDenied, (int) $settings->fresh()->approved_applicant_limit);
+            $capacity->notifyClosedApplicants(
+                $newlyDenied,
+                (int) $settings->fresh()->approved_applicant_limit,
+                $notifications,
+            );
             return back()
                 ->with('success', "Application for {$application->full_name} has been approved. The approved-applicant limit has now been reached.")
                 ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed, and remaining pending applicants were notified.');
@@ -719,7 +762,11 @@ class ApplicationController extends Controller
     /**
      * Admin: deny an application.
      */
-    public function deny(Application $application, AuditLogger $auditLogger)
+    public function deny(
+        Application $application,
+        AuditLogger $auditLogger,
+        ApplicantNotificationService $notifications,
+    )
     {
         if ($application->status !== 'denied') {
             DB::transaction(function () use ($application, $auditLogger): void {
@@ -739,12 +786,12 @@ class ApplicationController extends Controller
                     ],
                 );
             });
-            $application->user->notify(new ApplicantPortalUpdate(
+            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
                 'notify_documents',
                 'Application denied',
                 'Your SPES application was not approved. Review the remarks in your application status for more information.',
                 ['application_id' => $application->id, 'status' => 'denied', 'event' => 'application_denied'],
-            ));
+            ), "application:{$application->id}:denied:{$application->updated_at?->getTimestamp()}");
         }
 
         return back()->with('success', "Application for {$application->full_name} has been denied.");
@@ -753,7 +800,12 @@ class ApplicationController extends Controller
     /**
      * Admin: save a comment/feedback on an application.
      */
-    public function addComment(Request $request, Application $application, AuditLogger $auditLogger)
+    public function addComment(
+        Request $request,
+        Application $application,
+        AuditLogger $auditLogger,
+        ApplicantNotificationService $notifications,
+    )
     {
         $request->validate([
             'admin_comment' => 'required|string|max:2000',
@@ -781,12 +833,12 @@ class ApplicationController extends Controller
         }
 
         if ($commentChanged) {
-            $application->user->notify(new ApplicantPortalUpdate(
+            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
                 'notify_documents',
                 'Document requirement update',
                 "PESO left a document requirement update for your application: {$application->admin_comment}",
                 ['application_id' => $application->id, 'event' => 'application_feedback'],
-            ));
+            ), "application:{$application->id}:feedback:{$application->updated_at?->getTimestamp()}");
         }
 
         return back()->with('success', 'Comment saved successfully.');

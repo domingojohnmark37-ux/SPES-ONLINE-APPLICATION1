@@ -17,7 +17,13 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->get('/login');
 
-        $response->assertStatus(200);
+        $response->assertOk()
+            ->assertSee('data-auth-form="login"', false)
+            ->assertSee('data-loading-label="Signing in..."', false)
+            ->assertSee('data-auth-spinner', false)
+            ->assertSee('data-auth-request-status', false)
+            ->assertSee('data-auth-submit', false)
+            ->assertSee('data-recovery-url=', false);
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
@@ -31,6 +37,39 @@ class AuthenticationTest extends TestCase
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_login_can_return_a_json_redirect_for_the_async_auth_form(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->postJson('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(
+            route('dashboard', absolute: false),
+            parse_url($response->json('redirect'), PHP_URL_PATH),
+        );
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_auth_recovery_reports_the_current_session_destination(): void
+    {
+        $this->getJson(route('auth.recovery'))
+            ->assertOk()
+            ->assertJson(['authenticated' => false]);
+
+        $user = User::factory()->create();
+        $this->actingAs($user)
+            ->getJson(route('auth.recovery'))
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'redirect' => route('dashboard', absolute: false),
+            ]);
     }
 
     public function test_unverified_users_can_sign_in_and_receive_an_account_alert(): void
@@ -82,6 +121,20 @@ class AuthenticationTest extends TestCase
             'email' => $user->email,
             'password' => 'wrong-password',
         ]);
+
+        $this->assertGuest();
+    }
+
+    public function test_async_login_reports_invalid_credentials_as_json_validation_errors(): void
+    {
+        $user = User::factory()->create();
+
+        $this->postJson('/login', [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
 
         $this->assertGuest();
     }

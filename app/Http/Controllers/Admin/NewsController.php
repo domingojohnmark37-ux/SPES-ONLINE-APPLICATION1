@@ -117,9 +117,13 @@ class NewsController extends Controller
     ): void {
         $notifications->notifyApplicants(new ApplicantPortalUpdate(
             'notify_announcements',
-            'New SPES announcement',
-            "A new SPES announcement, \"{$news->title}\", is now available. Sign in to the SPES Portal to read it.",
-            ['news_id' => $news->id],
-        ));
+            'New SPES announcement: '.$news->title,
+            $news->content,
+            [
+                'news_id' => $news->id,
+                'announcement_title' => $news->title,
+                'announcement_content' => $news->content,
+            ],
+        ), "announcement:{$news->id}:{$news->updated_at?->getTimestamp()}");
     }
 }

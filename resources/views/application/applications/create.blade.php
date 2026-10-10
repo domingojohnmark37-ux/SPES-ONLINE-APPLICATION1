@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('SPES Application Form') }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -36,7 +35,7 @@
         .nav-link { display:flex; align-items:center; gap:12px; color:rgba(255,255,255,.95);
             text-decoration:none; padding:14px 16px; border-radius:12px; font-size:1rem;
             transition:background .18s, transform .08s; margin-bottom:10px; }
-        .nav-link i { width:16px; text-align:center; }
+        .nav-link svg.icon { width:16px; text-align:center; }
         .nav-link:hover { background:rgba(255,255,255,.04); transform:translateX(2px); }
         .nav-link.active { background:rgba(255,255,255,.12); box-shadow:none; font-weight:700; color:#fff; }
         .sidebar-footer { padding:14px 12px; border-top:1px solid rgba(255,255,255,.1); }
@@ -105,7 +104,7 @@
         }
         .file-upload-area:hover, .file-upload-area:focus-within { border-color:var(--primary); background:#fffafa; }
         .file-upload-area:focus-within { outline:3px solid #2563eb; outline-offset:3px; }
-        .file-upload-area > i { font-size:1rem; color:var(--primary); margin-bottom:5px; }
+        .file-upload-area > svg.icon { font-size:1rem; color:var(--primary); margin-bottom:5px; }
         .file-upload-area strong { color:var(--primary-dark); font-size:.78rem; }
         .file-upload-hint { margin-top:3px; color:var(--text-muted); font-size:.68rem; }
         .file-upload-input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
@@ -170,7 +169,7 @@
 
 <header class="topbar">
     <div style="display:flex;align-items:center;">
-        <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Toggle applicant navigation"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
+        <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Toggle applicant navigation"><x-icon class="fa-solid fa-bars" aria-hidden="true" /></button>
         <div><h1>{{ __('SPES Application Form') }}</h1><p>{{ __('Fill out all required fields carefully') }}</p></div>
     </div>
 </header>
@@ -190,7 +189,7 @@
 
     @if($errors->any())
         <div class="alert alert-danger">
-            <i class="fa-solid fa-triangle-exclamation"></i>
+            <x-icon class="fa-solid fa-triangle-exclamation" />
             <div>            <strong>{{ __('Please fix the following errors:') }}</strong>
                 <ul style="margin-top:6px;padding-left:18px;">
                     @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
@@ -199,14 +198,14 @@
         </div>
     @endif
     @if(session('success'))
-        <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ session('success') }}</div>
+        <div class="alert alert-success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
     @endif
     @if(session('info'))
-        <div class="alert alert-info"><i class="fa-solid fa-circle-info"></i> {{ session('info') }}</div>
+        <div class="alert alert-info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
     @endif
     @if($reapplying)
         <div class="alert alert-info">
-            <i class="fa-solid fa-rotate-right"></i>
+            <x-icon class="fa-solid fa-rotate-right" />
             <div>
                 <strong>{{ __('Reapply for SPES') }}</strong>
                 <div style="margin-top:4px;">{{ __('Update your application based on the admin feedback. After you submit, your status will return to pending for review.') }}</div>
@@ -227,7 +226,7 @@
         {{-- Section 1: Personal Info --}}
         <div class="form-card">
             <div class="form-card-header">
-                <i class="fa-solid fa-user"></i>
+                <x-icon class="fa-solid fa-user" />
                 <h2>{{ __('Personal Information') }}</h2>
             </div>
             <div class="form-card-body">
@@ -352,7 +351,7 @@
         {{-- Section 2: Family & Contact --}}
         <div class="form-card">
             <div class="form-card-header">
-                <i class="fa-solid fa-people-roof"></i>
+                <x-icon class="fa-solid fa-people-roof" />
                 <h2>{{ __('Family & Contact Information') }}</h2>
             </div>
             <div class="form-card-body">
@@ -405,7 +404,7 @@
         {{-- Section 3: Documents --}}
         <div class="form-card">
             <div class="form-card-header">
-                <i class="fa-solid fa-folder-open"></i>
+                <x-icon class="fa-solid fa-folder-open" />
                 <h2>{{ __('Documentary Requirements') }}</h2>
                 <p class="text-secondary">{{ __('Required for application verification.') }}</p>
             </div>
@@ -418,14 +417,14 @@
                         <div class="document-upload-heading">
                             <label for="resume">{{ __('Birth Certificate') }}</label>
                             @if($hasCurrentBirthCertificate)
-                                <span class="document-status"><i class="fa-solid fa-check" aria-hidden="true"></i> {{ __('On file') }}</span>
+                                <span class="document-status"><x-icon class="fa-solid fa-check" aria-hidden="true" /> {{ __('On file') }}</span>
                             @else
-                                <span class="document-status required"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {{ __('Required') }}</span>
+                                <span class="document-status required"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ __('Required') }}</span>
                             @endif
                         </div>
                         @if($hasCurrentBirthCertificate)
                             <div class="current-document">
-                                <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
+                                <x-icon class="fa-solid fa-file-pdf" aria-hidden="true" />
                                 <div class="current-document-details">
                                     <small>{{ __('Current file') }}</small>
                                     <span class="document-filename" title="{{ $documentOriginalNames['resume'] ?? basename($application->resume) }}">
@@ -433,12 +432,12 @@
                                     </span>
                                 </div>
                                 <a class="view-document-link" href="{{ route('applications.document.preview', ['application' => $application->id, 'document' => 'resume']) }}" target="_blank" rel="noopener" aria-label="{{ __('View current Birth Certificate') }}">
-                                    <i class="fa-solid fa-eye" aria-hidden="true"></i><span>{{ __('View') }}</span>
+                                    <x-icon class="fa-solid fa-eye" aria-hidden="true" /><span>{{ __('View') }}</span>
                                 </a>
                             </div>
                         @endif
                         <label class="file-upload-area" for="resume">
-                            <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+                            <x-icon class="fa-solid fa-cloud-arrow-up" aria-hidden="true" />
                             <strong>{{ __($hasCurrentBirthCertificate ? 'Choose a replacement PDF (optional)' : 'Choose PDF') }}</strong>
                             <span class="file-upload-hint">{{ __('Click to browse your files') }}</span>
                             <span class="file-name" id="resumeName" aria-live="polite"></span>
@@ -451,14 +450,14 @@
                         <div class="document-upload-heading">
                             <label for="certificate_enrollment">{{ __('Certificate of Enrollment') }}</label>
                             @if($hasCurrentEnrollmentCertificate)
-                                <span class="document-status"><i class="fa-solid fa-check" aria-hidden="true"></i> {{ __('On file') }}</span>
+                                <span class="document-status"><x-icon class="fa-solid fa-check" aria-hidden="true" /> {{ __('On file') }}</span>
                             @else
-                                <span class="document-status required"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {{ __('Required') }}</span>
+                                <span class="document-status required"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ __('Required') }}</span>
                             @endif
                         </div>
                         @if($hasCurrentEnrollmentCertificate)
                             <div class="current-document">
-                                <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
+                                <x-icon class="fa-solid fa-file-pdf" aria-hidden="true" />
                                 <div class="current-document-details">
                                     <small>{{ __('Current file') }}</small>
                                     <span class="document-filename" title="{{ $documentOriginalNames['certificate_enrollment'] ?? basename($application->certificate_enrollment) }}">
@@ -466,12 +465,12 @@
                                     </span>
                                 </div>
                                 <a class="view-document-link" href="{{ route('applications.document.preview', ['application' => $application->id, 'document' => 'certificate_enrollment']) }}" target="_blank" rel="noopener" aria-label="{{ __('View current Certificate of Enrollment') }}">
-                                    <i class="fa-solid fa-eye" aria-hidden="true"></i><span>{{ __('View') }}</span>
+                                    <x-icon class="fa-solid fa-eye" aria-hidden="true" /><span>{{ __('View') }}</span>
                                 </a>
                             </div>
                         @endif
                         <label class="file-upload-area" for="certificate_enrollment">
-                            <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+                            <x-icon class="fa-solid fa-cloud-arrow-up" aria-hidden="true" />
                             <strong>{{ __($hasCurrentEnrollmentCertificate ? 'Choose a replacement PDF (optional)' : 'Choose PDF') }}</strong>
                             <span class="file-upload-hint">{{ __('Click to browse your files') }}</span>
                             <span class="file-name" id="certificateEnrollmentName" aria-live="polite"></span>
@@ -487,9 +486,9 @@
         {{-- Submit --}}
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <button type="submit" class="btn-submit" id="submitBtn">
-                <i class="fa-solid fa-paper-plane"></i> {{ __($reapplying ? 'Reapply Application' : ($editing ? 'Update Application' : 'Submit Application')) }}
+                <x-icon class="fa-solid fa-paper-plane" /> {{ __($reapplying ? 'Reapply Application' : ($editing ? 'Update Application' : 'Submit Application')) }}
             </button>
-            <a href="{{ route('dashboard') }}" class="btn-back"><i class="fa-solid fa-arrow-left"></i> {{ __('Cancel') }}</a>
+            <a href="{{ route('dashboard') }}" class="btn-back"><x-icon class="fa-solid fa-arrow-left" /> {{ __('Cancel') }}</a>
         </div>
     </form>
 </div>
@@ -498,8 +497,8 @@
 <footer style="margin-left:var(--sidebar-w);background:#fff;border-top:1px solid var(--border);padding:14px 24px;font-size:.78rem;color:var(--text-muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <span>&copy; {{ date('Y') }} SPES Management System — PESO LAL-LO</span>
     <span>
-        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><i class="fa-brands fa-facebook"></i> Facebook</a>
-        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><i class="fa-solid fa-envelope"></i> lgulalloinformationoffice@gmail.com</a>
+        <a href="https://www.facebook.com" target="_blank" style="color:var(--primary);text-decoration:none;margin-right:14px;"><x-icon class="fa-brands fa-facebook" /> Facebook</a>
+        <a href="mailto:lgulalloinformationoffice@gmail.com" style="color:var(--primary);text-decoration:none;"><x-icon class="fa-solid fa-envelope" /> lgulalloinformationoffice@gmail.com</a>
     </span>
 </footer>
 
@@ -574,7 +573,7 @@ updateFamilyContactRequirements();
 document.getElementById('appForm').addEventListener('submit', function () {
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting…';
+    btn.innerHTML = '<svg class="icon icon-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="42 14"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/></circle></svg> Submitting…';
 });
 </script>
 <x-portal-help-chat />

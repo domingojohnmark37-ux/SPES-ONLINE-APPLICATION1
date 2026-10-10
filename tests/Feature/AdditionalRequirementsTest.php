@@ -277,7 +277,7 @@ class AdditionalRequirementsTest extends TestCase
             ->assertDontSee('Certificate of Grades');
 
         $this->post(route('applicant.requirements.upload', $requirement), [
-            'document' => UploadedFile::fake()->image('consent.png'),
+            'documents' => [1 => UploadedFile::fake()->image('consent.png')],
         ])->assertRedirect(route('applicant.requirements'));
 
         $this->assertDatabaseHas('application_additional_requirements', [
@@ -309,6 +309,79 @@ class AdditionalRequirementsTest extends TestCase
             'application' => $application,
             'additionalRequirement' => $requirement,
         ]))->assertOk();
+    }
+
+    public function test_applicant_submits_one_file_for_each_requirement_template_and_can_view_each_separately(): void
+    {
+        Storage::fake('local');
+        $applicant = User::factory()->create();
+        $application = Application::factory()->for($applicant)->create();
+        $requirement = AdditionalRequirement::create([
+        'name' => 'School Documents',
+        'description' => 'Submit each requested document.',
+        'is_required' => true,
+        'is_active' => true,
+        'audience' => 'all_applicants',
+        ]);
+        $templateOne = $requirement->templates()->create([
+        'file_path' => 'requirements/templates/school-id.pdf',
+        'original_name' => 'School ID template.pdf',
+        ]);
+        $templateTwo = $requirement->templates()->create([
+        'file_path' => 'requirements/templates/certificate.pdf',
+        'original_name' => 'Certificate template.pdf',
+        ]);
+
+        $this->actingAs($applicant)
+        ->get(route('applicant.requirements'))
+        ->assertOk()
+        ->assertSee('File 1 — School ID template.pdf')
+        ->assertSee('File 2 — Certificate template.pdf')
+        ->assertSee('Submit 2 files');
+
+        $this->post(route('applicant.requirements.upload', $requirement), [
+        'documents' => [
+            1 => UploadedFile::fake()->create('school-id.pdf', 20, 'application/pdf'),
+            2 => UploadedFile::fake()->image('certificate.png'),
+        ],
+        ])->assertRedirect(route('applicant.requirements'));
+
+        $submissions = $application->additionalRequirementSubmissions()->orderBy('file_number')->get();
+        $this->assertCount(2, $submissions);
+        $this->assertSame([1, 2], $submissions->pluck('file_number')->all());
+        $this->assertSame(['school-id.pdf', 'certificate.png'], $submissions->pluck('original_name')->all());
+        foreach ($submissions as $submission) {
+        Storage::disk('local')->assertExists($submission->file_path);
+        }
+
+        $this->get(route('applicant.requirements'))
+        ->assertOk()
+        ->assertSee('2 of 2 requested files submitted')
+        ->assertSee('View file 1: school-id.pdf')
+        ->assertSee('View file 2: certificate.png');
+
+        foreach ($submissions as $index => $submission) {
+        $filename = $index === 0 ? 'school-id.pdf' : 'certificate.png';
+        $this->get(route('applications.additional-requirements.submission', [
+            'application' => $application,
+            'additionalRequirement' => $requirement,
+            'submission' => $submission,
+        ]))
+            ->assertOk()
+            ->assertHeader('Content-Disposition', 'inline; filename="'.$filename.'"');
+        }
+
+        $otherRequirement = AdditionalRequirement::create([
+        'name' => 'Unrelated Requirement',
+        'is_required' => true,
+        'is_active' => true,
+        'audience' => 'all_applicants',
+        ]);
+        $this->get(route('applications.additional-requirements.submission', [
+        'application' => $application,
+        'additionalRequirement' => $otherRequirement,
+        'submission' => $submissions->first(),
+        ]))->assertNotFound();
     }
 
     public function test_approved_applicant_can_download_form_and_sees_the_next_steps_and_deadline(): void
@@ -391,7 +464,7 @@ class AdditionalRequirementsTest extends TestCase
 
         $this->actingAs($otherApplicant)
             ->post(route('applicant.requirements.upload', $requirement), [
-                'document' => UploadedFile::fake()->image('proof.png'),
+                'documents' => [1 => UploadedFile::fake()->image('proof.png')],
             ])
             ->assertNotFound();
 
@@ -456,7 +529,7 @@ class AdditionalRequirementsTest extends TestCase
             ->assertSee('Second-phase requirements will be available here after your application is approved.');
 
         $this->post(route('applicant.requirements.upload', $requirement), [
-            'document' => UploadedFile::fake()->image('second-phase.png'),
+            'documents' => [1 => UploadedFile::fake()->image('second-phase.png')],
         ])->assertForbidden();
         $this->get(route('applicant.requirements.template', $requirement))->assertForbidden();
         $this->assertDatabaseMissing('application_additional_requirements', [
@@ -471,7 +544,7 @@ class AdditionalRequirementsTest extends TestCase
             ->assertSee(route('applicant.requirements.template', $requirement));
 
         $this->post(route('applicant.requirements.upload', $requirement), [
-            'document' => UploadedFile::fake()->image('second-phase.png'),
+            'documents' => [1 => UploadedFile::fake()->image('second-phase.png')],
         ])->assertRedirect(route('applicant.requirements'));
 
         $application->update(['status' => 'pending']);

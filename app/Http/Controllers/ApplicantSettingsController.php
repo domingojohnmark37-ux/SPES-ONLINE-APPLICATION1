@@ -181,9 +181,14 @@ class ApplicantSettingsController extends Controller
 
     public function updateNotifications(UpdateNotificationsRequest $request): RedirectResponse
     {
+        $preferences = $request->validated();
+        foreach (['email_notifications', 'system_notifications', 'application_updates'] as $key) {
+            $preferences[$key] = $request->boolean($key);
+        }
+
         ApplicantSetting::updateOrCreate(
             ['user_id' => $request->user()->id],
-            $request->validated(),
+            $preferences,
         );
 
         return back()->with('settings_success', 'Your notification choices have been saved.');

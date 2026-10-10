@@ -147,35 +147,35 @@
 
 <div class="dashboard-cards">
     <div class="dashboard-card">
-        <div class="stat-icon teal"><i class="fa-solid fa-file-lines"></i></div>
+        <div class="stat-icon teal"><x-icon class="fa-solid fa-file-lines" /></div>
         <div>
             <div class="stat-value">{{ $stats['total'] }}</div>
             <div class="stat-note">Total Applications<br><small>All time</small></div>
         </div>
     </div>
     <div class="dashboard-card">
-        <div class="stat-icon orange"><i class="fa-solid fa-clock"></i></div>
+        <div class="stat-icon orange"><x-icon class="fa-solid fa-clock" /></div>
         <div>
             <div class="stat-value">{{ $stats['pending'] }}</div>
             <div class="stat-note">Pending<br><small>Needs review</small></div>
         </div>
     </div>
     <div class="dashboard-card">
-        <div class="stat-icon green"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-icon green"><x-icon class="fa-solid fa-circle-check" /></div>
         <div>
             <div class="stat-value">{{ $stats['approved'] }}</div>
             <div class="stat-note">Approved<br><small>This is good!</small></div>
         </div>
     </div>
     <div class="dashboard-card">
-        <div class="stat-icon red"><i class="fa-solid fa-circle-xmark"></i></div>
+        <div class="stat-icon red"><x-icon class="fa-solid fa-circle-xmark" /></div>
         <div>
             <div class="stat-value">{{ $stats['denied'] }}</div>
             <div class="stat-note">Denied<br><small>This is bad!</small></div>
         </div>
     </div>
     <div class="dashboard-card">
-        <div class="stat-icon blue"><i class="fa-solid fa-users"></i></div>
+        <div class="stat-icon blue"><x-icon class="fa-solid fa-users" /></div>
         <div>
             <div class="stat-value">{{ $stats['users'] }}</div>
             <div class="stat-note">Registered Users<br><small>Total users</small></div>
@@ -206,7 +206,7 @@
                 </div>
             @empty
                 <div class="activity-item">
-                    <div class="activity-avatar"><i class="fa-solid fa-hourglass-half"></i></div>
+                    <div class="activity-avatar"><x-icon class="fa-solid fa-hourglass-half" /></div>
                     <div class="activity-content">
                         <div class="activity-title">No pending applications yet.</div>
                         <div class="activity-meta">Once users submit applications, they will appear here.</div>
@@ -226,7 +226,7 @@
         <div class="activity-list">
             @forelse($recentActivities as $activity)
                 <div class="activity-item">
-                    <div class="activity-avatar"><i class="{{ $activity['icon'] }}"></i></div>
+                    <div class="activity-avatar"><x-icon class="{{ $activity['icon'] }}" /></div>
                     <div class="activity-content">
                         <div class="activity-title">{!! $activity['message'] !!}</div>
                         <div class="activity-meta">{{ $activity['time'] }}</div>
@@ -234,7 +234,7 @@
                 </div>
             @empty
                 <div class="activity-item">
-                    <div class="activity-avatar"><i class="fa-solid fa-clock"></i></div>
+                    <div class="activity-avatar"><x-icon class="fa-solid fa-clock" /></div>
                     <div class="activity-content">
                         <div class="activity-title">No recent activity available.</div>
                         <div class="activity-meta">Activity updates will appear as users interact with the portal.</div>

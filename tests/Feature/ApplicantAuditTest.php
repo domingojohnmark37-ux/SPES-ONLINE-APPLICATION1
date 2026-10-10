@@ -29,8 +29,9 @@ class ApplicantAuditTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('admin.applicant-audit.index'))
             ->assertOk()
-            ->assertSee('Applicant Audit Logs')
-            ->assertSee('No applicant audit records found.');
+            ->assertDontSee('Applicant Audit Logs')
+            ->assertSee('Recent Applicant Activity')
+            ->assertSee('No applicant activity matches the selected filters.');
     }
 
     public function test_applicant_audit_contains_applicant_activity_and_admin_audit_stays_separate(): void
@@ -92,7 +93,7 @@ class ApplicantAuditTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), '<strong>'.AuditAction::LOGIN_SUCCESS.'</strong>'));
     }
 
-    public function test_applicant_activity_feed_shows_five_recent_events_and_can_show_all(): void
+    public function test_applicant_activity_feed_shows_all_filtered_events_without_show_more_controls(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $applicant = User::factory()->create(['role' => 'user']);
@@ -106,21 +107,16 @@ class ApplicantAuditTest extends TestCase
             );
         }
 
-        $recentResponse = $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->get(route('admin.applicant-audit.index'))
             ->assertOk()
-            ->assertSee('Show more activities');
+            ->assertDontSee('Show more activities')
+            ->assertDontSee('Show recent 5');
 
-        $this->assertSame(5, substr_count($recentResponse->getContent(), '<strong>'.AuditAction::LOGIN_SUCCESS.'</strong>'));
-
-        $allResponse = $this->get(route('admin.applicant-audit.index', ['show_all' => 1]))
-            ->assertOk()
-            ->assertSee('Show recent 5');
-
-        $this->assertSame(7, substr_count($allResponse->getContent(), '<strong>'.AuditAction::LOGIN_SUCCESS.'</strong>'));
+        $this->assertSame(7, substr_count($response->getContent(), '<strong>'.AuditAction::LOGIN_SUCCESS.'</strong>'));
     }
 
-    public function test_applicant_audit_log_table_shows_five_recent_rows_and_can_show_all(): void
+    public function test_applicant_audit_logs_are_available_in_details_not_a_separate_list(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
@@ -134,18 +130,15 @@ class ApplicantAuditTest extends TestCase
             );
         }
 
-        $recentResponse = $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->get(route('admin.applicant-audit.index'))
             ->assertOk()
-            ->assertSee('Show more audit logs');
+            ->assertDontSee('Applicant Audit Logs')
+            ->assertDontSee('Applicant Name')
+            ->assertDontSee('Show more audit logs')
+            ->assertDontSee('Show recent 5');
 
-        $this->assertSame(5, substr_count($recentResponse->getContent(), 'class="audit-applicant"'));
-
-        $allResponse = $this->get(route('admin.applicant-audit.index', ['show_all_audit_logs' => 1]))
-            ->assertOk()
-            ->assertSee('Show recent 5');
-
-        $this->assertSame(7, substr_count($allResponse->getContent(), 'class="audit-applicant"'));
+        $this->assertSame(7, substr_count($response->getContent(), '<strong>'.AuditAction::ACCOUNT_CREATED.'</strong>'));
     }
 
     public function test_applicant_activity_details_are_shown_inline_in_applicant_audit(): void
@@ -361,7 +354,7 @@ class ApplicantAuditTest extends TestCase
         ]);
     }
 
-    public function test_applicant_audit_pagination_preserves_search_filter(): void
+    public function test_applicant_activity_feed_shows_filtered_results_without_list_pagination(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $selectedApplicant = null;
@@ -382,21 +375,20 @@ class ApplicantAuditTest extends TestCase
         }
 
         $response = $this->actingAs($admin)
-            ->get(route('admin.applicant-audit.index', ['search' => 'Audit Applicant', 'show_all_audit_logs' => 1]))
+            ->get(route('admin.applicant-audit.index', [
+                'search' => 'Audit Applicant',
+                'show_all_audit_logs' => 1,
+                'page' => 2,
+            ]))
             ->assertOk()
-            ->assertSee('Showing 1–10 of 11 applicants')
-            ->assertSee('search=Audit%20Applicant', false);
+            ->assertSee('search=Audit%20Applicant', false)
+            ->assertSee('Recent Applicant Activity')
+            ->assertDontSee('Applicant Audit Logs')
+            ->assertDontSee('Showing 1–10 of 11 applicants');
 
         $this->assertNotNull($selectedApplicant);
-        $this->assertSame(10, substr_count($response->getContent(), 'class="audit-applicant"'));
-        $this->get(route('admin.applicant-audit.index', [
-            'search' => 'Audit Applicant',
-            'show_all_audit_logs' => 1,
-            'page' => 2,
-        ]))
-            ->assertOk()
-            ->assertSee($selectedApplicant->name)
-            ->assertSee('class="audit-applicant"', false);
+        $this->assertSame(11, substr_count($response->getContent(), '<strong>'.AuditAction::ACCOUNT_CREATED.'</strong>'));
+        $response->assertSee($selectedApplicant->name);
     }
 
     public function test_query_failure_renders_an_error_state_instead_of_zero_summaries(): void

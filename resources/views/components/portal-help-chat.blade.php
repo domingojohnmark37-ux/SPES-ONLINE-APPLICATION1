@@ -158,7 +158,7 @@
                 <div class="portal-help-subtitle">Choose a topic to see an answer</div>
             </div>
             <button class="portal-help-close" type="button" aria-label="Close help" data-help-close>
-                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                <x-icon class="fa-solid fa-xmark" aria-hidden="true" />
             </button>
         </header>
         <div class="portal-help-thread" id="portalHelpThread" aria-live="polite" aria-relevant="additions">
@@ -190,7 +190,7 @@
         </div>
     </section>
     <button class="portal-help-toggle" type="button" aria-expanded="false" aria-controls="portalHelpPanel" data-help-toggle>
-        <span class="portal-help-toggle-icon"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+        <span class="portal-help-toggle-icon"><x-icon class="fa-solid fa-circle-question" aria-hidden="true" /></span>
         <span>FAQs</span>
     </button>
 </aside>

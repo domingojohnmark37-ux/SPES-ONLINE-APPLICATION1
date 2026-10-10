@@ -11,6 +11,34 @@ class UserActivityTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_applicant_user_guide_explains_portal_features_and_is_not_available_to_admins(): void
+    {
+        $applicant = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($applicant)
+            ->get(route('applicant.manual'))
+            ->assertOk()
+            ->assertSee('SPES Portal User Guide')
+            ->assertSee('How to Apply')
+            ->assertSee('Complete the application form')
+            ->assertSee('Each file must be 5 MB or smaller.')
+            ->assertSee('Submit for PESO review')
+            ->assertSee('Track your application')
+            ->assertSee('Complete the next steps if approved')
+            ->assertSee('Dashboard')
+            ->assertSee('My Application')
+            ->assertSee('Additional Requirements')
+            ->assertSee('Notifications and Appointments')
+            ->assertSee('Help and Contact')
+            ->assertSee('Profile and Settings')
+            ->assertSee('Keep Your Account Safe')
+            ->assertSee('data-open-portal-help', false);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('applicant.manual'))
+            ->assertForbidden();
+    }
+
     public function test_successful_login_records_last_activity(): void
     {
         $user = User::factory()->create();
@@ -123,6 +151,31 @@ class UserActivityTest extends TestCase
             ], false);
     }
 
+    public function test_dashboard_notification_dropdown_uses_a_scrollable_wrapping_list(): void
+    {
+        $user = User::factory()->create();
+        $longMessage = str_repeat('SPESnotificationwithoutspaces', 12);
+
+        foreach (range(1, 12) as $index) {
+            $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+                'notify_documents',
+                "Portal notification {$index}",
+                $index === 1 ? $longMessage : "Notification message {$index}",
+            ));
+        }
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('class="notif-list"', false)
+            ->assertSee('aria-label="Unread notifications"', false)
+            ->assertSee('overflow-y:auto', false)
+            ->assertSee('overflow-wrap:anywhere', false)
+            ->assertSee($longMessage)
+            ->assertSee('class="notif-footer"', false)
+            ->assertSee('Mark all as read');
+    }
+
     public function test_recent_notifications_has_its_own_page_with_published_admin_announcements(): void
     {
         $user = User::factory()->create();
@@ -158,7 +211,7 @@ class UserActivityTest extends TestCase
             ->assertSee('Recent Notifications')
             ->assertSee('aria-expanded="true"', false)
             ->assertSee('href="' . route('applicant.notifications.recent') . '" class="nav-link active"', false)
-            ->assertSee('Stay updated with the latest announcements from the PESO office.')
+            ->assertSee('Unread notifications and items received in the last 24 hours.')
             ->assertSee('SPES Orientation Announcement')
             ->assertSee('Orientation will be held at PESO Lal-lo.')
             ->assertSee('Aug 23, 2026 · 10:24 AM')
@@ -171,6 +224,240 @@ class UserActivityTest extends TestCase
             ->assertSee('href="' . route('applicant.notifications.recent') . '"', false)
             ->assertSee('href="' . route('applicant.notifications.previous') . '"', false)
             ->assertDontSee('id="notifications"', false);
+    }
+
+    public function test_recent_notifications_show_unread_items_and_items_from_the_last_24_hours(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $now = now();
+        $this->travelTo($now);
+
+        collect([
+            ['title' => 'Old unread update', 'created_at' => $now->copy()->subDays(7), 'read_at' => null],
+            ['title' => 'Recent read update', 'created_at' => $now->copy()->subHours(23), 'read_at' => $now->copy()->subHours(22)],
+            ['title' => 'Old read update', 'created_at' => $now->copy()->subHours(25), 'read_at' => $now->copy()->subHours(24)],
+        ])->each(function (array $attributes) use ($user) {
+            $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+                'notify_documents',
+                $attributes['title'],
+                'Notification test message.',
+                ['status' => 'approved'],
+            ));
+
+            $notification = $user->notifications()
+                ->whereJsonContains('data->title', $attributes['title'])
+                ->firstOrFail();
+            \Illuminate\Support\Facades\DB::table('notifications')
+                ->where('id', $notification->id)
+                ->update([
+                    'created_at' => $attributes['created_at'],
+                    'read_at' => $attributes['read_at'],
+                ]);
+
+        });
+
+        News::create([
+            'title' => 'Recent portal announcement',
+            'content' => 'Published within the last 24 hours.',
+            'display_on' => 'portal',
+            'is_published' => true,
+            'published_at' => $now->copy()->subHours(23),
+            'created_by' => $admin->id,
+        ]);
+        News::create([
+            'title' => 'Old portal announcement',
+            'content' => 'Published more than 24 hours ago.',
+            'display_on' => 'portal',
+            'is_published' => true,
+            'published_at' => $now->copy()->subHours(25),
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('applicant.notifications.recent'));
+        $response->assertOk()
+            ->assertSee('Old unread update')
+            ->assertSee('Recent read update')
+            ->assertDontSee('Old read update')
+            ->assertSee('Recent portal announcement')
+            ->assertDontSee('Old portal announcement');
+    }
+
+    public function test_previous_notifications_archived_filter_shows_read_recent_items_after_24_hours(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $now = now();
+        $this->travelTo($now);
+
+        foreach ([
+            ['title' => 'Archived read application update', 'created_at' => $now->copy()->subHours(25), 'read_at' => $now->copy()->subHours(24)],
+            ['title' => 'Unread application update', 'created_at' => $now->copy()->subDays(2), 'read_at' => null],
+            ['title' => 'Recently read application update', 'created_at' => $now->copy()->subHours(12), 'read_at' => $now->copy()->subHours(11)],
+        ] as $attributes) {
+            $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+                'notify_documents',
+                $attributes['title'],
+                'Notification archive test.',
+                ['status' => 'approved'],
+            ));
+
+            $notification = $user->notifications()
+                ->whereJsonContains('data->title', $attributes['title'])
+                ->firstOrFail();
+            \Illuminate\Support\Facades\DB::table('notifications')
+                ->where('id', $notification->id)
+                ->update([
+                    'created_at' => $attributes['created_at'],
+                    'read_at' => $attributes['read_at'],
+                ]);
+        }
+
+        News::create([
+            'title' => 'Archived portal announcement',
+            'content' => 'This announcement has expired from the recent list.',
+            'display_on' => 'portal',
+            'is_published' => true,
+            'published_at' => $now->copy()->subHours(25),
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('applicant.notifications.previous', ['filter' => 'archived']))
+            ->assertOk()
+            ->assertSee('Archived read application update')
+            ->assertSee('Archived portal announcement')
+            ->assertSee('Archived from Recent Notifications')
+            ->assertDontSee('Unread application update')
+            ->assertDontSee('Recently read application update');
+    }
+
+    public function test_unread_notification_in_previous_history_can_be_marked_read(): void
+    {
+        $user = User::factory()->create();
+        $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            'Application approved',
+            'Your application has been approved.',
+            ['status' => 'approved'],
+        ));
+        $notification = $user->notifications()->firstOrFail();
+        $historyUrl = route('applicant.notifications.previous', ['filter' => 'all', 'search' => 'Application']);
+
+        $this->actingAs($user)
+            ->get($historyUrl)
+            ->assertOk()
+            ->assertSee('Mark as read')
+            ->assertSee(route('notifications.read', $notification->id), false);
+
+        $this->from($historyUrl)
+            ->post(route('notifications.read', $notification->id), ['redirect_to' => 'back'])
+            ->assertRedirect($historyUrl);
+
+        $this->assertNotNull($notification->fresh()->read_at);
+
+        $this->get($historyUrl)
+            ->assertOk()
+            ->assertSee('Read ')
+            ->assertDontSee('Mark as read');
+    }
+
+    public function test_previous_notification_history_wraps_long_content_and_groups_recent_items(): void
+    {
+        $user = User::factory()->create();
+        $longMessage = str_repeat('SPES-notification-message-without-spaces-', 8);
+        $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            str_repeat('Long notification title without spaces ', 8),
+            $longMessage,
+        ));
+
+        $this->actingAs($user)
+            ->get(route('applicant.notifications.previous'))
+            ->assertOk()
+            ->assertSee('class="history-scroll"', false)
+            ->assertSee('class="history-group-title">Today</h2>', false)
+            ->assertSee('overflow-wrap:anywhere', false)
+            ->assertSee('View full message')
+            ->assertSee($longMessage)
+            ->assertSee('Mark all as read')
+            ->assertSee('Dismiss');
+    }
+
+    public function test_previous_notification_actions_update_only_the_own_notification(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            'Manage my notification',
+            'This notification belongs to the current user.',
+        ));
+        $otherUser->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            'Other user notification',
+            'This notification belongs to someone else.',
+        ));
+        $notification = $user->notifications()->firstOrFail();
+        $otherNotification = $otherUser->notifications()->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('notifications.read', $notification->id))
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+        $this->assertNotNull($notification->fresh()->read_at);
+
+        $this->post(route('notifications.unread', $otherNotification->id))
+            ->assertNotFound();
+        $this->assertNull($otherNotification->fresh()->read_at);
+
+        $this->post(route('notifications.unread', $notification->id))
+            ->assertRedirect();
+        $this->assertNull($notification->fresh()->read_at);
+
+        $this->delete(route('notifications.dismiss', $otherNotification->id))
+            ->assertNotFound();
+        $this->assertDatabaseHas('notifications', ['id' => $otherNotification->id]);
+
+        $this->deleteJson(route('notifications.dismiss', $notification->id))
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+        $this->assertDatabaseMissing('notifications', ['id' => $notification->id]);
+
+        $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            'Dismiss with redirect',
+            'The standard form submission remains supported.',
+        ));
+        $redirectNotification = $user->notifications()->firstOrFail();
+
+        $this->from(route('applicant.notifications.previous'))
+            ->delete(route('notifications.dismiss', $redirectNotification->id))
+            ->assertRedirect(route('applicant.notifications.previous'));
+        $this->assertDatabaseMissing('notifications', ['id' => $redirectNotification->id]);
+    }
+
+    public function test_previous_notification_history_can_mark_all_unread_items_as_read(): void
+    {
+        $user = User::factory()->create();
+        $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            'First unread notification',
+            'First message.',
+        ));
+        $user->notify(new \App\Notifications\ApplicantPortalUpdate(
+            'notify_documents',
+            'Second unread notification',
+            'Second message.',
+        ));
+
+        $this->actingAs($user)
+            ->from(route('applicant.notifications.previous'))
+            ->post(route('notifications.readAll'), ['redirect_to' => 'back'])
+            ->assertRedirect(route('applicant.notifications.previous'))
+            ->assertSessionHas('status');
+
+        $this->assertSame(0, $user->unreadNotifications()->count());
     }
 
     public function test_previous_notifications_has_its_own_filterable_history_page(): void
@@ -210,7 +497,7 @@ class UserActivityTest extends TestCase
             ->get(route('applicant.notifications.previous'))
             ->assertOk()
             ->assertSee('Previous Notifications')
-            ->assertSee('View your past events, announcements, and updates from the admin.')
+            ->assertSee('Read notifications stay in Recent for 24 hours, then appear in the archive. Unread notifications remain in Recent.')
             ->assertSee('Document requirement update')
             ->assertSee('Important Announcement')
             ->assertSee('SPES Orientation Program')

@@ -7,9 +7,9 @@
 @section('content')
 <div class="card">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <h2><i class="fa-solid fa-calendar-check"></i> Shared Schedule</h2>
+        <h2><x-icon class="fa-solid fa-calendar-check" /> Shared Schedule</h2>
         <a href="{{ route('admin.appointments.create') }}" class="btn btn-primary btn-sm">
-            <i class="fa-solid fa-plus"></i> New Appointment
+            <x-icon class="fa-solid fa-plus" /> New Appointment
         </a>
     </div>
     <div class="card-body">

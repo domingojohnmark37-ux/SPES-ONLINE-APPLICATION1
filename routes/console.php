@@ -1,8 +1,11 @@
 <?php
 
 use App\Models\AuditAction;
+use App\Models\Appointment;
 use App\Models\PendingRegistration;
+use App\Notifications\ApplicantPortalUpdate;
 use App\Services\AdminBackupService;
+use App\Services\ApplicantNotificationService;
 use App\Services\AuditLogger;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -13,6 +16,90 @@ use Illuminate\Support\Facades\Storage;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('appointments:send-reminders', function (ApplicantNotificationService $notifications): void {
+    $windowBase = now();
+    $windowStart = $windowBase->copy()->addHours(23);
+    $windowEnd = $windowBase->copy()->addHours(24);
+
+    Appointment::query()
+        ->where('is_published', true)
+        ->whereBetween('starts_at', [$windowStart, $windowEnd])
+        ->orderBy('id')
+        ->each(function (Appointment $appointment) use ($notifications): void {
+            $startsAt = $appointment->starts_at;
+            $details = $startsAt->format('M j, Y g:i A');
+            if ($appointment->location) {
+                $details .= ' at '.$appointment->location;
+            }
+
+            $notifications->notifyUsers(
+                $appointment->recipientUsers(),
+                new ApplicantPortalUpdate(
+                    'notify_appointments',
+                    'Appointment reminder',
+                    "This is a reminder of your SPES appointment, \"{$appointment->title}\", on {$details}.",
+                    [
+                        'appointment_id' => $appointment->id,
+                        'appointment_date' => $startsAt->toIso8601String(),
+                        'appointment_location' => $appointment->location,
+                        'event' => 'scheduled_appointment_reminder',
+                    ],
+                ),
+                "appointment:{$appointment->id}:reminder:{$startsAt->getTimestamp()}",
+            );
+        });
+})->purpose('Send eligible applicant reminders for appointments approximately 24 hours away');
+
+Schedule::command('appointments:send-reminders')
+    ->hourlyAt(0)
+    ->timezone(config('app.timezone'))
+    ->name('spes-appointment-reminders')
+    ->withoutOverlapping();
+
+Artisan::command('appointments:send-day-of-notices', function (ApplicantNotificationService $notifications): void {
+    $today = now(config('app.timezone'));
+
+    Appointment::query()
+        ->where('is_published', true)
+        ->whereDate('starts_at', $today->toDateString())
+        ->orderBy('id')
+        ->each(function (Appointment $appointment) use ($notifications): void {
+            $startsAt = $appointment->starts_at;
+            $message = 'Your SPES appointment is scheduled for today: '.$appointment->title
+                .' on '.$startsAt->format('M j, Y g:i A').'.';
+            if (filled($appointment->location)) {
+                $message .= ' Location: '.$appointment->location.'.';
+            }
+            if (filled($appointment->description)) {
+                $message .= ' Details: '.$appointment->description;
+            }
+
+            $notifications->notifyUsers(
+                $appointment->recipientUsers(),
+                new ApplicantPortalUpdate(
+                    'notify_appointments',
+                    'Appointment today: '.$appointment->title,
+                    $message,
+                    [
+                        'appointment_id' => $appointment->id,
+                        'appointment_title' => $appointment->title,
+                        'appointment_description' => $appointment->description,
+                        'appointment_date' => $startsAt->format('M j, Y g:i A'),
+                        'appointment_location' => $appointment->location,
+                        'event' => 'appointment_day_of',
+                    ],
+                ),
+                "appointment:{$appointment->id}:day-of:{$startsAt->getTimestamp()}",
+            );
+        });
+})->purpose('Notify each eligible applicant by email and in-app on the day of their appointment');
+
+Schedule::command('appointments:send-day-of-notices')
+    ->hourlyAt(5)
+    ->timezone(config('app.timezone'))
+    ->name('spes-appointment-day-of-notices')
+    ->withoutOverlapping();
 
 Schedule::call(function () {
     PendingRegistration::where('expires_at', '<=', now())->delete();

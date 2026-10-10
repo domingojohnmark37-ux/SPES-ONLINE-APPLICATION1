@@ -44,7 +44,7 @@
     .application-period-field small { display:block; margin-top:7px; color:var(--text-muted); font-size:.78rem; line-height:1.45; }
     .application-period-error { margin-top:6px; color:var(--danger); font-size:.8rem; }
     .application-period-notice { display:flex; align-items:center; gap:10px; padding:12px 14px; border:1px solid rgba(21,101,192,.18); border-radius:9px; background:rgba(21,101,192,.06); color:var(--text-muted); font-size:.83rem; }
-    .application-period-notice > i { color:var(--info); }
+    .application-period-notice > svg.icon { color:var(--info); }
     .application-period-notice strong { color:var(--text); }
     .application-period-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding-top:18px; border-top:1px solid var(--border); }
     .application-period-actions .btn { display:inline-flex; min-height:42px; align-items:center; justify-content:center; gap:8px; padding:10px 16px; border-radius:8px; font-weight:700; }
@@ -58,12 +58,12 @@
     .application-period-insights { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
     .application-period-insight { padding:20px; border:1px solid var(--border); border-radius:12px; background:var(--white); box-shadow:var(--shadow); }
     .application-period-insight-heading { display:flex; align-items:center; gap:10px; margin-bottom:16px; color:var(--text); font-size:.95rem; font-weight:750; }
-    .application-period-insight-heading i { color:var(--primary); }
+    .application-period-insight-heading svg.icon { color:var(--primary); }
     .application-period-movement { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .application-period-movement-item { padding:12px; border-radius:9px; background:var(--bg); }
     .application-period-movement-item small { display:block; margin-bottom:6px; color:var(--text-muted); font-size:.75rem; }
     .application-period-movement-item strong { display:block; color:var(--text); font-size:.9rem; }
-    .application-period-movement-item strong i { margin-right:4px; }
+    .application-period-movement-item strong svg.icon { margin-right:4px; }
     .application-period-movement-item[data-direction="earlier"] strong { color:var(--info); }
     .application-period-movement-item[data-direction="later"] strong { color:var(--primary); }
     .application-period-insight-note { margin-top:12px; color:var(--text-muted); font-size:.76rem; line-height:1.45; }
@@ -110,6 +110,24 @@
 
 @section('content')
 
+@if(session('email_test_success'))
+    <div class="alert alert-success" role="status">{{ session('email_test_success') }}</div>
+@endif
+@error('email_test')
+    <div class="alert alert-danger" role="alert">{{ $message }}</div>
+@enderror
+
+<section class="application-period-audit" style="margin-bottom:20px;">
+    <div class="card-header"><h2><x-icon class="fa-solid fa-envelope-circle-check" /> Email delivery test</h2></div>
+    <div class="card-body" style="padding:20px;">
+        <p>Send a real test email to your registered administrator address ({{ auth()->user()->email }}) using the configured mail provider.</p>
+        <form method="POST" action="{{ route('admin.settings.email-test') }}" style="margin-top:14px;">
+            @csrf
+            <button type="submit" class="btn btn-primary"><x-icon class="fa-solid fa-paper-plane" /> Send test email</button>
+        </form>
+    </div>
+</section>
+
 @php
     $periodNow = now(config('app.timezone'));
     $periodStart = $settings->application_start_date?->copy()->setTimezone(config('app.timezone'));
@@ -146,7 +164,7 @@
 <div class="application-period-page">
     <section class="application-period-status" data-application-period-status data-state="{{ $periodState }}" data-current-approved="{{ $approvedApplicantCount }}" data-capacity-full="{{ $approvalCapacityFull ? 'true' : 'false' }}" data-capacity-summary="{{ $periodSummary }}" aria-live="polite">
         <span class="application-period-status-icon" aria-hidden="true">
-            <i class="fa-solid {{ $periodState === 'open' ? 'fa-door-open' : ($periodState === 'closed' ? 'fa-lock' : 'fa-clock') }}" data-status-icon></i>
+            <x-icon class="fa-solid {{ $periodState === 'open' ? 'fa-door-open' : ($periodState === 'closed' ? 'fa-lock' : 'fa-clock') }}" data-status-icon />
         </span>
         <div class="application-period-status-copy">
             <small>Current submission status</small>
@@ -163,18 +181,18 @@
             @php($movement = $applicationPeriodStatistics[$periodField])
             <article class="application-period-insight">
                 <h2 class="application-period-insight-heading">
-                    <i class="fa-solid {{ $periodInsight['icon'] }}" aria-hidden="true"></i>
+                    <x-icon class="fa-solid {{ $periodInsight['icon'] }}" aria-hidden="true" />
                     {{ $periodInsight['title'] }}
                 </h2>
                 <div class="application-period-movement">
                     <div class="application-period-movement-item" data-direction="earlier">
                         <small>Moved earlier</small>
-                        <strong><i class="fa-solid fa-arrow-up" aria-hidden="true"></i>{{ $movement['earlier_count'] }} {{ \Illuminate\Support\Str::plural('change', $movement['earlier_count']) }}</strong>
+                        <strong><x-icon class="fa-solid fa-arrow-up" aria-hidden="true" />{{ $movement['earlier_count'] }} {{ \Illuminate\Support\Str::plural('change', $movement['earlier_count']) }}</strong>
                         <small>{{ $formatMovementDays($movement['earlier_seconds']) }} total</small>
                     </div>
                     <div class="application-period-movement-item" data-direction="later">
                         <small>Moved later</small>
-                        <strong><i class="fa-solid fa-arrow-down" aria-hidden="true"></i>{{ $movement['later_count'] }} {{ \Illuminate\Support\Str::plural('change', $movement['later_count']) }}</strong>
+                        <strong><x-icon class="fa-solid fa-arrow-down" aria-hidden="true" />{{ $movement['later_count'] }} {{ \Illuminate\Support\Str::plural('change', $movement['later_count']) }}</strong>
                         <small>{{ $formatMovementDays($movement['later_seconds']) }} total</small>
                     </div>
                 </div>
@@ -185,7 +203,7 @@
 
     <section class="card application-period-card">
         <div class="card-header">
-            <h2><i class="fa-solid fa-calendar-days" aria-hidden="true"></i> Application schedule</h2>
+            <h2><x-icon class="fa-solid fa-calendar-days" aria-hidden="true" /> Application schedule</h2>
         </div>
         <div class="card-body">
             <form class="application-period-form" method="POST" action="{{ route('admin.settings.update') }}" id="application-period-form" data-unsaved-guard="off"
@@ -204,7 +222,7 @@
                                aria-describedby="application-start-help">
                         <small id="application-start-help">Applicants can submit starting at this date and time.</small>
                         @error('application_start_date')
-                            <div class="application-period-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {{ $message }}</div>
+                            <div class="application-period-error"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ $message }}</div>
                         @enderror
                     </div>
 
@@ -216,7 +234,7 @@
                                aria-describedby="application-end-help">
                         <small id="application-end-help">Submissions close automatically at this date and time.</small>
                         @error('application_end_date')
-                            <div class="application-period-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {{ $message }}</div>
+                            <div class="application-period-error"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ $message }}</div>
                         @enderror
                     </div>
                     <div class="application-period-field">
@@ -227,13 +245,13 @@
                                placeholder="No limit">
                         <small>Optional. Leave blank for no approval cap. The system counts approved applicants in the current application season.</small>
                         @error('approved_applicant_limit')
-                            <div class="application-period-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> {{ $message }}</div>
+                            <div class="application-period-error"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ $message }}</div>
                         @enderror
                     </div>
                 </div>
 
                 <div class="application-period-notice">
-                    <i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
+                    <x-icon class="fa-solid fa-chart-simple" aria-hidden="true" />
                     <span><strong>Approved this season: {{ $approvedApplicantCount }}</strong>
                         @if($settings->approved_applicant_limit)
                             of {{ $settings->approved_applicant_limit }} available approvals
@@ -244,14 +262,14 @@
                 </div>
 
                 <div class="application-period-quick-actions" aria-label="Quick application period actions">
-                    <button type="button" data-period-action="open"><i class="fa-solid fa-door-open" aria-hidden="true"></i> Keep applications open</button>
-                    <button type="button" data-period-action="close"><i class="fa-solid fa-lock" aria-hidden="true"></i> Close applications now</button>
+                    <button type="button" data-period-action="open"><x-icon class="fa-solid fa-door-open" aria-hidden="true" /> Keep applications open</button>
+                    <button type="button" data-period-action="close"><x-icon class="fa-solid fa-lock" aria-hidden="true" /> Close applications now</button>
                 </div>
 
                 <div class="application-period-actions">
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save application schedule</button>
+                    <button type="submit" class="btn btn-primary"><x-icon class="fa-solid fa-floppy-disk" aria-hidden="true" /> Save application schedule</button>
                     <a href="{{ route('admin.dashboard') }}" class="btn btn-outline">Cancel</a>
-                    <span class="application-period-footnote"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Changes take effect when saved.</span>
+                    <span class="application-period-footnote"><x-icon class="fa-solid fa-circle-info" aria-hidden="true" /> Changes take effect when saved.</span>
                 </div>
             </form>
         </div>
@@ -259,7 +277,7 @@
 
     <section class="application-period-audit" aria-labelledby="application-period-audit-heading">
         <div class="application-period-audit-heading">
-            <h2 id="application-period-audit-heading"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Application schedule audit history</h2>
+            <h2 id="application-period-audit-heading"><x-icon class="fa-solid fa-clock-rotate-left" aria-hidden="true" /> Application schedule audit history</h2>
             <p>Recent changes show who changed each date, when they changed it, and the previous and new values.</p>
         </div>
         @if($applicationPeriodAudits->isNotEmpty())
@@ -309,7 +327,7 @@
             </div>
         @else
             <div class="application-period-audit-empty">
-                <i class="fa-regular fa-clipboard" aria-hidden="true"></i>
+                <x-icon class="fa-regular fa-clipboard" aria-hidden="true" />
                 No schedule changes have been recorded yet. Changes will appear here after the dates are saved.
             </div>
         @endif
@@ -318,7 +336,7 @@
 <div class="period-confirm-backdrop" data-period-confirm-backdrop hidden>
     <section class="period-confirm-dialog" data-period-confirm-dialog data-kind="save" role="dialog" aria-modal="true" aria-labelledby="period-confirm-title" aria-describedby="period-confirm-copy" tabindex="-1">
         <div class="period-confirm-top">
-            <span class="period-confirm-icon" aria-hidden="true"><i class="fa-solid fa-circle-question" data-confirm-icon></i></span>
+            <span class="period-confirm-icon" aria-hidden="true"><x-icon class="fa-solid fa-circle-question" data-confirm-icon /></span>
             <h2 id="period-confirm-title" data-confirm-title>Confirm schedule changes</h2>
         </div>
         <p class="period-confirm-copy" id="period-confirm-copy" data-confirm-copy>Save these application schedule changes? The new dates will affect when applicants can submit.</p>
@@ -357,6 +375,7 @@
         let returnFocus = null;
         let allowUnload = false;
         let submittingAfterConfirmation = false;
+        let pendingSubmitter = null;
 
         const hasUnsavedChanges = () => (
             startInput.value !== initialValues.start
@@ -448,6 +467,7 @@
         form.addEventListener('submit', (event) => {
             if (submittingAfterConfirmation || !hasUnsavedChanges()) return;
             event.preventDefault();
+            pendingSubmitter = event.submitter;
             openDialog('save', event.submitter);
         });
 
@@ -455,7 +475,13 @@
             if (modalPurpose === 'save') {
                 submittingAfterConfirmation = true;
                 allowUnload = true;
-                form.submit();
+                if (pendingSubmitter && pendingSubmitter.isConnected) {
+                    form.requestSubmit(pendingSubmitter);
+                } else {
+                    form.requestSubmit();
+                }
+                pendingSubmitter = null;
+                submittingAfterConfirmation = false;
                 return;
             }
 

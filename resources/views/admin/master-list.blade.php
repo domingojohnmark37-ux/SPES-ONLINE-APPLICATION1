@@ -118,7 +118,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h2><i class="fa-solid fa-list-check"></i> Final List of Applicants</h2>
+        <h2><x-icon class="fa-solid fa-list-check" /> Final List of Applicants</h2>
     </div>
     <div class="card-body">
         {{-- Filters --}}
@@ -146,7 +146,7 @@
                     <option value="name_asc" {{ request('sort', 'name_asc')==='name_asc' ? 'selected':'' }}>Name (A-Z)</option>
                     <option value="name_desc" {{ request('sort')==='name_desc' ? 'selected':'' }}>Name (Z-A)</option>
                 </select>
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter"></i> Filter</button>
+                <button type="submit" class="btn btn-primary btn-sm"><x-icon class="fa-solid fa-filter" /> Filter</button>
                 <a href="{{ route('admin.masterlist.index') }}" class="btn btn-outline btn-sm">Clear</a>
             </form>
         </div>
@@ -310,7 +310,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-success" style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-                    <i class="fa-solid fa-floppy-disk"></i> Save Final List
+                    <x-icon class="fa-solid fa-floppy-disk" /> Save Final List
                 </button>
             </div>
         </div>
@@ -322,7 +322,7 @@
 
 <div class="card" style="margin-top:20px;">
     <div class="card-header">
-        <h2><i class="fa-solid fa-box-archive"></i> Saved Final List Packages</h2>
+        <h2><x-icon class="fa-solid fa-box-archive" /> Saved Final List Packages</h2>
     </div>
     <div class="card-body">
         @if(session('generated_final_list_id'))
@@ -349,7 +349,7 @@
                                 <td>
                                     @if($savedList->archive_path)
                                         <a class="btn btn-primary btn-sm" href="{{ route('admin.masterlist.download', $savedList) }}">
-                                            <i class="fa-solid fa-download"></i> Download ZIP
+                                            <x-icon class="fa-solid fa-download" /> Download ZIP
                                         </a>
                                     @else
                                         <span>Package unavailable</span>

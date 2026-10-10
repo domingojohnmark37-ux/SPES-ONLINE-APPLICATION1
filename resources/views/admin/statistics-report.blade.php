@@ -47,7 +47,7 @@
     .insights-list { display:grid; gap:0; }
     .insight-item { display:flex; gap:9px; padding:10px 0; border-bottom:1px solid #f0f1f3; }
     .insight-item:last-child { border-bottom:0; }
-    .insight-item i { margin-top:2px; color:var(--primary); font-size:.8rem; }
+    .insight-item svg.icon { margin-top:2px; color:var(--primary); font-size:.8rem; }
     .insight-item strong { display:block; color:var(--text); font-size:.72rem; }
     .insight-item span { display:block; margin-top:3px; color:var(--text-muted); font-size:.72rem; line-height:1.4; }
     .insight-empty { color:var(--text-muted); font-size:.8rem; line-height:1.5; }
@@ -63,7 +63,7 @@
     .donut span { z-index:1; color:var(--primary); font-size:.75rem; font-weight:800; }
     .demographic-legend { display:grid; width:100%; gap:5px; min-width:0; }
     .demographic-legend-item { display:grid; grid-template-columns:8px minmax(0,1fr) auto; align-items:center; gap:5px; color:var(--text-muted); font-size:.66rem; }
-    .demographic-legend-item i { width:7px; height:7px; border-radius:50%; background:var(--legend-color); }
+    .demographic-legend-item .legend-dot { width:7px; height:7px; border-radius:50%; background:var(--legend-color); }
     .demographic-legend-item span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .demographic-legend-item strong { color:var(--text); font-size:.65rem; white-space:nowrap; }
     .demographic-empty { color:var(--text-muted); font-size:.77rem; line-height:1.45; }
@@ -231,7 +231,7 @@
             </select>
         </div>
         <div class="report-filter-actions">
-            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-filter" aria-hidden="true"></i> Apply</button>
+            <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-filter" aria-hidden="true" /> Apply</button>
             <a class="btn btn-outline" href="{{ route('admin.statistics-report') }}">Reset</a>
         </div>
         @if(!$programYearAvailable)
@@ -253,7 +253,7 @@
             ['label' => 'Rejection Rate', 'value' => $rejectionRate, 'icon' => 'fa-chart-simple', 'key' => 'rejection_rate', 'rate' => true, 'description' => ''],
         ] as $stat)
             <article class="report-stat">
-                <div class="report-stat-icon"><i class="fa-solid {{ $stat['icon'] }}" aria-hidden="true"></i></div>
+                <div class="report-stat-icon"><x-icon class="fa-solid {{ $stat['icon'] }}" aria-hidden="true" /></div>
                 <div class="report-stat-copy">
                     <div class="report-stat-label">{{ $stat['label'] }}</div>
                     <div class="report-stat-value">
@@ -275,17 +275,17 @@
         <article class="report-card">
             <header class="report-card-header">
                 <div>
-                    <h2><i class="fa-solid fa-chart-column" aria-hidden="true"></i> Application Statistics</h2>
+                    <h2><x-icon class="fa-solid fa-chart-column" aria-hidden="true" /> Application Statistics</h2>
                     <p>Applications grouped by actual submission date ({{ $chart['grouping'] === 'year' ? 'yearly' : 'monthly' }}).</p>
                 </div>
             </header>
             <div class="report-card-body">
                 @if(count($chart['labels']))
                     <div class="chart-legend" aria-label="Chart legend">
-                        <span class="legend-item"><i class="legend-dot" style="--legend-color:#8b0000"></i>Total Applications</span>
-                        <span class="legend-item"><i class="legend-dot" style="--legend-color:#b4232f"></i>Approved</span>
-                        <span class="legend-item"><i class="legend-dot" style="--legend-color:#ec8f34"></i>Pending Review</span>
-                        <span class="legend-item"><i class="legend-dot" style="--legend-color:#df7180"></i>Rejected</span>
+                        <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#8b0000"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Total Applications</span>
+                        <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#b4232f"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Approved</span>
+                        <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#ec8f34"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Pending Review</span>
+                        <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#df7180"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Rejected</span>
                     </div>
                     <svg class="activity-chart" viewBox="0 0 {{ $chartWidth }} {{ $chartHeight }}" role="img" aria-label="Application counts by {{ $chart['grouping'] }}">
                         @for($step = 0; $step <= $chartSteps; $step++)
@@ -331,13 +331,13 @@
             </div>
         </article>
         <article class="report-card">
-            <header class="report-card-header"><h2><i class="fa-solid fa-lightbulb" aria-hidden="true"></i> Key Insights</h2></header>
+            <header class="report-card-header"><h2><x-icon class="fa-solid fa-lightbulb" aria-hidden="true" /> Key Insights</h2></header>
             <div class="report-card-body">
                 @if($insights)
                     <div class="insights-list">
                         @foreach($insights as $insight)
                             <div class="insight-item">
-                                <i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i>
+                                <x-icon class="fa-solid fa-arrow-trend-up" aria-hidden="true" />
                                 <div><strong>{{ $insight['label'] }}</strong><span>{{ $insight['value'] }}</span></div>
                             </div>
                         @endforeach
@@ -352,7 +352,7 @@
 
     <section class="report-grid lower-grid" aria-label="Applicant demographics and annual application comparison">
         <article class="report-card">
-            <header class="report-card-header"><div><h2><i class="fa-solid fa-users" aria-hidden="true"></i> Applicant Demographics</h2><p>Age reflects the application record; other values use the selected records.</p></div></header>
+            <header class="report-card-header"><div><h2><x-icon class="fa-solid fa-users" aria-hidden="true" /> Applicant Demographics</h2><p>Age reflects the application record; other values use the selected records.</p></div></header>
             <div class="demographic-grid">
                 @foreach([
                     'age' => 'Age Groups',
@@ -381,7 +381,7 @@
                                 <div class="demographic-legend">
                                     @foreach($distribution['items'] as $itemIndex => $item)
                                         <div class="demographic-legend-item">
-                                            <i style="--legend-color:{{ $donutPalette[$itemIndex % count($donutPalette)] }}"></i>
+                                            <svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:{{ $donutPalette[$itemIndex % count($donutPalette)] }}"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>
                                             <span title="{{ $item['label'] }}">{{ $item['label'] }}</span>
                                             <strong>{{ number_format($item['percentage'], 1) }}% · {{ $item['count'] }}</strong>
                                         </div>
@@ -398,16 +398,16 @@
 
         <article class="report-card">
             <header class="report-card-header">
-                <div><h2><i class="fa-solid fa-chart-bar" aria-hidden="true"></i> Application Period Comparison</h2><p>Grouped by the actual application submission year. No named application-period field is stored.</p></div>
+                <div><h2><x-icon class="fa-solid fa-chart-bar" aria-hidden="true" /> Application Period Comparison</h2><p>Grouped by the actual application submission year. No named application-period field is stored.</p></div>
             </header>
             <div class="report-card-body">
                 @if($periods->isNotEmpty())
                     <div class="comparison-legend">
-                        <span class="legend-item"><i class="legend-dot" style="--legend-color:#8b0000"></i>Approved</span>
-                        <span class="legend-item"><i class="legend-dot" style="--legend-color:#e18a2c"></i>Pending</span>
-                        <span class="legend-item"><i class="legend-dot" style="--legend-color:#df7180"></i>Rejected</span>
+                        <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#8b0000"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Approved</span>
+                        <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#e18a2c"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Pending</span>
+                        <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#df7180"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Rejected</span>
                         @if($periods->sum('other') > 0)
-                            <span class="legend-item"><i class="legend-dot" style="--legend-color:#6b7280"></i>Other</span>
+                            <span class="legend-item"><svg class="legend-dot" viewBox="0 0 10 10" aria-hidden="true" style="--legend-color:#6b7280"><circle cx="5" cy="5" r="4.5" fill="var(--legend-color)" /></svg>Other</span>
                         @endif
                     </div>
                     <div class="comparison-chart" role="img" aria-label="Annual application totals grouped by status">
@@ -460,7 +460,7 @@
 
     <section class="report-grid bottom-grid" aria-label="Report summary, explanation, and conclusion">
         <article class="report-card">
-            <header class="report-card-header"><h2><i class="fa-solid fa-align-left" aria-hidden="true"></i> Summary</h2></header>
+            <header class="report-card-header"><h2><x-icon class="fa-solid fa-align-left" aria-hidden="true" /> Summary</h2></header>
             <div class="report-card-body"><p class="info-copy">{{ $summary }}</p>
                 @if(!$comparison['available'])
                     <p class="data-availability">Insufficient historical data is available for period comparison.</p>
@@ -470,7 +470,7 @@
             </div>
         </article>
         <article class="report-card">
-            <header class="report-card-header"><h2><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Statistics Explanation</h2></header>
+            <header class="report-card-header"><h2><x-icon class="fa-solid fa-circle-info" aria-hidden="true" /> Statistics Explanation</h2></header>
             <div class="report-card-body">
                 <div class="explanation-list">
                     <div class="explanation-row"><strong>Total Applications</strong><span>Application records matching the selected filters and submission date range.</span></div>
@@ -487,7 +487,7 @@
             </div>
         </article>
         <article class="report-card">
-            <header class="report-card-header"><h2><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> Conclusion</h2></header>
+            <header class="report-card-header"><h2><x-icon class="fa-solid fa-clipboard-check" aria-hidden="true" /> Conclusion</h2></header>
             <div class="report-card-body"><p class="info-copy">{{ $conclusion }}</p></div>
         </article>
     </section>

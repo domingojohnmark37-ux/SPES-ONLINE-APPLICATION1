@@ -34,6 +34,13 @@ class AdditionalRequirement extends Model
         return $this->hasMany(AdditionalRequirementTemplate::class);
     }
 
+    public function expectedSubmissionCount(?int $lastSubmittedFileNumber = null): int
+    {
+        $templateCount = $this->templates->count() + (filled($this->template_path) ? 1 : 0);
+
+        return max(1, $templateCount, $lastSubmittedFileNumber ?? 0);
+    }
+
     public function isAvailableTo(?Application $application): bool
     {
         return $this->audience === 'all_applicants'

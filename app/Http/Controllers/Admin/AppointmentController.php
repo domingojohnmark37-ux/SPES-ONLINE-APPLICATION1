@@ -162,6 +162,7 @@ class AppointmentController extends Controller
         $notifications->notifyUsers(
             $appointment->recipientUsers(),
             $this->appointmentNotification($appointment),
+            "appointment:{$appointment->id}:{$appointment->updated_at?->getTimestamp()}",
         );
     }
 
