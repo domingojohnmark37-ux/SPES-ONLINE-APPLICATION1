@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 class ApplicationReviewSuggestions
 {
     private const DOCUMENTS = [
-        'resume' => ['label' => 'Birth Certificate', 'required' => true, 'disk' => 'public'],
+        'birth_certificate' => ['label' => 'Birth Certificate', 'required' => true, 'disk' => 'public'],
         'certificate_enrollment' => ['label' => 'Certificate of Enrollment', 'required' => true, 'disk' => 'public'],
         'certificate_grade' => ['label' => 'Certificate of Grades', 'required' => false, 'disk' => 'public'],
         'application_letter' => ['label' => 'Application Letter', 'required' => false, 'disk' => 'public'],
@@ -139,7 +139,7 @@ class ApplicationReviewSuggestions
                 ];
             }
 
-            $expectedExtension = in_array($field, ['resume', 'certificate_enrollment', 'certificate_grade'], true)
+            $expectedExtension = in_array($field, ['birth_certificate', 'certificate_enrollment', 'certificate_grade'], true)
                 ? ['pdf']
                 : ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
             if (! $this->fileContentMatches($document['disk'], $path, $expectedExtension)) {
@@ -207,7 +207,7 @@ class ApplicationReviewSuggestions
     private function clearlyWrongDocumentName(string $field, string $name): bool
     {
         $expectedKind = match ($field) {
-            'resume' => 'birth',
+            'birth_certificate' => 'birth',
             'certificate_enrollment' => 'enrollment',
             'certificate_grade' => 'grades',
             'application_letter' => 'letter',

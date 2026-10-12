@@ -956,11 +956,38 @@ class AdminBackupService
                 if (! is_array($row) || array_is_list($row) && $row !== []) {
                     throw new RuntimeException("The backup contains an invalid row in table [{$table}].");
                 }
+                $normalizedRow = [];
                 foreach ($row as $column => $value) {
+                    if (
+                        $table === 'applications'
+                        && $column === 'resume'
+                        && isset($columns['birth_certificate'])
+                        && array_key_exists('birth_certificate', $row)
+                    ) {
+                        continue;
+                    }
+                    if ($table === 'applications' && $column === 'resume' && isset($columns['birth_certificate'])) {
+                        $column = 'birth_certificate';
+                    }
                     if (! is_string($column) || ! isset($columns[$column])) {
                         throw new RuntimeException("The backup contains an unknown column in table [{$table}].");
                     }
-                    $row[$column] = $this->decodeSnapshotValue($value);
+                    $normalizedRow[$column] = $this->decodeSnapshotValue($value);
+                }
+                $row = $normalizedRow;
+                if ($table === 'applications') {
+                    if (
+                        is_string($row['birth_certificate'] ?? null)
+                        && str_starts_with($row['birth_certificate'], 'applications/resumes/')
+                    ) {
+                        $row['birth_certificate'] = 'applications/birth_certificates/'.substr(
+                            $row['birth_certificate'],
+                            strlen('applications/resumes/'),
+                        );
+                    }
+                    if (is_string($row['document_original_names'] ?? null)) {
+                        $row['document_original_names'] = $this->renameLegacyDocumentOriginalName($row['document_original_names']);
+                    }
                 }
                 $validated[$table][] = $row;
             }
@@ -1040,6 +1067,12 @@ class AdminBackupService
             } elseif (str_starts_with($name, 'uploads/public/')) {
                 $disk = 'public';
                 $relativePath = substr($name, strlen('uploads/public/'));
+                if (str_starts_with($relativePath, 'applications/resumes/')) {
+                    $relativePath = 'applications/birth_certificates/'.substr(
+                        $relativePath,
+                        strlen('applications/resumes/'),
+                    );
+                }
             } elseif (str_starts_with($name, 'logs/')) {
                 $disk = null;
                 $relativePath = substr($name, strlen('logs/'));
@@ -1090,8 +1123,23 @@ class AdminBackupService
                 }
                 $createdFiles[] = ['path' => $relativePath, 'disk' => $disk];
             }
+
+        }
+    }
+
+    private function renameLegacyDocumentOriginalName(string $encodedNames): string
+    {
+        $names = json_decode($encodedNames, true);
+        if (! is_array($names) || ! array_key_exists('resume', $names)) {
+            return $encodedNames;
         }
 
+        if (! array_key_exists('birth_certificate', $names)) {
+            $names['birth_certificate'] = $names['resume'];
+        }
+        unset($names['resume']);
+
+        return json_encode($names, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     private function removeRestoredFiles(array $createdFiles): void

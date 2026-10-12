@@ -189,7 +189,7 @@ class AdminMasterListTest extends TestCase
         Storage::fake('public');
         $admin = User::factory()->create(['role' => 'admin']);
         $applicant = User::factory()->create();
-        Storage::disk('public')->put('applications/resumes/birth-certificate.pdf', 'birth certificate bytes');
+        Storage::disk('public')->put('applications/birth_certificates/birth-certificate.pdf', 'birth certificate bytes');
         Storage::disk('public')->put('applications/enrollment/enrollment.pdf', 'enrollment certificate bytes');
         Storage::disk('local')->put('requirements/consent.pdf', 'parent consent bytes');
         $application = Application::factory()->for($applicant)->create([
@@ -203,7 +203,7 @@ class AdminMasterListTest extends TestCase
             'spes_status' => 'new',
             'age' => 19,
             'barangay' => 'Tucalana',
-            'resume' => 'applications/resumes/birth-certificate.pdf',
+            'birth_certificate' => 'applications/birth_certificates/birth-certificate.pdf',
             'certificate_enrollment' => 'applications/enrollment/enrollment.pdf',
         ]);
         $requirement = AdditionalRequirement::create([

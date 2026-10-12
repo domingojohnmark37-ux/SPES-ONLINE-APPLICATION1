@@ -143,7 +143,7 @@ class ApplicationController extends Controller
             'father_contact_no' => 'nullable|string|max:20',
             'messenger' => 'nullable|string|max:255',
             'facebook' => 'nullable|string|max:255',
-            'resume' => 'required|file|mimes:pdf|max:5120',
+            'birth_certificate' => 'required|file|mimes:pdf|max:5120',
             'certificate_enrollment' => 'required|file|mimes:pdf|max:5120',
             'certificate_grade' => 'nullable|file|mimes:pdf|max:5120',
             'application_letter' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
@@ -155,14 +155,14 @@ class ApplicationController extends Controller
         $this->validateFamilyContact($request);
 
         // Handle file uploads
-        $resumePath = null;
+        $birthCertificatePath = null;
         $enrollmentPath = null;
         $gradePath = null;
         $letterPath = null;
         $indigencyPath = null;
 
-        if ($request->hasFile('resume')) {
-            $resumePath = $request->file('resume')->store('applications/resumes', 'public');
+        if ($request->hasFile('birth_certificate')) {
+            $birthCertificatePath = $request->file('birth_certificate')->store('applications/birth_certificates', 'public');
         }
         if ($request->hasFile('certificate_enrollment')) {
             $enrollmentPath = $request->file('certificate_enrollment')->store('applications/enrollment', 'public');
@@ -178,7 +178,7 @@ class ApplicationController extends Controller
         }
         $documentOriginalNames = [];
         foreach ([
-            'resume',
+            'birth_certificate',
             'certificate_enrollment',
             'certificate_grade',
             'application_letter',
@@ -196,7 +196,7 @@ class ApplicationController extends Controller
         ], fn ($part) => ! empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
 
         $applicant = Auth::user();
-        $createdApplication = DB::transaction(function () use ($validated, $fullName, $resumePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): Application {
+        $createdApplication = DB::transaction(function () use ($validated, $fullName, $birthCertificatePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): Application {
             $application = Application::create([
                 'user_id' => Auth::id(),
                 'full_name' => $fullName,
@@ -220,7 +220,7 @@ class ApplicationController extends Controller
                 'father_contact_no' => $validated['father_contact_no'],
                 'messenger' => $validated['messenger'] ?? null,
                 'facebook' => $validated['facebook'] ?? null,
-                'resume' => $resumePath,
+                'birth_certificate' => $birthCertificatePath,
                 'certificate_enrollment' => $enrollmentPath,
                 'certificate_grade' => $gradePath,
                 'application_letter' => $letterPath,
@@ -240,7 +240,7 @@ class ApplicationController extends Controller
             );
 
             foreach ([
-                'Birth Certificate' => $resumePath,
+                'Birth Certificate' => $birthCertificatePath,
                 'Certificate of Enrollment' => $enrollmentPath,
                 'Certificate of Grades' => $gradePath,
                 'Application Letter' => $letterPath,
@@ -286,7 +286,7 @@ class ApplicationController extends Controller
         $this->normalizeLegacyApplicationData($request);
 
         $documentRules = [
-            'resume' => $application->resume && Storage::disk('public')->exists($application->resume)
+            'birth_certificate' => $application->birth_certificate && Storage::disk('public')->exists($application->birth_certificate)
                 ? 'nullable|file|mimes:pdf|max:5120'
                 : 'required|file|mimes:pdf|max:5120',
             'certificate_enrollment' => $application->certificate_enrollment && Storage::disk('public')->exists($application->certificate_enrollment)
@@ -315,7 +315,7 @@ class ApplicationController extends Controller
             'father_contact_no' => 'nullable|string|max:20',
             'messenger' => 'nullable|string|max:255',
             'facebook' => 'nullable|string|max:255',
-            'resume' => $documentRules['resume'],
+            'birth_certificate' => $documentRules['birth_certificate'],
             'certificate_enrollment' => $documentRules['certificate_enrollment'],
             'certificate_grade' => 'nullable|file|mimes:pdf|max:5120',
             'application_letter' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:5120',
@@ -330,12 +330,12 @@ class ApplicationController extends Controller
         $submittedDocuments = [];
         $documentOriginalNames = $application->document_original_names ?? [];
 
-        if ($request->hasFile('resume')) {
-            if ($application->resume) {
-                Storage::disk('public')->delete($application->resume);
+        if ($request->hasFile('birth_certificate')) {
+            if ($application->birth_certificate) {
+                Storage::disk('public')->delete($application->birth_certificate);
             }
-            $application->resume = $request->file('resume')->store('applications/resumes', 'public');
-            $documentOriginalNames['resume'] = $request->file('resume')->getClientOriginalName();
+            $application->birth_certificate = $request->file('birth_certificate')->store('applications/birth_certificates', 'public');
+            $documentOriginalNames['birth_certificate'] = $request->file('birth_certificate')->getClientOriginalName();
             $submittedDocuments['Birth Certificate'] = true;
         }
         foreach (['certificate_enrollment' => 'applications/enrollment', 'certificate_grade' => 'applications/grades'] as $document => $directory) {
@@ -377,7 +377,7 @@ class ApplicationController extends Controller
 
         $updates = array_merge($validated, [
             'full_name' => $fullName,
-            'resume' => $application->resume,
+            'birth_certificate' => $application->birth_certificate,
             'certificate_enrollment' => $application->certificate_enrollment,
             'certificate_grade' => $application->certificate_grade,
             'application_letter' => $application->application_letter,
@@ -540,7 +540,7 @@ class ApplicationController extends Controller
             ]),
             'backUrl' => $backUrl,
             'documentTitle' => match ($document) {
-                'resume' => __('Birth Certificate'),
+                'birth_certificate' => __('Birth Certificate'),
                 'certificate_enrollment' => __('Certificate of Enrollment'),
                 'certificate_grade' => __('Certificate of Grades'),
                 'application_letter' => __('Application Letter'),
@@ -567,7 +567,7 @@ class ApplicationController extends Controller
 
     private function authorizedDocumentPath(Application $application, string $document): string
     {
-        if (! in_array($document, ['resume', 'certificate_enrollment', 'certificate_grade', 'application_letter', 'indigency'], true)) {
+        if (! in_array($document, ['birth_certificate', 'certificate_enrollment', 'certificate_grade', 'application_letter', 'indigency'], true)) {
             abort(404);
         }
 

@@ -239,7 +239,7 @@ class AdminSettingsFeaturesTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         Storage::disk('local')->put('applications/private-proof.pdf', 'private document');
-        Storage::disk('public')->put('applications/resume.pdf', 'public document');
+        Storage::disk('public')->put('applications/birth_certificates/birth-certificate.pdf', 'public document');
         $logName = 'backup-test-'.uniqid('', true).'.log';
         $logPath = storage_path('logs/'.$logName);
         file_put_contents($logPath, 'backup log fixture');
@@ -253,7 +253,7 @@ class AdminSettingsFeaturesTest extends TestCase
             $this->assertNotFalse($archive->locateName('database/data.json'));
             $this->assertNotFalse($archive->locateName('manifest.json'));
             $this->assertNotFalse($archive->locateName('uploads/private/applications/private-proof.pdf'));
-            $this->assertNotFalse($archive->locateName('uploads/public/applications/resume.pdf'));
+            $this->assertNotFalse($archive->locateName('uploads/public/applications/birth_certificates/birth-certificate.pdf'));
             $this->assertNotFalse($archive->locateName('logs/'.$logName));
             $this->assertNotFalse($archive->locateName('README.txt'));
             $archive->close();

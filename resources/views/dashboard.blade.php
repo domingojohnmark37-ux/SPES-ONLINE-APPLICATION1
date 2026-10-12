@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
     @php
         $uploadedRequirements = $application
-            ? (int) filled($application->resume) + (int) filled($application->certificate_enrollment)
+            ? (int) filled($application->birth_certificate) + (int) filled($application->certificate_enrollment)
             : 0;
     @endphp
 
@@ -610,8 +610,8 @@ document.addEventListener('DOMContentLoaded', function(){
                     <div class="requirement-list">
                         <div class="requirement-item">
                             <span class="text-primary-line"><x-icon class="fa-solid fa-file-pdf" aria-hidden="true" /> {{ __('Birth Certificate') }}</span>
-                            <span class="requirement-state text-caption {{ $application && filled($application->resume) ? 'complete' : '' }}">
-                                {{ __($application && filled($application->resume) ? 'Submitted' : 'Required') }}
+                            <span class="requirement-state text-caption {{ $application && filled($application->birth_certificate) ? 'complete' : '' }}">
+                                {{ __($application && filled($application->birth_certificate) ? 'Submitted' : 'Required') }}
                             </span>
                         </div>
                         <div class="requirement-item">

@@ -264,7 +264,7 @@
                 <div class="card-body">
                     <div class="doc-grid">
                         @foreach([
-                            ['label'=>'Birth Certificate','key'=>'resume','color'=>'#1565c0'],
+                            ['label'=>'Birth Certificate','key'=>'birth_certificate','color'=>'#1565c0'],
                             ['label'=>'Certificate of Enrollment','key'=>'certificate_enrollment','color'=>'#2e7d32'],
                         ] as $doc)
                         <div class="doc-item">

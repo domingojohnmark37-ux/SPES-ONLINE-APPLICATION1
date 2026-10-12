@@ -19,7 +19,7 @@ class Application extends Model
         'father_guardian_name', 'contact_no', 'messenger', 'facebook',
         'mother_occupation', 'father_occupation', 'mother_contact_no', 'father_contact_no',
         // Documents
-        'resume', 'certificate_enrollment', 'certificate_grade', 'application_letter', 'indigency',
+        'birth_certificate', 'certificate_enrollment', 'certificate_grade', 'application_letter', 'indigency',
         'document_original_names',
         // Status
         'status', 'admin_comment',

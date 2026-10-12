@@ -346,13 +346,13 @@ Route::middleware([
 
     // Uploaded document viewer for authenticated users/admins
     Route::get('/applications/{application}/documents/{document}/preview', [ApplicationController::class, 'viewDocument'])
-        ->where('document', 'resume|certificate_enrollment|certificate_grade|application_letter|indigency')
+        ->where('document', 'birth_certificate|certificate_enrollment|certificate_grade|application_letter|indigency')
         ->name('applications.document.preview');
     Route::get('/applications/{application}/documents/{document}', [ApplicationController::class, 'viewDocument'])
-        ->where('document', 'resume|certificate_enrollment|certificate_grade|application_letter|indigency')
+        ->where('document', 'birth_certificate|certificate_enrollment|certificate_grade|application_letter|indigency')
         ->name('applications.document.view');
     Route::get('/applications/{application}/documents/{document}/file', [ApplicationController::class, 'streamDocument'])
-        ->where('document', 'resume|certificate_enrollment|certificate_grade|application_letter|indigency')
+        ->where('document', 'birth_certificate|certificate_enrollment|certificate_grade|application_letter|indigency')
         ->name('applications.document.stream');
     Route::get('/applications/{application}/additional-requirements/{additionalRequirement}/document', [ApplicantRequirementsController::class, 'viewDocument'])
         ->name('applications.additional-requirements.document');

@@ -41,7 +41,7 @@ class ApplicationFactory extends Factory
             'father_guardian_name' => fake()->name('male'),
             'contact_no' => '09' . fake()->numerify('#########'),
             'messenger' => fake()->optional()->userName(),
-            'resume' => null,
+            'birth_certificate' => null,
             'application_letter' => null,
             'indigency' => null,
             'status' => 'pending',

@@ -54,7 +54,7 @@
             <div class="card-body">
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
                     @foreach([
-                        ['label'=>'Birth Certificate','key'=>'resume'],
+                        ['label'=>'Birth Certificate','key'=>'birth_certificate'],
                         ['label'=>'Certificate of Enrollment','key'=>'certificate_enrollment']
                     ] as $doc)
                         <div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;text-align:center;">

@@ -15,7 +15,7 @@ class ApplicationReviewSuggestionsTest extends TestCase
     public function test_admin_sees_profile_name_and_suspicious_document_filename_suggestions(): void
     {
         Storage::fake('public');
-        Storage::disk('public')->put('applications/resumes/birth.pdf', "%PDF-1.4\nbirth document");
+        Storage::disk('public')->put('applications/birth_certificates/birth.pdf', "%PDF-1.4\nbirth document");
         Storage::disk('public')->put('applications/enrollment/enrollment.pdf', "%PDF-1.4\nenrollment document");
         $applicant = User::factory()->create();
         $applicant->profile()->create([
@@ -29,10 +29,10 @@ class ApplicationReviewSuggestionsTest extends TestCase
             'surname' => 'Agluba',
             'middle_name' => 'N/A',
             'birthday' => '2001-01-01',
-            'resume' => 'applications/resumes/birth.pdf',
+            'birth_certificate' => 'applications/birth_certificates/birth.pdf',
             'certificate_enrollment' => 'applications/enrollment/enrollment.pdf',
             'document_original_names' => [
-                'resume' => 'certificate-of-enrollment.pdf',
+                'birth_certificate' => 'certificate-of-enrollment.pdf',
                 'certificate_enrollment' => 'enrollment-certificate.pdf',
             ],
         ]);
@@ -54,7 +54,7 @@ class ApplicationReviewSuggestionsTest extends TestCase
     public function test_admin_sees_no_obvious_mismatch_note_when_profile_and_documents_match(): void
     {
         Storage::fake('public');
-        Storage::disk('public')->put('applications/resumes/birth.pdf', "%PDF-1.4\nbirth document");
+        Storage::disk('public')->put('applications/birth_certificates/birth.pdf', "%PDF-1.4\nbirth document");
         Storage::disk('public')->put('applications/enrollment/enrollment.pdf', "%PDF-1.4\nenrollment document");
         $applicant = User::factory()->create();
         $applicant->profile()->create([
@@ -66,10 +66,10 @@ class ApplicationReviewSuggestionsTest extends TestCase
             'first_name' => 'Jane',
             'surname' => 'Doe',
             'middle_name' => 'N/A',
-            'resume' => 'applications/resumes/birth.pdf',
+            'birth_certificate' => 'applications/birth_certificates/birth.pdf',
             'certificate_enrollment' => 'applications/enrollment/enrollment.pdf',
             'document_original_names' => [
-                'resume' => 'jane-doe-birth-certificate.pdf',
+                'birth_certificate' => 'jane-doe-birth-certificate.pdf',
                 'certificate_enrollment' => 'jane-doe-enrollment-certificate.pdf',
             ],
         ]);
@@ -86,10 +86,10 @@ class ApplicationReviewSuggestionsTest extends TestCase
     public function test_admin_is_warned_when_a_required_document_is_unavailable_or_not_a_pdf(): void
     {
         Storage::fake('public');
-        Storage::disk('public')->put('applications/resumes/birth.pdf', 'This is not a PDF document.');
+        Storage::disk('public')->put('applications/birth_certificates/birth.pdf', 'This is not a PDF document.');
         $applicant = User::factory()->create();
         $application = Application::factory()->for($applicant)->create([
-            'resume' => 'applications/resumes/birth.pdf',
+            'birth_certificate' => 'applications/birth_certificates/birth.pdf',
             'certificate_enrollment' => 'applications/enrollment/missing.pdf',
         ]);
         $admin = User::factory()->create(['role' => 'admin']);

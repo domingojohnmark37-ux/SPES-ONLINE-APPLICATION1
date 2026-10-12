@@ -183,7 +183,7 @@
         $defaults = $defaults ?? [];
         $getDefault = fn ($field, $fallback = '') => old($field, $application->{$field} ?? $defaults[$field] ?? $fallback);
         $documentOriginalNames = $application?->document_original_names ?? [];
-        $hasCurrentBirthCertificate = $reapplying && $application->resume && \Illuminate\Support\Facades\Storage::disk('public')->exists($application->resume);
+        $hasCurrentBirthCertificate = $reapplying && $application->birth_certificate && \Illuminate\Support\Facades\Storage::disk('public')->exists($application->birth_certificate);
         $hasCurrentEnrollmentCertificate = $reapplying && $application->certificate_enrollment && \Illuminate\Support\Facades\Storage::disk('public')->exists($application->certificate_enrollment);
     @endphp
 
@@ -415,7 +415,7 @@
                 <div class="document-upload-grid">
                     <div class="document-upload">
                         <div class="document-upload-heading">
-                            <label for="resume">{{ __('Birth Certificate') }}</label>
+                            <label for="birth_certificate">{{ __('Birth Certificate') }}</label>
                             @if($hasCurrentBirthCertificate)
                                 <span class="document-status"><x-icon class="fa-solid fa-check" aria-hidden="true" /> {{ __('On file') }}</span>
                             @else
@@ -427,24 +427,24 @@
                                 <x-icon class="fa-solid fa-file-pdf" aria-hidden="true" />
                                 <div class="current-document-details">
                                     <small>{{ __('Current file') }}</small>
-                                    <span class="document-filename" title="{{ $documentOriginalNames['resume'] ?? basename($application->resume) }}">
-                                        {{ $documentOriginalNames['resume'] ?? basename($application->resume) }}
+                                    <span class="document-filename" title="{{ $documentOriginalNames['birth_certificate'] ?? basename($application->birth_certificate) }}">
+                                        {{ $documentOriginalNames['birth_certificate'] ?? basename($application->birth_certificate) }}
                                     </span>
                                 </div>
-                                <a class="view-document-link" href="{{ route('applications.document.preview', ['application' => $application->id, 'document' => 'resume']) }}" target="_blank" rel="noopener" aria-label="{{ __('View current Birth Certificate') }}">
+                                <a class="view-document-link" href="{{ route('applications.document.preview', ['application' => $application->id, 'document' => 'birth_certificate']) }}" target="_blank" rel="noopener" aria-label="{{ __('View current Birth Certificate') }}">
                                     <x-icon class="fa-solid fa-eye" aria-hidden="true" /><span>{{ __('View') }}</span>
                                 </a>
                             </div>
                         @endif
-                        <label class="file-upload-area" for="resume">
+                        <label class="file-upload-area" for="birth_certificate">
                             <x-icon class="fa-solid fa-cloud-arrow-up" aria-hidden="true" />
                             <strong>{{ __($hasCurrentBirthCertificate ? 'Choose a replacement PDF (optional)' : 'Choose PDF') }}</strong>
                             <span class="file-upload-hint">{{ __('Click to browse your files') }}</span>
-                            <span class="file-name" id="resumeName" aria-live="polite"></span>
-                            <input type="file" name="resume" id="resume" class="file-upload-input" accept=".pdf,application/pdf" @required(! $hasCurrentBirthCertificate)
-                                onchange="validateDocument(this, 'resumeName')">
+                            <span class="file-name" id="birthCertificateName" aria-live="polite"></span>
+                            <input type="file" name="birth_certificate" id="birth_certificate" class="file-upload-input" accept=".pdf,application/pdf" @required(! $hasCurrentBirthCertificate)
+                                onchange="validateDocument(this, 'birthCertificateName')">
                         </label>
-                        @error('resume')<div class="error">{{ $message }}</div>@enderror
+                        @error('birth_certificate')<div class="error">{{ $message }}</div>@enderror
                     </div>
                     <div class="document-upload">
                         <div class="document-upload-heading">

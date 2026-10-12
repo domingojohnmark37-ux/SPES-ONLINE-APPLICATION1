@@ -60,7 +60,7 @@ class FinalListExportService
                 );
 
                 foreach ([
-                    'resume' => 'Birth Certificate',
+                    'birth_certificate' => 'Birth Certificate',
                     'certificate_enrollment' => 'Certificate of Enrollment',
                     'certificate_grade' => 'Certificate of Grades',
                     'application_letter' => 'Application Letter',
@@ -322,7 +322,7 @@ class FinalListExportService
         $excluded = [
             'id',
             'user_id',
-            'resume',
+            'birth_certificate',
             'certificate_enrollment',
             'certificate_grade',
             'application_letter',
