@@ -456,12 +456,18 @@ Route::middleware(['auth', 'admin', 'admin.preferences', \App\Http\Middleware\Tr
     Route::get('/security', [AdminSettingsFeatureController::class, 'security'])->name('security');
     Route::put('/security', [AdminSettingsFeatureController::class, 'updateSecurity'])->name('security.update');
     Route::get('/backup', [AdminSettingsFeatureController::class, 'backup'])->name('backup.index');
-    Route::post('/backup', [AdminSettingsFeatureController::class, 'downloadBackup'])->name('backup.download');
-    Route::post('/backup/restore', [AdminSettingsFeatureController::class, 'restoreBackup'])->name('backup.restore');
+    Route::post('/backup', [AdminSettingsFeatureController::class, 'downloadBackup'])
+        ->middleware('idempotent')->name('backup.download');
+    Route::post('/backup/restore', [AdminSettingsFeatureController::class, 'restoreBackup'])
+        ->middleware('idempotent')->name('backup.restore');
+    Route::get('/backup/operations/{operation}', [AdminSettingsFeatureController::class, 'backupOperationStatus'])
+        ->name('backup.operations.status');
+    Route::get('/backup/operations/{operation}/download', [AdminSettingsFeatureController::class, 'downloadBackupOperation'])
+        ->name('backup.operations.download');
     Route::get('/backup/archives/{year}/download', [AdminSettingsFeatureController::class, 'downloadAnnualBackup'])
         ->whereNumber('year')->name('backup.archive.download');
     Route::post('/backup/archives/{year}/restore', [AdminSettingsFeatureController::class, 'restoreAnnualBackup'])
-        ->whereNumber('year')->name('backup.archive.restore');
+        ->whereNumber('year')->middleware('idempotent')->name('backup.archive.restore');
     
     // Export
     Route::get('/applications/export', [ExportController::class, 'masterList'])->name('applications.export');

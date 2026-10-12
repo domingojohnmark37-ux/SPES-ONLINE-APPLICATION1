@@ -15,6 +15,14 @@ class AdminBackupService
 {
     private const FORMAT_VERSION = 2;
 
+    private const TRANSIENT_TABLES = [
+        'admin_backup_operations',
+        'failed_jobs',
+        'idempotent_form_submissions',
+        'job_batches',
+        'jobs',
+    ];
+
     public function create(string $archiveType = 'manual', ?int $year = null, ?int $generatedBy = null): string
     {
         if (! class_exists(ZipArchive::class)) {
@@ -247,6 +255,9 @@ class AdminBackupService
 
             while (($table = $tables->fetch(PDO::FETCH_NUM)) !== false) {
                 $tableName = (string) $table[0];
+                if (in_array($tableName, self::TRANSIENT_TABLES, true)) {
+                    continue;
+                }
                 $identifier = $this->quoteIdentifier($tableName);
                 $createStatement = $driver === 'mysql'
                     ? $pdo->query("SHOW CREATE TABLE {$identifier}")
@@ -281,7 +292,11 @@ class AdminBackupService
         foreach (['local' => 'private', 'public' => 'public'] as $disk => $archiveDisk) {
             $storage = Storage::disk($disk);
             foreach ($storage->allFiles() as $relativePath) {
-                if ($disk === 'local' && str_starts_with($relativePath, 'backups/annual/')) {
+                if (
+                    $disk === 'local'
+                    && (str_starts_with($relativePath, 'backups/annual/')
+                        || str_starts_with($relativePath, 'backups/operations/'))
+                ) {
                     continue;
                 }
                 $filePath = $storage->path($relativePath);
@@ -326,7 +341,10 @@ class AdminBackupService
     {
         $pdo = DB::connection()->getPdo();
         $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $tables = $this->databaseTableNames($pdo, $driver);
+        $tables = array_values(array_diff(
+            $this->databaseTableNames($pdo, $driver),
+            self::TRANSIENT_TABLES,
+        ));
         $handle = fopen($path, 'wb');
         if ($handle === false) {
             throw new RuntimeException('Unable to write the database data snapshot.');
@@ -947,6 +965,9 @@ class AdminBackupService
         $availableTables = array_flip($this->databaseTableNames($pdo, $driver));
         $validated = [];
         foreach ($snapshot['tables'] as $table => $rows) {
+            if (is_string($table) && in_array($table, self::TRANSIENT_TABLES, true)) {
+                continue;
+            }
             if (! is_string($table) || ! isset($availableTables[$table]) || ! is_array($rows)) {
                 throw new RuntimeException("The backup table [{$table}] is not available in this application.");
             }

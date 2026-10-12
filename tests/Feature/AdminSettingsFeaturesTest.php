@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\AuditAction;
 use App\Models\AuditLog;
+use App\Models\AdminBackupOperation;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Jobs\ProcessAdminBackupOperation;
 use App\Services\AdminBackupService;
 use App\Services\AuditLogger;
 use App\Support\AdminDateFormatter;
@@ -14,6 +16,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\UncompromisedVerifier;
@@ -256,6 +259,10 @@ class AdminSettingsFeaturesTest extends TestCase
             $this->assertNotFalse($archive->locateName('uploads/public/applications/birth_certificates/birth-certificate.pdf'));
             $this->assertNotFalse($archive->locateName('logs/'.$logName));
             $this->assertNotFalse($archive->locateName('README.txt'));
+            $snapshot = json_decode($archive->getFromName('database/data.json'), true, 512, JSON_THROW_ON_ERROR);
+            foreach (['admin_backup_operations', 'failed_jobs', 'idempotent_form_submissions', 'job_batches', 'jobs'] as $transientTable) {
+                $this->assertArrayNotHasKey($transientTable, $snapshot['tables']);
+            }
             $archive->close();
         } finally {
             @unlink($archivePath);
@@ -321,6 +328,7 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
+        Queue::fake();
         $admin = User::factory()->create(['role' => 'admin']);
         $applicant = User::factory()->create(['role' => 'user', 'name' => 'Annual Backup Applicant']);
         $year = 2024;
@@ -340,12 +348,23 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertHeader('content-type', 'application/zip');
 
         $this->post(route('admin.backup.archive.restore', $year), [
+            '_idempotency_token' => str_repeat('d', 40),
             'current_password' => 'password',
             'confirmation' => "RESTORE {$year}",
         ])->assertRedirect(route('admin.preferences').'#backup')
             ->assertSessionHas('success');
 
+        $operation = AdminBackupOperation::query()->latest()->firstOrFail();
+        $this->assertSame('queued', $operation->status);
+        Queue::assertPushed(ProcessAdminBackupOperation::class, fn (ProcessAdminBackupOperation $job): bool => $job->operationId === $operation->id);
+        (new ProcessAdminBackupOperation($operation->id))->handle(
+            app(AdminBackupService::class),
+            app(AuditLogger::class),
+        );
+
         $this->assertSame('Annual Backup Applicant', User::findOrFail($applicantId)->name);
+        $this->assertSame('done', $operation->fresh()->status);
+        Storage::disk('local')->assertExists($archive['path']);
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $admin->id,
             'action' => AuditAction::DATABASE_BACKUP_DOWNLOADED,
@@ -582,6 +601,7 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
+        Queue::fake();
         $admin = User::factory()->create(['role' => 'admin']);
         $applicant = User::factory()->create(['role' => 'user', 'name' => 'Restored Through Form']);
         $archivePath = app(AdminBackupService::class)->create();
@@ -591,6 +611,7 @@ class AdminSettingsFeaturesTest extends TestCase
         try {
             $this->actingAs($admin)
                 ->post(route('admin.backup.restore'), [
+                    '_idempotency_token' => str_repeat('b', 40),
                     'backup' => new UploadedFile($archivePath, 'spes-backup.zip', 'application/zip', UPLOAD_ERR_OK, true),
                     'current_password' => 'password',
                     'confirmation' => 'MERGE',
@@ -598,7 +619,17 @@ class AdminSettingsFeaturesTest extends TestCase
                 ->assertRedirect(route('admin.preferences').'#backup')
                 ->assertSessionHas('success');
 
+            $operation = AdminBackupOperation::query()->latest()->firstOrFail();
+            $this->assertSame('queued', $operation->status);
+            Queue::assertPushed(ProcessAdminBackupOperation::class, fn (ProcessAdminBackupOperation $job): bool => $job->operationId === $operation->id);
+
+            (new ProcessAdminBackupOperation($operation->id))->handle(
+                app(AdminBackupService::class),
+                app(AuditLogger::class),
+            );
+
             $this->assertSame('Restored Through Form', User::findOrFail($applicantId)->name);
+            $this->assertSame('done', $operation->fresh()->status);
             $this->assertDatabaseHas('audit_logs', [
                 'user_id' => $admin->id,
                 'action' => AuditAction::DATABASE_BACKUP_RESTORED,
@@ -613,16 +644,42 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
+        Queue::fake();
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
-            ->post(route('admin.backup.download'))
+            ->post(route('admin.backup.download'), ['_idempotency_token' => str_repeat('c', 40)])
+            ->assertRedirect(route('admin.preferences').'#backup')
+            ->assertSessionHas('success');
+
+        $operation = AdminBackupOperation::query()->latest()->firstOrFail();
+        $this->assertSame('queued', $operation->status);
+        Queue::assertPushed(ProcessAdminBackupOperation::class, fn (ProcessAdminBackupOperation $job): bool => $job->operationId === $operation->id);
+
+        (new ProcessAdminBackupOperation($operation->id))->handle(
+            app(AdminBackupService::class),
+            app(AuditLogger::class),
+        );
+
+        $this->assertSame('done', $operation->fresh()->status);
+        $this->get(route('admin.backup.operations.status', $operation))
+            ->assertOk()
+            ->assertJsonPath('status', 'done')
+            ->assertJsonPath('action', 'create')
+            ->assertJsonPath('download_url', route('admin.backup.operations.download', $operation));
+
+        $this->get(route('admin.backup.operations.download', $operation))
             ->assertOk()
             ->assertHeader('content-type', 'application/zip');
 
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $admin->id,
             'action' => AuditAction::DATABASE_BACKUP_GENERATED,
+            'module' => 'System Backup',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $admin->id,
+            'action' => AuditAction::DATABASE_BACKUP_DOWNLOADED,
             'module' => 'System Backup',
         ]);
         $this->assertDatabaseHas('backup_archive_credentials', [

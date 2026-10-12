@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditAction;
+use App\Models\AdminBackupOperation;
 use App\Models\SystemSetting;
+use App\Jobs\ProcessAdminBackupOperation;
 use App\Services\AdminBackupService;
 use App\Services\ApplicantAuditQuery;
 use App\Services\AuditLogger;
@@ -14,11 +16,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Throwable;
 
 class AdminSettingsFeatureController extends Controller
 {
@@ -41,6 +43,12 @@ class AdminSettingsFeatureController extends Controller
         $adminAuditLogs = $auditQuery->userAuditQuery($filters, 'admin')
             ->get();
         $annualBackups = $backupService->annualArchives();
+        $backupOperationId = $request->session()->get('backup_operation_id');
+        $backupOperation = is_string($backupOperationId)
+            ? AdminBackupOperation::query()
+                ->where('admin_id', $request->user()->id)
+                ->find($backupOperationId)
+            : null;
 
         return view('admin.settings-features.index', compact(
             'preference',
@@ -48,6 +56,7 @@ class AdminSettingsFeatureController extends Controller
             'filters',
             'adminAuditLogs',
             'annualBackups',
+            'backupOperation',
         ));
     }
 
@@ -164,38 +173,14 @@ class AdminSettingsFeatureController extends Controller
         return redirect()->route('admin.preferences')->withFragment('backup');
     }
 
-    public function downloadBackup(AdminBackupService $backupService): BinaryFileResponse|RedirectResponse
+    public function downloadBackup(Request $request): RedirectResponse
     {
-        $archivePath = null;
-        try {
-            $archivePath = $backupService->create('manual', null, request()->user()->id);
-            app(AuditLogger::class)->record(
-                AuditAction::DATABASE_BACKUP_GENERATED,
-                'System Backup',
-                request()->user(),
-                null,
-                null,
-                ['description' => 'Database and stored-file backup archive generated'],
-            );
+        $operation = $this->queueBackupOperation($request, 'create');
 
-            return response()->download(
-                $archivePath,
-                'spes-backup-'.now()->format('Ymd-His').'.zip',
-                ['Content-Type' => 'application/zip'],
-            )->deleteFileAfterSend(true);
-        } catch (Throwable $exception) {
-            if (is_string($archivePath) && is_file($archivePath)) {
-                @unlink($archivePath);
-            }
-            Log::error('Admin backup generation failed.', ['exception' => $exception]);
-
-            return back()->withErrors([
-                'backup' => __('The backup could not be created. Check the application log or contact the system administrator.'),
-            ]);
-        }
+        return $this->backupOperationRedirect($operation, __('Backup creation is queued. This page will show when it is ready.'));
     }
 
-    public function restoreBackup(Request $request, AdminBackupService $backupService): RedirectResponse
+    public function restoreBackup(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'backup' => ['required', 'file', 'mimes:zip', 'max:1048576'],
@@ -211,20 +196,22 @@ class AdminSettingsFeatureController extends Controller
             'backup.max' => __('The backup ZIP must not exceed 1 GB.'),
         ]);
 
-        try {
-            $result = $backupService->restore($validated['backup']->getRealPath());
-        } catch (Throwable $exception) {
-            Log::error('Admin backup restore failed.', ['exception' => $exception]);
-
-            return back()->withFragment('backup')->withErrors([
-                'backup' => __('The backup could not be restored. No existing records or files were intentionally overwritten. Check the application log or contact the system administrator.'),
-            ]);
+        $operationId = (string) Str::uuid();
+        $archivePath = $validated['backup']->storeAs(
+            'backups/operations/uploads',
+            $operationId.'.zip',
+            'local',
+        );
+        if (! is_string($archivePath)) {
+            throw new \RuntimeException('Unable to store the uploaded backup archive.');
         }
 
-        return $this->completeBackupRestore($request, $result);
+        $operation = $this->queueBackupOperation($request, 'restore', $archivePath, $operationId);
+
+        return $this->backupOperationRedirect($operation, __('Backup restore is queued. This page will show the result when it is ready.'));
     }
 
-    public function downloadAnnualBackup(int $year, AdminBackupService $backupService): StreamedResponse
+    public function downloadAnnualBackup(Request $request, int $year, AdminBackupService $backupService): StreamedResponse
     {
         $archive = $backupService->annualArchive($year);
         abort_if($archive === null, 404);
@@ -232,7 +219,7 @@ class AdminSettingsFeatureController extends Controller
         app(AuditLogger::class)->record(
             AuditAction::DATABASE_BACKUP_DOWNLOADED,
             'System Backup',
-            request()->user(),
+            $request->user(),
             null,
             null,
             ['description' => "Annual backup for {$year} downloaded"],
@@ -258,50 +245,117 @@ class AdminSettingsFeatureController extends Controller
         $archive = $backupService->annualArchive($year);
         abort_if($archive === null, 404);
 
-        try {
-            $result = $backupService->restore(Storage::disk('local')->path($archive['path']), 'annual', $year);
-        } catch (Throwable $exception) {
-            Log::error('Admin annual backup restore failed.', ['year' => $year, 'exception' => $exception]);
+        $operation = $this->queueBackupOperation(
+            $request,
+            'restore',
+            $archive['path'],
+            (string) Str::uuid(),
+            'annual',
+            $year,
+            false,
+        );
 
-            return back()->withFragment('backup')->withErrors([
-                'backup' => __('The :year annual backup could not be restored. Check the application log or contact the system administrator.', ['year' => $year]),
-            ]);
-        }
-
-        return $this->completeBackupRestore($request, $result, __('Annual backup :year', ['year' => $year]));
+        return $this->backupOperationRedirect(
+            $operation,
+            __('Annual backup :year restore is queued. This page will show the result when it is ready.', ['year' => $year]),
+        );
     }
 
-    private function completeBackupRestore(Request $request, array $result, ?string $source = null): RedirectResponse
+    public function backupOperationStatus(Request $request, AdminBackupOperation $operation): JsonResponse
     {
-        $source ??= __('Uploaded backup');
+        abort_unless((int) $operation->admin_id === (int) $request->user()->id, 404);
+
+        return response()->json([
+            'status' => $operation->status,
+            'action' => $operation->action,
+            'message' => match ($operation->status) {
+                'queued' => __('Waiting for a background worker.'),
+                'running' => __('The background operation is running.'),
+                'done' => $operation->result['message'] ?? __('Backup is ready to download.'),
+                'failed' => $operation->failure_message,
+                default => __('The operation status is unavailable.'),
+            },
+            'download_url' => $operation->status === 'done' && $operation->action === 'create'
+                ? route('admin.backup.operations.download', $operation)
+                : null,
+        ]);
+    }
+
+    public function downloadBackupOperation(Request $request, AdminBackupOperation $operation): StreamedResponse
+    {
+        abort_unless(
+            (int) $operation->admin_id === (int) $request->user()->id
+            && $operation->status === 'done'
+            && $operation->action === 'create'
+            && is_string($operation->archive_path)
+            && Storage::disk('local')->exists($operation->archive_path),
+            404,
+        );
+
+        app(AuditLogger::class)->record(
+            AuditAction::DATABASE_BACKUP_DOWNLOADED,
+            'System Backup',
+            $request->user(),
+            null,
+            null,
+            ['description' => 'Generated database and stored-file backup archive downloaded'],
+        );
+
+        return Storage::disk('local')->download(
+            $operation->archive_path,
+            $operation->result['filename'] ?? basename($operation->archive_path),
+            ['Content-Type' => 'application/zip'],
+        );
+    }
+
+    private function queueBackupOperation(
+        Request $request,
+        string $action,
+        ?string $archivePath = null,
+        ?string $operationId = null,
+        ?string $archiveType = null,
+        ?int $archiveYear = null,
+        bool $removeArchiveOnFailure = true,
+    ): AdminBackupOperation {
+        $operationId ??= (string) Str::uuid();
+
         try {
-            app(AuditLogger::class)->record(
-                AuditAction::DATABASE_BACKUP_RESTORED,
-                'System Backup',
-                $request->user(),
-                null,
-                null,
-                [
-                    'description' => __(':source merged: :rows database rows and :files files added', [
-                        'source' => $source,
-                        'rows' => $result['rows'],
-                        'files' => $result['files'],
-                    ]),
-                ],
-            );
-        } catch (Throwable $exception) {
-            Log::critical('Backup data was restored, but its audit entry could not be recorded.', [
-                'admin_id' => $request->user()->id,
-                'exception' => $exception,
-            ]);
+            return DB::transaction(function () use (
+                $request,
+                $action,
+                $archivePath,
+                $operationId,
+                $archiveType,
+                $archiveYear,
+            ): AdminBackupOperation {
+                $operation = AdminBackupOperation::query()->create([
+                    'id' => $operationId,
+                    'admin_id' => $request->user()->id,
+                    'action' => $action,
+                    'status' => 'queued',
+                    'archive_path' => $archivePath,
+                    'original_filename' => $request->file('backup')?->getClientOriginalName(),
+                    'archive_type' => $archiveType,
+                    'archive_year' => $archiveYear,
+                ]);
+                ProcessAdminBackupOperation::dispatch($operation->id)->afterCommit();
 
-            return redirect()->route('admin.preferences')->withFragment('backup')->with('success', __('Backup data was merged, but its audit entry could not be saved. Notify the system administrator.'));
+                return $operation;
+            });
+        } catch (\Throwable $exception) {
+            if ($removeArchiveOnFailure && $archivePath !== null) {
+                Storage::disk('local')->delete($archivePath);
+            }
+
+            throw $exception;
         }
+    }
 
-        return redirect()->route('admin.preferences')->withFragment('backup')
-            ->with('success', __('Backup merged successfully: :rows new database rows and :files files added. Existing records and files were kept.', [
-                'rows' => $result['rows'],
-                'files' => $result['files'],
-            ]));
+    private function backupOperationRedirect(AdminBackupOperation $operation, string $message): RedirectResponse
+    {
+        return redirect()->route('admin.preferences')
+            ->withFragment('backup')
+            ->with('backup_operation_id', $operation->id)
+            ->with('success', $message);
     }
 }

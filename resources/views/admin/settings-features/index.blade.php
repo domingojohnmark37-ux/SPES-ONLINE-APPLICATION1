@@ -201,11 +201,36 @@
     <section class="settings-section" id="backup" aria-labelledby="backup-heading">
         <div class="card-header"><h2 id="backup-heading"><x-icon class="fa-solid fa-database" aria-hidden="true" /> {{ __('Backup') }}</h2></div>
         <div class="card-body" style="max-width:820px;">
+            @if($backupOperation)
+                <div
+                    id="backup-operation-status"
+                    class="alert alert-info"
+                    role="status"
+                    aria-live="polite"
+                    data-status-url="{{ route('admin.backup.operations.status', $backupOperation) }}"
+                    data-status="{{ $backupOperation->status }}"
+                    style="margin-bottom:18px;"
+                >
+                    <span data-backup-operation-message>
+                        @if($backupOperation->status === 'failed')
+                            {{ $backupOperation->failure_message }}
+                        @elseif($backupOperation->status === 'done')
+                            {{ $backupOperation->result['message'] ?? __('Backup is ready to download.') }}
+                        @else
+                            {{ $backupOperation->status === 'running' ? __('The background operation is running.') : __('Waiting for a background worker.') }}
+                        @endif
+                    </span>
+                    @if($backupOperation->status === 'done' && $backupOperation->action === 'create')
+                        <a data-backup-download href="{{ route('admin.backup.operations.download', $backupOperation) }}">{{ __('Download backup') }}</a>
+                    @endif
+                </div>
+            @endif
             <h3 style="margin-bottom:8px;">{{ __('Download a Backup') }}</h3>
             <p style="line-height:1.6;margin-bottom:12px;">{{ __('The archive includes every database table (including application transactions and audit logs), files from private and public storage, application log files, and a checksum manifest.') }}</p>
             <p style="line-height:1.6;margin-bottom:18px;"><strong>{{ __('Protect this archive:') }}</strong> {{ __('it contains applicant information and uploaded documents. Download it only to an approved secure location. Environment files, credentials, and application source code are not included.') }}</p>
-            <form method="POST" action="{{ route('admin.backup.download') }}" data-request-download onsubmit="return confirm(@js(__('Create and download a backup containing the database and stored applicant files? Handle it as confidential information.')));">
+            <form method="POST" action="{{ route('admin.backup.download') }}" onsubmit="return confirm(@js(__('Create and download a backup containing the database and stored applicant files? Handle it as confidential information.')));">
                 @csrf
+                <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
                 <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-download" aria-hidden="true" /> {{ __('Create and Download Backup') }}</button>
             </form>
 
@@ -228,6 +253,7 @@
                                     <a class="btn btn-outline btn-sm" href="{{ route('admin.backup.archive.download', $annualBackup['year']) }}">{{ __('Download') }}</a>
                                     <form style="display:grid;gap:6px;min-width:220px;" method="POST" action="{{ route('admin.backup.archive.restore', $annualBackup['year']) }}" onsubmit="return confirm(@js(__('Merge the :year annual backup? Existing records and files will be kept. You must enter RESTORE :year to confirm.', ['year' => $annualBackup['year']])));">
                                         @csrf
+                                        <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
                                         <label for="annual_restore_password_{{ $annualBackup['year'] }}">{{ __('Current password') }}</label>
                                         <input id="annual_restore_password_{{ $annualBackup['year'] }}" name="current_password" type="password" autocomplete="current-password" required>
                                         <label for="annual_restore_confirmation_{{ $annualBackup['year'] }}">{{ __('Type RESTORE :year', ['year' => $annualBackup['year']]) }}</label>
@@ -249,6 +275,7 @@
             <p style="line-height:1.6;margin-bottom:18px;"><strong>{{ __('Before continuing:') }}</strong> {{ __('use a backup from this system, verify it is complete, and keep a separate copy. Restored records may include sensitive applicant information.') }}</p>
             <form method="POST" action="{{ route('admin.backup.restore') }}" enctype="multipart/form-data" onsubmit="return confirm(@js(__('Merge this backup into the current system? Existing records and files will be kept; only missing items will be added.')));">
                 @csrf
+                <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
                 <div class="admin-audit-filters" style="align-items:end;margin-bottom:14px;">
                     <label for="backup">{{ __('Backup ZIP') }}
                         <input id="backup" name="backup" type="file" accept=".zip,application/zip" required>
@@ -279,4 +306,42 @@
         document.documentElement.lang = this.value === 'fil' ? 'fil' : 'en';
     });
 </script>
+@if($backupOperation && in_array($backupOperation->status, ['queued', 'running'], true))
+    <script>
+        (() => {
+            const panel = document.getElementById('backup-operation-status');
+            if (!panel) return;
+
+            const message = panel.querySelector('[data-backup-operation-message]');
+            const poll = async () => {
+                try {
+                    const response = await fetch(panel.dataset.statusUrl, {
+                        headers: { Accept: 'application/json' },
+                        credentials: 'same-origin',
+                    });
+                    if (!response.ok) throw new Error(`Status request failed (${response.status}).`);
+                    const operation = await response.json();
+                    panel.dataset.status = operation.status;
+                    message.textContent = operation.message;
+
+                    if (operation.download_url) {
+                        const link = document.createElement('a');
+                        link.dataset.backupDownload = '';
+                        link.href = operation.download_url;
+                        link.textContent = @js(__('Download backup'));
+                        message.after(document.createTextNode(' '), link);
+                    }
+
+                    if (['done', 'failed'].includes(operation.status)) return;
+                } catch (error) {
+                    message.textContent = @js(__('Unable to check backup status. Retrying shortly.'));
+                }
+
+                window.setTimeout(poll, 3000);
+            };
+
+            window.setTimeout(poll, 1000);
+        })();
+    </script>
+@endif
 @endsection
