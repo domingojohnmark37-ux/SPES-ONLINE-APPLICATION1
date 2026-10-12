@@ -97,6 +97,8 @@ class ProcessAdminBackupOperation implements ShouldQueue
             && $operation->archive_path !== null
         ) {
             Storage::disk('local')->delete($operation->archive_path);
+        } elseif ($operation->action === 'create') {
+            Storage::disk('local')->delete("backups/operations/{$operation->id}.zip");
         }
 
         Log::error('Admin backup operation failed after all retries.', [
