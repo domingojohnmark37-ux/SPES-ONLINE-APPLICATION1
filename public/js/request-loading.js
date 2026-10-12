@@ -392,11 +392,13 @@
 
         action.nativeSubmit = true;
         submitAction = action;
-        setBusy(action);
-
         queueMicrotask(() => {
             if (submitAction === action) submitAction = null;
-            if (event.defaultPrevented && action.requests === 0) clearBusy(action);
+            if (event.defaultPrevented && action.requests === 0) {
+                clearBusy(action);
+                return;
+            }
+            if (!action.busy) setBusy(action);
         });
     }, true);
 
