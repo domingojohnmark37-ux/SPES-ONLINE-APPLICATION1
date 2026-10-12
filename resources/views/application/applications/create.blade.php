@@ -219,6 +219,7 @@
 
     <form method="POST" action="{{ $editing ? route('applications.update') : route('applications.store') }}" enctype="multipart/form-data" id="appForm">
         @csrf
+        <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
         @if($editing)
             @method('PUT')
         @endif

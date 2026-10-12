@@ -89,6 +89,9 @@
     <div class="card-body appointment-body">
         <form class="appointment-form" method="POST" action="{{ $appointment->exists ? route('admin.appointments.update', $appointment) : route('admin.appointments.store') }}">
             @csrf
+            @unless($appointment->exists)
+                <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
+            @endunless
             @if($appointment->exists)
                 @method('PUT')
             @endif

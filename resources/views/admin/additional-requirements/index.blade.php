@@ -121,6 +121,7 @@
     <div class="card-body">
         <form method="POST" action="{{ route('admin.additional-requirements.store') }}" enctype="multipart/form-data">
             @csrf
+            <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
             <div class="requirement-create-grid">
                 <div class="requirement-field requirement-field-name">
                     <label for="new-requirement-name">Requirement title</label>

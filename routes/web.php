@@ -135,7 +135,7 @@ Route::middleware([
     Route::get('/requirements/{additionalRequirement}/templates/{template}', [ApplicantRequirementsController::class, 'downloadTemplateFile'])
         ->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.requirements.template-file');
     Route::post('/requirements/{additionalRequirement}/upload', [ApplicantRequirementsController::class, 'upload'])
-        ->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.requirements.upload');
+        ->middleware([\App\Http\Middleware\EnsureApplicant::class, 'idempotent'])->name('applicant.requirements.upload');
 
     Route::get('/previous-notifications', function () {
         $filter = request()->query('filter', 'all');
@@ -339,7 +339,7 @@ Route::middleware([
 
     // Application
     Route::get('/apply',           [ApplicationController::class, 'create'])->name('applications.create');
-    Route::post('/apply',          [ApplicationController::class, 'store'])->name('applications.store');
+    Route::post('/apply',          [ApplicationController::class, 'store'])->middleware('idempotent')->name('applications.store');
     Route::get('/my-application/edit', [ApplicationController::class, 'edit'])->name('applications.edit');
     Route::put('/my-application',   [ApplicationController::class, 'update'])->name('applications.update');
     Route::get('/my-application',  [ApplicationController::class, 'myApplication'])->name('applications.myApplication');
@@ -468,20 +468,21 @@ Route::middleware(['auth', 'admin', 'admin.preferences', \App\Http\Middleware\Tr
     
     // Master List
     Route::get('/master-list', [MasterListController::class, 'index'])->name('masterlist.index');
-    Route::post('/master-list', [MasterListController::class, 'store'])->name('masterlist.store');
+    Route::post('/master-list', [MasterListController::class, 'store'])->middleware('idempotent')->name('masterlist.store');
     Route::get('/master-list/{masterList}/download', [MasterListController::class, 'download'])->name('masterlist.download');
     
     // News
-    Route::resource('news', NewsController::class)->except(['show']);
+    Route::resource('news', NewsController::class)->except(['show'])->middlewareFor('store', 'idempotent');
     Route::post('/news/{news}/toggle', [NewsController::class, 'togglePublish'])->name('news.toggle');
 
     // Shared applicant schedule
-    Route::resource('appointments', AppointmentController::class)->except(['show']);
+    Route::resource('appointments', AppointmentController::class)->except(['show'])->middlewareFor('store', 'idempotent');
     Route::post('/appointments/{appointment}/toggle', [AppointmentController::class, 'togglePublish'])->name('appointments.toggle');
 
     // Requirements shown on the applicant checklist
     Route::resource('additional-requirements', AdditionalRequirementController::class)
         ->only(['index', 'store', 'update', 'destroy'])
+        ->middlewareFor('store', 'idempotent')
         ->parameters(['additional-requirements' => 'additionalRequirement']);
 });
 

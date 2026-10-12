@@ -239,6 +239,7 @@
                                         @elseif($application && $requirement->is_active && $requirement->isAvailableTo($application) && $missingSlots !== [])
                                             <form method="POST" action="{{ route('applicant.requirements.upload', $requirement) }}" enctype="multipart/form-data">
                                                 @csrf
+                                                <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
                                                 @foreach($missingSlots as $slot)
                                                     <label style="display:block;margin:0 0 8px;color:var(--type-secondary-color);">
                                                         {{ __('File :number', ['number' => $slot]) }} — {{ $templateLabels->get($slot - 1, $requirement->name) }}

@@ -163,6 +163,7 @@
         </p>
         <form method="POST" action="{{ route('admin.masterlist.store') }}">
             @csrf
+            <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
             <input type="hidden" name="barangay" value="{{ request('barangay') }}">
             <input type="hidden" name="spes_status" value="{{ request('spes_status') }}">
             <input type="hidden" name="search" value="{{ request('search') }}">

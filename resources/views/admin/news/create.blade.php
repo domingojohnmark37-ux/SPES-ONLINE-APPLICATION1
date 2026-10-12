@@ -13,6 +13,7 @@
     <div class="card-body">
         <form method="POST" action="{{ route('admin.news.store') }}">
             @csrf
+            <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
 
             {{-- Title Field --}}
             <div style="margin-bottom: 20px;">

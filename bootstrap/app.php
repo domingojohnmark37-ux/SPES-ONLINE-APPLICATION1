@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\CheckAdminRole::class,
             'admin.preferences' => \App\Http\Middleware\ApplyAdminPreferences::class,
+            'idempotent' => \App\Http\Middleware\IdempotentFormSubmission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
