@@ -59,6 +59,7 @@ COPY docker/start.sh /usr/local/bin/start.sh
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-production.ini
 
 RUN chmod +x /usr/local/bin/start.sh \
+    && sed -i '/^\[www\]/a request_terminate_timeout = 65s' /usr/local/etc/php-fpm.d/www.conf \
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 

@@ -55,6 +55,21 @@
         if (action.busy) return;
         action.busy = true;
         activeActions.add(action);
+        action.slowTimer = window.setTimeout(() => {
+            if (!action.busy) return;
+            announce('This is taking longer than usual. Your change may already be saved.', 'slow');
+        }, 12000);
+        action.watchdogTimer = window.setTimeout(() => {
+            if (!action.busy) return;
+            action.uncertain = true;
+            action.uncertaintyAnnounced = true;
+            clearBusy(action);
+            announce('This is taking longer than usual. Your change may already be saved.', 'uncertain');
+            action.form?.dispatchEvent(new CustomEvent('requestloading:complete', {
+                bubbles: true,
+                detail: { success: false, uncertain: true },
+            }));
+        }, 45000);
 
         const element = action.element;
         if (element instanceof HTMLButtonElement) {
@@ -106,6 +121,10 @@
         if (!action || !action.busy) return;
         action.busy = false;
         activeActions.delete(action);
+        window.clearTimeout(action.slowTimer);
+        window.clearTimeout(action.watchdogTimer);
+        action.slowTimer = null;
+        action.watchdogTimer = null;
 
         const element = action.element;
         if (element instanceof HTMLButtonElement) {
@@ -152,7 +171,7 @@
         } else {
             node.replaceChildren(document.createTextNode(message));
         }
-        if (kind === 'uncertain') {
+        if (kind === 'uncertain' || kind === 'slow') {
             const reload = document.createElement('button');
             reload.type = 'button';
             reload.dataset.noRequestLoading = '';
@@ -232,6 +251,8 @@
     async function submitDownloadForm(form, submitter) {
         const action = makeAction(submitter || formAction(form, null), form);
         setBusy(action);
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 45000);
 
         try {
             const response = await originalFetch(form.action, {
@@ -239,6 +260,7 @@
                 body: ['get', 'head'].includes((form.method || 'get').toLowerCase()) ? undefined : new FormData(form),
                 credentials: 'same-origin',
                 headers: { Accept: 'application/octet-stream, application/zip' },
+                signal: controller.signal,
             });
             const disposition = response.headers.get('Content-Disposition');
             const contentType = response.headers.get('Content-Type') || '';
@@ -265,7 +287,11 @@
             complete(action, true, 'The backup is ready and the download has started.');
         } catch (error) {
             console.error('Download request failed.', error);
-            complete(action, false, error.message || 'The download could not be prepared. Please try again.');
+            complete(action, false, controller.signal.aborted
+                ? 'The connection was interrupted, so we could not confirm whether this change was saved. Check the current record before retrying.'
+                : error.message || 'The download could not be prepared. Please try again.');
+        } finally {
+            window.clearTimeout(timeout);
         }
     }
 
@@ -386,11 +412,20 @@
     });
 
     const originalFetch = window.fetch.bind(window);
-    window.fetch = function(...args) {
+    window.fetch = async function(...args) {
         const action = clickAction || submitAction;
         requestStarted(action);
+        const controller = new AbortController();
+        const inputSignal = args[1]?.signal
+            || (args[0] instanceof Request ? args[0].signal : null);
+        const abortFromInput = () => controller.abort();
+        if (inputSignal?.aborted) controller.abort();
+        else inputSignal?.addEventListener('abort', abortFromInput, { once: true });
+        const timeout = window.setTimeout(() => controller.abort(), 45000);
+        const requestOptions = { ...(args[1] || {}), signal: controller.signal };
 
-        return originalFetch(...args).then(response => {
+        try {
+            const response = await originalFetch(args[0], requestOptions);
             if (action) {
                 const isWrite = isWriteRequest(action, args[0], args[1]);
                 if (response.status === 401 || response.status === 419) {
@@ -405,16 +440,21 @@
                 }
             }
             return response;
-        }, error => {
+        } catch (error) {
             if (action) {
                 const isWrite = isWriteRequest(action, args[0], args[1]);
                 if (isWrite) action.uncertain = true;
                 requestEnded(action, false, isWrite
                     ? 'The connection was interrupted, so we could not confirm whether this change was saved. Check the current record before retrying.'
-                    : 'The request could not reach the server. Check your connection and try again.');
+                    : controller.signal.aborted
+                        ? 'The request timed out. Check your connection and try again.'
+                        : 'The request could not reach the server. Check your connection and try again.');
             }
             throw error;
-        });
+        } finally {
+            window.clearTimeout(timeout);
+            inputSignal?.removeEventListener('abort', abortFromInput);
+        }
     };
 
     const originalOpen = XMLHttpRequest.prototype.open;
@@ -427,6 +467,7 @@
     XMLHttpRequest.prototype.send = function(...args) {
         const action = clickAction || submitAction;
         requestStarted(action);
+        if (!this.timeout || this.timeout > 45000) this.timeout = 45000;
         if (action && this.upload) {
             this.upload.addEventListener('progress', event => {
                 if (!event.lengthComputable || !action.labelNode || !/\bupload/i.test(action.label)) return;

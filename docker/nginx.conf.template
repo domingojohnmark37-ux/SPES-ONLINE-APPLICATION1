@@ -16,7 +16,15 @@ server {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param DOCUMENT_ROOT $document_root;
+        fastcgi_read_timeout 60s;
         fastcgi_pass 127.0.0.1:9000;
+    }
+
+    error_page 502 504 /50x.html;
+
+    location = /50x.html {
+        root /var/www/html/public;
+        internal;
     }
 
     location ~ /\. {
