@@ -5,7 +5,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Auth\Events\Lockout;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use App\Services\AuditLogger;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -29,7 +29,7 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
+            'email' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string'],
         ];
     }
@@ -39,14 +39,21 @@ class LoginRequest extends FormRequest
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function authenticate(AuditLogger $auditLogger): void
+    public function authenticate(AuditLogger $auditLogger): User
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $identifier = mb_strtolower(trim($this->string('email')->toString()), 'UTF-8');
+        $user = User::query()
+            ->where(function ($query) use ($identifier): void {
+                $query->whereRaw('LOWER(email) = ?', [$identifier])
+                    ->orWhereRaw('LOWER(username) = ?', [$identifier]);
+            })
+            ->first();
+
+        if (! $user || ! Hash::check($this->string('password')->toString(), $user->password)) {
             RateLimiter::hit($this->throttleKey());
-            $candidate = User::query()->where('email', $this->input('email'))->first();
-            $auditLogger->recordFailedLoginAttempt($candidate);
+            $auditLogger->recordFailedLoginAttempt($user);
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -54,6 +61,8 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        return $user;
     }
 
     /**

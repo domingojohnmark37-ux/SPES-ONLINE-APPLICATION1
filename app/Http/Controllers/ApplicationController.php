@@ -9,7 +9,6 @@ use App\Models\AuditAction;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\ApplicationApprovalCapacity;
-use App\Services\ApplicationReviewSuggestions;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -647,7 +646,6 @@ class ApplicationController extends Controller
             ['description' => 'Application record viewed'],
         ));
 
-        $reviewSuggestions = app(ApplicationReviewSuggestions::class)->forApplication($application);
         $settings = SystemSetting::current();
         $approvalCapacity = [
             'approved' => $capacity->approvedCount($settings),
@@ -655,7 +653,7 @@ class ApplicationController extends Controller
             'full' => $capacity->isFull($settings),
         ];
 
-        return view('admin.application-detail', compact('application', 'reviewSuggestions', 'approvalCapacity'));
+        return view('admin.application-detail', compact('application', 'approvalCapacity'));
     }
 
     /**

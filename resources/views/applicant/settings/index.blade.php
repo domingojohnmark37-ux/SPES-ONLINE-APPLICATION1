@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('Settings') }} - {{ __('SPES Applicant Portal') }}</title>
+    <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/personal-security-question.css') }}?v={{ filemtime(public_path('css/personal-security-question.css')) }}">
     <style>
         :root {
             --primary:#8b0000;
@@ -63,6 +65,17 @@
             margin:0 0 12px;
             font-size:1.2rem;
             color:var(--primary);
+        }
+        .personal-security-card {
+            border-top:4px solid #d4a72c;
+        }
+        .personal-security-card .field { min-width:0; }
+        .personal-security-card .field .security-question-picker select { --security-question-border:var(--border); --security-question-surface:var(--white); --security-question-text:var(--text); --security-question-focus:rgba(139,0,0,.2); }
+        .personal-security-card h3 {
+            color:var(--primary-dark);
+        }
+        html[data-theme="dark"] .personal-security-card h3 {
+            color:#f2c94c;
         }
         .settings-card p {
             color:var(--muted);
@@ -265,6 +278,57 @@
             <section class="settings-card">
                 <h2><x-icon class="fa-solid fa-shield-halved" /> {{ __('Security') }}</h2>
                 <p>{{ __('Protect your account with reminder and verification choices.') }}</p>
+                <div class="settings-card personal-security-card" style="margin:16px 0;padding:16px;">
+                    <h3 style="margin:0 0 8px;">{{ __('Personalized Security Verification') }}</h3>
+                    <p>{{ __('Add a personal question after your password at sign-in. This knowledge-based check is not an independent second factor like a passkey or authenticator app.') }}</p>
+                    <p><strong>{{ __('Status:') }}</strong>
+                        @if($personalSecurityVerification)
+                            {{ __('Enabled') }} — {{ $personalSecurityVerification->question }}
+                        @else
+                            {{ __('Not enabled') }}
+                        @endif
+                    </p>
+                    <p>{{ __('Choose an answer that is memorable to you and difficult for other people to guess. Answers are case-insensitive and repeated whitespace is ignored.') }}</p>
+                    <form method="POST" action="{{ route('personal-security.configuration.update') }}" data-loading-label="{{ __('Saving...') }}">
+                        @csrf
+                        @method('PUT')
+                        <div class="settings-row">
+                            <div class="field">
+                                <x-security-question-select selected="{{ $personalSecurityVerification?->question }}" />
+                            </div>
+                            <div class="field">
+                                <label for="personal_security_answer">{{ __('Private answer') }}</label>
+                                <input id="personal_security_answer" name="security_answer" type="password" minlength="8" maxlength="255" autocomplete="new-password" required>
+                            </div>
+                            <div class="field">
+                                <label for="personal_security_answer_confirmation">{{ __('Confirm private answer') }}</label>
+                                <input id="personal_security_answer_confirmation" name="security_answer_confirmation" type="password" minlength="8" maxlength="255" autocomplete="new-password" required>
+                            </div>
+                            <div class="field">
+                                <label for="personal_security_current_password">{{ __('Current password') }}</label>
+                                <input id="personal_security_current_password" name="current_password" type="password" autocomplete="current-password" required>
+                            </div>
+                        </div>
+                        <button class="btn" type="submit" data-loading-button>{{ $personalSecurityVerification ? __('Replace Question and Answer') : __('Enable Personalized Verification') }}</button>
+                    </form>
+                    @if($personalSecurityVerification)
+                        <form method="POST" action="{{ route('personal-security.configuration.disable') }}" style="margin-top:14px;" data-loading-label="{{ __('Disabling...') }}">
+                            @csrf
+                            @method('DELETE')
+                            <div class="settings-row">
+                                <div class="field">
+                                    <label for="personal_security_disable_password">{{ __('Current password to disable') }}</label>
+                                    <input id="personal_security_disable_password" name="current_password" type="password" autocomplete="current-password" required>
+                                </div>
+                                <div class="field">
+                                    <label for="personal_security_disable_confirmation">{{ __('Type DISABLE to confirm') }}</label>
+                                    <input id="personal_security_disable_confirmation" name="disable_confirmation" type="text" required>
+                                </div>
+                            </div>
+                            <button class="btn" type="submit" data-loading-button>{{ __('Disable Personalized Verification') }}</button>
+                        </form>
+                    @endif
+                </div>
                 <form method="POST" action="{{ route('settings.preferences.update') }}">
                     @csrf
                     @method('PUT')
@@ -365,5 +429,6 @@
             </section>
         </div>
     </main>
+    <script src="{{ asset('js/request-loading.js') }}?v={{ filemtime(public_path('js/request-loading.js')) }}"></script>
 </body>
 </html>

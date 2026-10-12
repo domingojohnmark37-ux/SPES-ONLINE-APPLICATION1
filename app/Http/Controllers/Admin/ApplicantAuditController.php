@@ -47,8 +47,7 @@ class ApplicantAuditController extends Controller
                     ->when($selectedApplication, fn (Builder $query) => $query->where('application_id', $selectedApplication->id))
                     ->latest('created_at')
                     ->latest('id')
-                    ->paginate(25, ['*'], 'history_page')
-                    ->withQueryString()
+                    ->get()
                 : null;
             $statusHistory = $selectedApplicant
                 ? $auditQuery->filteredLogs($filters)
@@ -120,7 +119,7 @@ class ApplicantAuditController extends Controller
                 $logs->where('application_id', $applicationId);
             }
 
-            $history = (clone $logs)->latest('created_at')->latest('id')->paginate(25, ['*'], 'history_page')->withQueryString();
+            $history = (clone $logs)->latest('created_at')->latest('id')->get();
             $statusHistory = (clone $logs)->where('field_name', 'status')->latest('created_at')->latest('id')->get();
             $selectedActivity = $request->filled('event_id')
                 ? (clone $logs)->whereKey($request->integer('event_id'))->firstOrFail()

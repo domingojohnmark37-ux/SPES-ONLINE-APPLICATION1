@@ -163,7 +163,8 @@ class FinalListExportService
         $firstDataRow = 17;
         $lastDataRow = 117;
         $availableRows = $lastDataRow - $firstDataRow + 1;
-        $extraRows = max(0, $applications->count() - $availableRows);
+        $applicationCount = $applications->count();
+        $extraRows = max(0, $applicationCount - $availableRows);
 
         if ($extraRows > 0) {
             $sheet->insertNewRowBefore(118, $extraRows);
@@ -210,9 +211,37 @@ class FinalListExportService
             ];
 
             foreach ($values as $column => $value) {
-                $this->setReportCell($sheet, "{$column}{$row}", $value);
+                $coordinate = "{$column}{$row}";
+                $this->setReportCell($sheet, $coordinate, $value);
+                $sheet->getStyle($coordinate)->getFont()->getColor()->setARGB('FF000000');
+                if (in_array($column, ['O', 'P', 'Q', 'R'], true)) {
+                    $sheet->getStyle($coordinate)->getAlignment()
+                        ->setWrapText(false)
+                        ->setShrinkToFit(true);
+                }
             }
         }
+
+        $unusedRows = $availableRows - $applicationCount;
+        if ($unusedRows > 0) {
+            $sheet->removeRow($firstDataRow + $applicationCount, $unusedRows);
+        }
+
+        $noteRow = $firstDataRow + $applicationCount;
+        $sheet->insertNewRowBefore($noteRow, 1);
+        $sheet->mergeCells("A{$noteRow}:R{$noteRow}");
+        $noteCell = $sheet->getCell("A{$noteRow}");
+        $noteCell->setValue('Note: This form shall be accomplished by the Public Employment Service Office to be submitted to the DOLE Field Office at least ten (10) working days before the START of employment period.');
+        $sheet->getStyle("A{$noteRow}:R{$noteRow}")->getFont()
+            ->setSize(9)
+            ->getColor()
+            ->setARGB('FF000000');
+        $sheet->getStyle("A{$noteRow}:R{$noteRow}")->getAlignment()
+            ->setHorizontal('left')
+            ->setVertical('center')
+            ->setWrapText(false)
+            ->setShrinkToFit(true);
+        $sheet->getRowDimension($noteRow)->setRowHeight(18);
 
         $temporaryPath = tempnam(sys_get_temp_dir(), 'spes-placement-report-');
         if ($temporaryPath === false) {

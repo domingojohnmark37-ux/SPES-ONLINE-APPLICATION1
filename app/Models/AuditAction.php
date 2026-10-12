@@ -34,6 +34,16 @@ final class AuditAction
 
     public const SECURITY_POLICY_UPDATED = 'Security Policy Updated';
 
+    public const PERSONAL_SECURITY_SETUP = 'Personal Security Verification Setup';
+
+    public const PERSONAL_SECURITY_UPDATED = 'Personal Security Verification Updated';
+
+    public const PERSONAL_SECURITY_DISABLED = 'Personal Security Verification Disabled';
+
+    public const PERSONAL_SECURITY_FAILED = 'Personal Security Verification Failed';
+
+    public const PERSONAL_SECURITY_RECOVERY = 'Personal Security Verification Recovery';
+
     public const ADMIN_PREFERENCES_UPDATED = 'Admin Preferences Updated';
 
     public const APPLICATION_PERIOD_UPDATED = 'Application Period Updated';
@@ -64,6 +74,11 @@ final class AuditAction
         self::LOGOUT,
         self::PASSWORD_CHANGED,
         self::SECURITY_POLICY_UPDATED,
+        self::PERSONAL_SECURITY_SETUP,
+        self::PERSONAL_SECURITY_UPDATED,
+        self::PERSONAL_SECURITY_DISABLED,
+        self::PERSONAL_SECURITY_FAILED,
+        self::PERSONAL_SECURITY_RECOVERY,
         self::ADMIN_PREFERENCES_UPDATED,
         self::APPLICATION_PERIOD_UPDATED,
         self::DATABASE_BACKUP_GENERATED,

@@ -52,6 +52,7 @@
     .timeline-copy a { color:var(--primary); font-size:.76rem; font-weight:700; text-decoration:none; }
     .timeline-copy time,.timeline-copy span { display:block; margin-top:3px; color:var(--text-muted); font-size:.68rem; line-height:1.4; }
     .timeline-copy p { margin-top:4px; color:#59636f; font-size:.7rem; line-height:1.45; }
+    .audit-history-scroll { max-height:min(45vh,420px); min-height:180px; overflow-y:auto; padding-right:8px; overscroll-behavior:contain; scrollbar-gutter:stable; }
     .detail-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:13px; }
     .audit-query-error { padding:14px; border-left:4px solid var(--danger); border-radius:7px; background:#ffebee; color:#a5222a; font-size:.82rem; }
     .audit-info { margin:12px 15px; color:var(--text-muted); font-size:.7rem; line-height:1.5; }
@@ -271,20 +272,21 @@
                         @endif
                         <h3 style="margin:17px 0 5px;color:var(--primary);font-size:.83rem;">Audit History</h3>
                         @if($history->isNotEmpty())
-                            <div class="audit-timeline">
-                                @foreach($history as $event)
-                                    <article class="timeline-entry">
-                                        <span class="timeline-dot" aria-hidden="true"></span>
-                                        <div class="timeline-copy">
-                                            <a href="{{ route('admin.applicant-audit.show', array_merge(request()->query(), ['applicant' => $selectedApplicant->id, 'application_id' => $selectedApplication?->id, 'event_id' => $event->id])) }}">{{ $event->action }}@if($event->field_name) · {{ str_replace('_', ' ', ucfirst($event->field_name)) }}@endif</a>
-                                            <time>{{ $auditTime($event->created_at) }}</time>
-                                            <span>{{ $event->actor_type === 'admin' ? 'Changed by:' : (in_array($event->action, [\App\Models\AuditAction::ACCOUNT_CREATED, \App\Models\AuditAction::APPLICATION_SUBMITTED], true) ? 'Created / submitted by:' : 'Recorded by:') }} {{ $event->actor_name }} ({{ ucfirst($event->actor_role) }})</span>
-                                            @if($event->description)<p>{{ $event->description }}</p>@endif
-                                        </div>
-                                    </article>
-                                @endforeach
+                            <div class="audit-history-scroll" role="region" aria-label="Applicant audit history" tabindex="0">
+                                <div class="audit-timeline">
+                                    @foreach($history as $event)
+                                        <article class="timeline-entry">
+                                            <span class="timeline-dot" aria-hidden="true"></span>
+                                            <div class="timeline-copy">
+                                                <a href="{{ route('admin.applicant-audit.show', array_merge(request()->query(), ['applicant' => $selectedApplicant->id, 'application_id' => $selectedApplication?->id, 'event_id' => $event->id])) }}">{{ $event->action }}@if($event->field_name) · {{ str_replace('_', ' ', ucfirst($event->field_name)) }}@endif</a>
+                                                <time>{{ $auditTime($event->created_at) }}</time>
+                                                <span>{{ $event->actor_type === 'admin' ? 'Changed by:' : (in_array($event->action, [\App\Models\AuditAction::ACCOUNT_CREATED, \App\Models\AuditAction::APPLICATION_SUBMITTED], true) ? 'Created / submitted by:' : 'Recorded by:') }} {{ $event->actor_name }} ({{ ucfirst($event->actor_role) }})</span>
+                                                @if($event->description)<p>{{ $event->description }}</p>@endif
+                                            </div>
+                                        </article>
+                                    @endforeach
+                                </div>
                             </div>
-                            {{ $history->links() }}
                         @else
                             <p class="audit-empty">No audit activity matches the selected filters.</p>
                         @endif

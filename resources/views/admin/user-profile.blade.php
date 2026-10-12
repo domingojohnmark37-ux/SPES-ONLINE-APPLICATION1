@@ -10,25 +10,20 @@
         'Pending' => 'profile-status-pending',
         default => 'profile-status-inactive',
     };
-    $phone = filled($profile?->contact_number) ? $profile->contact_number : $user->contact_number;
-    $presentAddress = filled($profile?->present_address) ? $profile->present_address : $user->present_address;
-    $permanentAddress = filled($profile?->permanent_address) ? $profile->permanent_address : $user->permanent_address;
+    $profileValue = fn (string $field) => filled($profile?->{$field}) ? $profile->{$field} : $user->{$field};
+    $phone = $profileValue('contact_number');
+    $presentAddress = $profileValue('present_address');
+    $permanentAddress = $profileValue('permanent_address');
     $address = filled($presentAddress) ? $presentAddress : $permanentAddress;
     $profileName = collect([
-        $profile?->first_name,
-        $profile?->middle_name,
-        $profile?->last_name,
+        $profileValue('first_name'),
+        $profileValue('middle_name'),
+        $profileValue('last_name'),
     ])->filter(fn ($part) => filled($part))->implode(' ');
     $fullName = $profileName ?: $user->name;
-    $dateOfBirth = $profile?->date_of_birth ?: $user->date_of_birth ?: $application?->birthday;
+    $dateOfBirth = $profileValue('date_of_birth');
     $age = $dateOfBirth ? \Illuminate\Support\Carbon::parse($dateOfBirth)->age : null;
-    $storedEducation = $profile?->education_history ?? $user->education_history;
-    $educationHistory = is_array($storedEducation)
-        ? collect($storedEducation)
-            ->filter(fn ($row) => is_array($row) && collect($row)->except('level')->contains(fn ($value) => filled($value)))
-            ->flatMap(fn ($row) => collect($row)->except('level')->filter(fn ($value) => filled($value)))
-            ->implode(', ')
-        : null;
+    $storedEducation = $profile?->education_history ?: $user->education_history;
     $educationLevels = ['Elementary', 'Secondary', 'Tertiary', 'Tech-Voc'];
     $educationRows = collect($educationLevels)->map(function ($level, $index) use ($storedEducation) {
         $rows = is_array($storedEducation) ? $storedEducation : [];
@@ -44,42 +39,49 @@
             'date_attended' => $row['date_attended'] ?? null,
         ];
     })->filter(fn ($row) => collect($row)->except('level')->contains(fn ($value) => filled($value)));
+    $educationColumns = collect([
+        'school' => 'Name of School',
+        'course' => 'Course',
+        'year_level' => 'Year Level',
+        'date_attended' => 'Date of Attendance',
+    ])->filter(fn ($label, $field) => $educationRows->contains(fn ($row) => filled($row[$field])));
     $parentStatusOptions = ['Living Together', 'Solo Parent', 'Orphan', 'Guardian'];
     $storedParentStatuses = $profile?->parent_status_details ?? $user->parent_status_details ?? [];
     $storedParentStatuses = is_array($storedParentStatuses) ? $storedParentStatuses : [];
     $selectedParentStatuses = array_is_list($storedParentStatuses)
         ? $storedParentStatuses
         : collect($parentStatusOptions)->filter(fn ($status) => (bool) ($storedParentStatuses[$status] ?? false))->values()->all();
-    $personalRows = [
-        ['Full Name', $fullName],
-        ['Sex', $profile?->sex ?: $user->sex],
-        ['Birthday', $dateOfBirth ? app(\App\Support\AdminDateFormatter::class)->format($dateOfBirth) . ($age !== null ? " ({$age} years old)" : '') : null],
-        ['Place of Birth', $profile?->place_of_birth ?: $user->place_of_birth],
-        ['Civil Status', $profile?->status ?: $user->status],
-        ['Citizenship', $profile?->citizenship ?: $user->citizenship],
-        ['Present Address', $profile?->present_address ?: $user->present_address],
-        ['Permanent Address', $profile?->permanent_address ?: $user->permanent_address],
+    $personalRows = collect([
+        ['Sex', $profileValue('sex')],
+        ['Date of Birth', $dateOfBirth ? app(\App\Support\AdminDateFormatter::class)->format($dateOfBirth) . ($age !== null ? " ({$age} years old)" : '') : null],
+        ['Place of Birth', $profileValue('place_of_birth')],
+        ['Civil Status', $profileValue('status')],
+        ['Citizenship', $profileValue('citizenship')],
+        ['Present Address', $presentAddress],
+        ['Permanent Address', $permanentAddress],
         ['Contact Number', $phone],
-        ['Applicant\'s Category', \App\Models\User::applicantCategoryLabel($profile?->applicant_category ?: $user->applicant_category)],
+        ['Applicant Category', \App\Models\User::applicantCategoryLabel($profileValue('applicant_category'))],
+        ['Social Media Account', $profileValue('social_media')],
+    ])->filter(fn ($row) => filled($row[1]));
+    $parentRows = [
+        'Father' => collect([
+            ['Name', $profileValue('father_name')],
+            ['Contact Number', $profileValue('father_contact_number')],
+            ['Occupation', $profileValue('father_occupation')],
+        ])->filter(fn ($row) => filled($row[1])),
+        'Mother' => collect([
+            ['Name', $profileValue('mother_name')],
+            ['Contact Number', $profileValue('mother_contact_number')],
+            ['Occupation', $profileValue('mother_occupation')],
+        ])->filter(fn ($row) => filled($row[1])),
     ];
-    $fatherName = $profile?->father_name ?: $user->father_name;
-    $fatherContact = $profile?->father_contact_number ?: $user->father_contact_number;
-    $fatherOccupation = $profile?->father_occupation ?: $user->father_occupation;
-    $motherName = $profile?->mother_name ?: $user->mother_name;
-    $motherContact = $profile?->mother_contact_number ?: $user->mother_contact_number;
-    $motherOccupation = $profile?->mother_occupation ?: $user->mother_occupation;
-    $specialSkills = $profile?->special_skills ?: $user->special_skills;
-    $programRows = [
-        ['SPES Beneficiary Status', $application?->spes_status ?: \App\Models\User::applicantCategoryLabel($profile?->applicant_category ?: $user->applicant_category)],
-        ['Interested Position / Track', $application?->f3_position],
-        ['Tertiary / TVET', $educationHistory ?: $application?->education],
-        ['Soft Skills', $profile?->special_skills],
-    ];
-    $additionalRows = [
-        ['Social Media Account', $profile?->social_media ?: $user->social_media],
-        ['GSIS Beneficiary / Relationship', $profile?->gsis_beneficiary ?: $user->gsis_beneficiary],
-    ];
-    $formatProfileValue = fn ($value) => filled($value) ? $value : 'Not provided';
+    $hasParentDetails = collect($parentRows)->contains(fn ($rows) => $rows->isNotEmpty());
+    $specialSkills = $profileValue('special_skills');
+    $hasProfileDetails = $personalRows->isNotEmpty()
+        || $educationRows->isNotEmpty()
+        || $hasParentDetails
+        || count($selectedParentStatuses) > 0
+        || filled($specialSkills);
 @endphp
 
 @section('title', 'User Profile — ' . $user->name)
@@ -89,6 +91,10 @@
 @section('styles')
 <style>
     .user-profile-back { margin-bottom:16px; }
+    .user-profile-intro { margin:-2px 0 16px; }
+    .user-profile-intro h2 { margin-bottom:4px; color:var(--text); font-size:1.05rem; }
+    .user-profile-intro p { color:var(--text-muted); font-size:.82rem; line-height:1.5; }
+    .user-profile-updated { display:inline-flex; align-items:center; gap:6px; margin-top:8px; color:var(--text-muted); font-size:.74rem; }
     .user-profile-layout { display:grid; grid-template-columns:minmax(0, 2fr) minmax(240px, 1fr); gap:16px; align-items:start; }
     .user-profile-main { display:grid; gap:16px; min-width:0; }
     .user-profile-side { display:grid; gap:16px; min-width:0; }
@@ -113,6 +119,8 @@
     .user-profile-label { color:var(--text-muted); }
     .user-profile-value { overflow-wrap:anywhere; color:var(--text); }
     .user-profile-empty { padding:14px 0; color:var(--text-muted); font-size:.85rem; }
+    .profile-record-details { display:grid; gap:8px; padding:16px 20px; color:var(--text-muted); font-size:.8rem; }
+    .profile-record-details strong { color:var(--text); font-weight:650; }
     .education-table-wrap { overflow-x:auto; padding:0 16px 16px; }
     .education-table { width:100%; border-collapse:collapse; font-size:.78rem; }
     .education-table th, .education-table td { padding:9px 8px; border-bottom:1px solid #edf0f2; text-align:left; vertical-align:top; }
@@ -158,6 +166,14 @@
     </a>
 </div>
 
+<div class="user-profile-intro">
+    <h2>Applicant Portal Profile</h2>
+    <p>Profile details provided by the applicant in the SPES portal. Application information is listed separately below.</p>
+    @if($profile?->updated_at)
+        <span class="user-profile-updated"><x-icon class="fa-solid fa-clock-rotate-left" aria-hidden="true" /> Last profile update: @adminDate($profile->updated_at, true)</span>
+    @endif
+</div>
+
 <div class="user-profile-layout">
     <div class="user-profile-main">
         <section class="card">
@@ -179,113 +195,91 @@
             </div>
         </section>
 
-        <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-user" /> Personal Information</h2></div>
-            <div class="user-profile-rows">
-                @if(collect($personalRows)->contains(fn ($row) => filled($row[1])))
+        @if($personalRows->isNotEmpty())
+            <section class="card">
+                <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-user" aria-hidden="true" /> Personal Information</h2></div>
+                <div class="user-profile-rows">
                     @foreach($personalRows as [$label, $value])
-                        <div class="user-profile-row"><span class="user-profile-label">{{ $label }}</span><span class="user-profile-value">{{ $formatProfileValue($value) }}</span></div>
+                        <div class="user-profile-row"><span class="user-profile-label">{{ $label }}</span><span class="user-profile-value">{{ $value }}</span></div>
                     @endforeach
-                @else
-                    <div class="user-profile-empty">No information on file</div>
-                @endif
-            </div>
-        </section>
+                </div>
+            </section>
+        @endif
 
-        <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-graduation-cap" /> Education Background</h2></div>
-            @if($educationRows->isEmpty())
-                <div class="user-profile-rows"><div class="user-profile-empty">No information on file</div></div>
-            @else
+        @if($educationRows->isNotEmpty())
+            <section class="card">
+                <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-graduation-cap" aria-hidden="true" /> Education Background</h2></div>
                 <div class="education-table-wrap">
                     <table class="education-table">
-                        <thead><tr><th>Education</th><th>Name of School</th><th>Course</th><th>Year Level</th><th>Date of Attendance</th></tr></thead>
+                        <thead><tr><th>Education</th>@foreach($educationColumns as $label)<th>{{ $label }}</th>@endforeach</tr></thead>
                         <tbody>
                             @foreach($educationRows as $row)
                                 <tr>
                                     <td>{{ $row['level'] }}</td>
-                                    <td>{{ $formatProfileValue($row['school']) }}</td>
-                                    <td>{{ $formatProfileValue($row['course']) }}</td>
-                                    <td>{{ $formatProfileValue($row['year_level']) }}</td>
-                                    <td>{{ $formatProfileValue($row['date_attended']) }}</td>
+                                    @foreach($educationColumns as $field => $label)
+                                        <td>{{ filled($row[$field]) ? $row[$field] : '—' }}</td>
+                                    @endforeach
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
-            @endif
-        </section>
+            </section>
+        @endif
 
-        <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-people-group" /> Parents Information</h2></div>
-            @if(collect([$fatherName, $fatherContact, $fatherOccupation, $motherName, $motherContact, $motherOccupation])->contains(fn ($value) => filled($value)))
+        @if($hasParentDetails)
+            <section class="card">
+                <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-people-group" aria-hidden="true" /> Parents Information</h2></div>
                 <div class="parent-details-grid">
-                    <div class="parent-details-card">
-                        <h3>Father</h3>
-                        @foreach([['Name', $fatherName], ['Contact No.', $fatherContact], ['Occupation', $fatherOccupation]] as [$label, $value])
-                            <div class="user-profile-row"><span class="user-profile-label">{{ $label }}</span><span class="user-profile-value">{{ $formatProfileValue($value) }}</span></div>
-                        @endforeach
-                    </div>
-                    <div class="parent-details-card">
-                        <h3>Mother</h3>
-                        @foreach([['Name', $motherName], ['Contact No.', $motherContact], ['Occupation', $motherOccupation]] as [$label, $value])
-                            <div class="user-profile-row"><span class="user-profile-label">{{ $label }}</span><span class="user-profile-value">{{ $formatProfileValue($value) }}</span></div>
-                        @endforeach
-                    </div>
+                    @foreach($parentRows as $parent => $rows)
+                        @if($rows->isNotEmpty())
+                            <div class="parent-details-card">
+                                <h3>{{ $parent }}</h3>
+                                @foreach($rows as [$label, $value])
+                                    <div class="user-profile-row"><span class="user-profile-label">{{ $label }}</span><span class="user-profile-value">{{ $value }}</span></div>
+                                @endforeach
+                            </div>
+                        @endif
+                    @endforeach
                 </div>
-            @else
-                <div class="user-profile-rows"><div class="user-profile-empty">No information on file</div></div>
-            @endif
-        </section>
+            </section>
+        @endif
 
-        <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-people-roof" /> Current Status of Parents</h2></div>
-            @if(count($selectedParentStatuses))
+        @if(count($selectedParentStatuses))
+            <section class="card">
+                <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-people-roof" aria-hidden="true" /> Current Status of Parents</h2></div>
                 <div class="parent-status-tags">
                     @foreach($selectedParentStatuses as $status)
                         <span class="parent-status-tag">{{ $status }}</span>
                     @endforeach
                 </div>
-            @else
-                <div class="user-profile-rows"><div class="user-profile-empty">Not specified</div></div>
-            @endif
-        </section>
+            </section>
+        @endif
 
-        <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-wand-magic-sparkles" /> Special Skills</h2></div>
-            @if(filled($specialSkills))
+        @if(filled($specialSkills))
+            <section class="card">
+                <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Special Skills</h2></div>
                 <p class="special-skills-text">{{ $specialSkills }}</p>
-            @else
-                <div class="user-profile-rows"><div class="user-profile-empty">No information on file</div></div>
-            @endif
-        </section>
+            </section>
+        @endif
 
-        <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-briefcase" /> Program Information</h2></div>
-            <div class="user-profile-rows">
-                @if(collect($programRows)->contains(fn ($row) => filled($row[1])))
-                    @foreach($programRows as [$label, $value])
-                        @if(filled($value))
-                            <div class="user-profile-row"><span class="user-profile-label">{{ $label }}</span><span class="user-profile-value">{{ $value }}</span></div>
-                        @endif
-                    @endforeach
-                @else
-                    <div class="user-profile-empty">No information on file</div>
-                @endif
-            </div>
-        </section>
+        @if(!$hasProfileDetails)
+            <section class="card">
+                <div class="user-profile-rows"><div class="user-profile-empty">The applicant has not added profile details yet.</div></div>
+            </section>
+        @endif
     </div>
 
     <div class="user-profile-side">
         <section class="card">
-            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-shield-halved" /> Additional Details</h2></div>
-            <div class="user-profile-rows">
-                @if(collect($additionalRows)->contains(fn ($row) => filled($row[1])))
-                    @foreach($additionalRows as [$label, $value])
-                        <div class="user-profile-row"><span class="user-profile-label">{{ $label }}</span><span class="user-profile-value">{{ $formatProfileValue($value) }}</span></div>
-                    @endforeach
+            <div class="card-header"><h2 class="user-profile-card-header"><x-icon class="fa-solid fa-id-card" aria-hidden="true" /> Profile Record</h2></div>
+            <div class="profile-record-details">
+                <div><strong>Portal account:</strong> Applicant</div>
+                <div><strong>Registered:</strong> @adminDate($user->created_at)</div>
+                @if($profile?->updated_at)
+                    <div><strong>Profile last updated:</strong> @adminDate($profile->updated_at, true)</div>
                 @else
-                    <div class="user-profile-empty">No information on file</div>
+                    <div>Applicant profile details have not been saved.</div>
                 @endif
             </div>
         </section>

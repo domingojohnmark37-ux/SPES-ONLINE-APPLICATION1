@@ -4,7 +4,41 @@
 @section('page-title', 'Application Detail')
 @section('page-sub', $application->ref_id)
 
+@section('styles')
+<style>
+    .feedback-suggestion-picker { position:relative; margin-bottom:12px; }
+    .feedback-suggestion-picker summary { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:42px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--white); color:var(--text); cursor:pointer; font-size:.82rem; font-weight:650; list-style:none; }
+    .feedback-suggestion-picker summary::-webkit-details-marker { display:none; }
+    .feedback-suggestion-picker summary::after { content:""; width:8px; height:8px; flex:0 0 8px; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg) translateY(-2px); transition:transform .15s; }
+    .feedback-suggestion-picker[open] summary { border-color:var(--primary); border-radius:8px 8px 0 0; }
+    .feedback-suggestion-picker[open] summary::after { transform:rotate(225deg) translate(-2px,-1px); }
+    .feedback-suggestion-list { position:absolute; top:100%; right:0; left:0; z-index:5; max-height:240px; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; border:1px solid var(--primary); border-top:0; border-radius:0 0 8px 8px; background:var(--white); box-shadow:0 10px 24px rgba(0,0,0,.14); }
+    .feedback-suggestion-option { display:block; width:100%; padding:10px 12px; border:0; border-bottom:1px solid var(--border); background:var(--white); color:var(--text); cursor:pointer; font:inherit; font-size:.8rem; line-height:1.45; text-align:left; white-space:normal; overflow-wrap:anywhere; }
+    .feedback-suggestion-option:last-child { border-bottom:0; }
+    .feedback-suggestion-option:hover,.feedback-suggestion-option:focus-visible { background:var(--bg); color:var(--primary); outline:none; }
+    .feedback-suggestion-help { margin:0 0 7px; color:var(--text-muted); font-size:.75rem; line-height:1.45; }
+    .feedback-comment-input { display:block; width:100%; min-width:0; max-width:100%; }
+    @media(max-width:600px) { .feedback-suggestion-list { max-height:200px; } }
+</style>
+@endsection
+
 @section('content')
+@php
+    $feedbackSuggestions = [
+        'Invalid email address',
+        'Duplicate application',
+        'Incorrect date of birth',
+        'Unreachable contact number',
+        'Required signature or school certification is missing',
+        'Certificate belongs to a previous school year when a current one is required',
+        'Text is blurry or unreadable',
+        'Name or date of birth does not match the application',
+        'Wrong document uploaded',
+        'Cropped or incomplete document',
+    ];
+    $currentFeedback = old('admin_comment', $application->admin_comment);
+    $selectedFeedbackSuggestion = in_array($currentFeedback, $feedbackSuggestions, true) ? $currentFeedback : null;
+@endphp
 
 <div style="margin-bottom:16px;">
     <a href="{{ route('admin.applications.index') }}" class="btn btn-outline btn-sm">
@@ -172,26 +206,6 @@
             </div>
         </div>
 
-        <div class="card" style="margin-bottom:16px;">
-            <div class="card-header"><h2><x-icon class="fa-solid fa-circle-question" /> Possible Applicant Errors</h2></div>
-            <div class="card-body" style="font-size:.84rem;">
-                <p style="color:var(--text-muted);margin-bottom:12px;">
-                    These FAQ-style suggestions point out possible mistakes in the submitted application. Select a question to see what to check. They are not confirmed errors; open the application and documents to verify.
-                </p>
-                @forelse($reviewSuggestions as $suggestion)
-                    <details style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;background:#f8fafb;overflow:hidden;">
-                        <summary style="padding:11px 12px;cursor:pointer;font-weight:600;color:var(--text);">
-                            <x-icon class="fa-solid fa-triangle-exclamation" style="color:var(--danger);margin-right:6px;" aria-hidden="true" />
-                            {{ $suggestion['title'] }}
-                        </summary>
-                        <p style="padding:0 12px 12px 34px;color:var(--text-muted);">{{ $suggestion['message'] }}</p>
-                    </details>
-                @empty
-                    <p style="color:var(--text-muted);">No possible errors were detected by the automatic checks. Please still review the submitted documents.</p>
-                @endforelse
-            </div>
-        </div>
-
         {{-- Actions --}}
         @if($application->status === 'pending')
         <div class="card" style="margin-bottom:16px;">
@@ -242,9 +256,20 @@
                 @endif
                 <form method="POST" action="{{ route('admin.applications.comment', $application) }}">
                     @csrf
-                    <textarea name="admin_comment" rows="4" placeholder="Write feedback or notes for the applicant…"
-                        style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:7px;font-size:.875rem;resize:vertical;font-family:inherit;outline:none;"
-                    >{{ old('admin_comment', $application->admin_comment) }}</textarea>
+                    <p class="feedback-suggestion-help">Choose a common issue to add it to the feedback, or write a custom comment below.</p>
+                    <details class="feedback-suggestion-picker" data-feedback-picker>
+                        <summary>
+                            <span data-feedback-selected>{{ $selectedFeedbackSuggestion ?? 'Choose an applicant issue' }}</span>
+                        </summary>
+                        <div class="feedback-suggestion-list" role="group" aria-label="Applicant issues">
+                            @foreach($feedbackSuggestions as $suggestion)
+                                <button class="feedback-suggestion-option" type="button" data-feedback-option="{{ $suggestion }}">{{ $suggestion }}</button>
+                            @endforeach
+                        </div>
+                    </details>
+                    <textarea class="feedback-comment-input" name="admin_comment" rows="4" placeholder="Write feedback or notes for the applicant…"
+                        style="padding:10px;border:1.5px solid var(--border);border-radius:7px;font-size:.875rem;resize:vertical;font-family:inherit;outline:none;"
+                    >{{ $currentFeedback }}</textarea>
                     @error('admin_comment')
                         <div style="color:var(--danger);font-size:.78rem;margin-top:4px;">{{ $message }}</div>
                     @enderror
@@ -256,4 +281,28 @@
         </div>
     </div>
 </div>
+<script>
+    (() => {
+        const picker = document.querySelector('[data-feedback-picker]');
+        const comment = document.querySelector('.feedback-comment-input');
+        const selectedLabel = picker?.querySelector('[data-feedback-selected]');
+        if (!picker || !comment || !selectedLabel) return;
+
+        picker.querySelectorAll('[data-feedback-option]').forEach((option) => {
+            option.addEventListener('click', () => {
+                const suggestion = option.dataset.feedbackOption;
+                const existingLines = comment.value.split(/\r?\n/).map((line) => line.trim());
+                if (!existingLines.includes(suggestion)) {
+                    comment.value = comment.value.trim()
+                        ? `${comment.value.trim()}\n${suggestion}`
+                        : suggestion;
+                }
+                selectedLabel.textContent = option.dataset.feedbackOption;
+                picker.open = false;
+                comment.dispatchEvent(new Event('input', { bubbles: true }));
+                comment.focus();
+            });
+        });
+    })();
+</script>
 @endsection

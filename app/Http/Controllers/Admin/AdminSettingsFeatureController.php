@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditAction;
 use App\Models\AdminBackupOperation;
+use App\Models\PersonalizedSecurityVerification;
 use App\Models\SystemSetting;
 use App\Jobs\ProcessAdminBackupOperation;
 use App\Services\AdminBackupService;
@@ -49,6 +50,10 @@ class AdminSettingsFeatureController extends Controller
                 ->where('admin_id', $request->user()->id)
                 ->find($backupOperationId)
             : null;
+        $personalSecurityVerification = PersonalizedSecurityVerification::query()
+            ->where('user_id', $request->user()->id)
+            ->whereNotNull('enabled_at')
+            ->first();
 
         return view('admin.settings-features.index', compact(
             'preference',
@@ -57,6 +62,7 @@ class AdminSettingsFeatureController extends Controller
             'adminAuditLogs',
             'annualBackups',
             'backupOperation',
+            'personalSecurityVerification',
         ));
     }
 

@@ -12,6 +12,7 @@ use App\Http\Requests\ApplicantSettings\VerifyEmailChangeRequest;
 use App\Mail\ApplicantEmailChangeCode;
 use App\Models\ApplicantLoginActivity;
 use App\Models\ApplicantSetting;
+use App\Models\PersonalizedSecurityVerification;
 use App\Models\PendingEmailChange;
 use App\Services\AuditLogger;
 use Illuminate\Http\RedirectResponse;
@@ -72,6 +73,10 @@ class ApplicantSettingsController extends Controller
         return view('applicant.settings.index', [
             'user' => $user,
             'settings' => $settings,
+            'personalSecurityVerification' => PersonalizedSecurityVerification::query()
+                ->where('user_id', $user->id)
+                ->whereNotNull('enabled_at')
+                ->first(),
             'section' => in_array($section, ['account', 'security', 'notifications', 'appearance', 'language', 'privacy', 'accessibility'], true) ? $section : 'account',
             'pendingEmailChange' => PendingEmailChange::where('user_id', $user->id)->first(),
             'loginActivities' => ApplicantLoginActivity::where('user_id', $user->id)

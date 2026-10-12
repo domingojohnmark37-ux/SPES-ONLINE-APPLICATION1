@@ -263,9 +263,32 @@ class AdminMasterListTest extends TestCase
         file_put_contents($excelPath, $archive->getFromName('Final List.xlsx'));
         $worksheet = IOFactory::load($excelPath)->getActiveSheet();
         @unlink($excelPath);
+        $formMetadataDrawing = collect($worksheet->getDrawingCollection())
+            ->first(fn ($drawing) => $drawing->getName() === 'SPES Form Metadata');
+        $this->assertNotNull($formMetadataDrawing);
+        $this->assertSame('O1', $formMetadataDrawing->getCoordinates());
+        $this->assertSame(260, $formMetadataDrawing->getWidth());
+        $this->assertSame(92, $formMetadataDrawing->getHeight());
         $this->assertSame('PLACEMENT REPORT', $worksheet->getCell('A10')->getValue());
         $this->assertSame(1, $worksheet->getCell('A17')->getValue());
         $this->assertSame('Doe', $worksheet->getCell('B17')->getValue());
+        $this->assertSame('FF000000', $worksheet->getStyle('B17')->getFont()->getColor()->getARGB());
+        $this->assertSame('FF000000', $worksheet->getStyle('O17')->getFont()->getColor()->getARGB());
+        $this->assertSame('FF000000', $worksheet->getStyle('P17')->getFont()->getColor()->getARGB());
+        $this->assertSame('FF000000', $worksheet->getStyle('Q17')->getFont()->getColor()->getARGB());
+        $this->assertSame('FF000000', $worksheet->getStyle('R17')->getFont()->getColor()->getARGB());
+        $this->assertFalse($worksheet->getStyle('O17')->getAlignment()->getWrapText());
+        $this->assertTrue($worksheet->getStyle('O17')->getAlignment()->getShrinkToFit());
+        $this->assertFalse($worksheet->getStyle('R17')->getAlignment()->getWrapText());
+        $this->assertTrue($worksheet->getStyle('R17')->getAlignment()->getShrinkToFit());
+        $this->assertSame(
+            'Note: This form shall be accomplished by the Public Employment Service Office to be submitted to the DOLE Field Office at least ten (10) working days before the START of employment period.',
+            $worksheet->getCell('A18')->getValue(),
+        );
+        $this->assertSame('left', $worksheet->getStyle('A18')->getAlignment()->getHorizontal());
+        $this->assertFalse($worksheet->getStyle('A18')->getAlignment()->getWrapText());
+        $this->assertSame('FF000000', $worksheet->getStyle('A18')->getFont()->getColor()->getARGB());
+        $this->assertSame('Prepared by:', trim((string) $worksheet->getCell('A19')->getValue()));
         $this->assertSame('Jane', $worksheet->getCell('C17')->getValue());
         $this->assertSame('M', $worksheet->getCell('D17')->getValue());
         $this->assertSame('College', $worksheet->getCell('J17')->getValue());

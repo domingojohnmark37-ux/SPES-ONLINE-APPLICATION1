@@ -183,6 +183,101 @@
         </div>
     @endif
 
+    @if(session('success'))
+        <div class="report-card" role="status" style="padding:12px 16px;">
+            {{ session('success') }}
+            @if($report = $archivedReports->firstWhere('id', session('generated_demographic_report_id')))
+                <a class="btn btn-primary btn-sm" href="{{ route('admin.demographic-reports.download', [$report, 'pdf']) }}">Download PDF</a>
+            @endif
+        </div>
+    @endif
+
+    <section class="report-card" aria-labelledby="generate-demographic-report-title">
+        <header class="report-card-header">
+            <div>
+                <h2 id="generate-demographic-report-title">Generate Applicant Demographics Report</h2>
+                <p>Creates an archived PDF report from approved applications submitted in the selected date range.</p>
+            </div>
+        </header>
+        <div class="report-card-body">
+            <form method="POST" action="{{ route('admin.demographic-reports.store') }}" class="report-filters" style="box-shadow:none;">
+                @csrf
+                <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
+                <div class="report-filter">
+                    <label for="demographic-start-date">Reporting period from</label>
+                    <input id="demographic-start-date" name="start_date" type="date" value="{{ old('start_date') }}" required>
+                </div>
+                <div class="report-filter">
+                    <label for="demographic-end-date">Reporting period to</label>
+                    <input id="demographic-end-date" name="end_date" type="date" value="{{ old('end_date') }}" required>
+                </div>
+                <div class="report-filter">
+                    <label for="demographic-program-year">Program year</label>
+                    <input id="demographic-program-year" name="program_year" type="number" min="2000" max="2100" value="{{ old('program_year', now()->year) }}" required>
+                </div>
+                <div class="report-filter">
+                    <label for="demographic-requested-by">Requested by (optional)</label>
+                    <input id="demographic-requested-by" name="requested_by" type="text" maxlength="160" value="{{ old('requested_by') }}">
+                </div>
+                <div class="report-filter-actions">
+                    <button class="btn btn-primary" type="submit">Generate and Archive</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="report-card" aria-labelledby="demographic-report-archive-title">
+        <header class="report-card-header">
+            <h2 id="demographic-report-archive-title">SPES Demographic Reports Archive</h2>
+        </header>
+        <div class="report-card-body">
+            @if($archivedReports->isEmpty())
+                <p class="info-copy">No demographic reports have been generated yet.</p>
+            @else
+                <div class="comparison-table-wrap">
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Report file name</th>
+                                <th>Date range covered</th>
+                                <th>Total approved applicants</th>
+                                <th>Requested by</th>
+                                <th>Version</th>
+                                <th>Status</th>
+                                <th>Downloads</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($archivedReports as $index => $report)
+                                <tr>
+                                    <td>{{ $archivedReports->firstItem() + $index }}</td>
+                                    <td>SPES_Demographics_{{ $report->start_date->format('Y-m-d') }}_to_{{ $report->end_date->format('Y-m-d') }}_v{{ $report->version }}.pdf</td>
+                                    <td>{{ $report->start_date->format('Y-m-d') }} – {{ $report->end_date->format('Y-m-d') }}</td>
+                                    <td>{{ number_format($report->total_valid) }}</td>
+                                    <td>{{ $report->requested_by ?: '—' }}</td>
+                                    <td>v{{ $report->version }}</td>
+                                    <td>{{ $report->status }}</td>
+                                    <td>
+                                        <div style="display:flex;align-items:center;gap:6px;">
+                                            <a class="btn btn-primary btn-sm" href="{{ route('admin.demographic-reports.download', [$report, 'pdf']) }}">Download PDF</a>
+                                            <form method="POST" action="{{ route('admin.demographic-reports.destroy', $report) }}" style="display:inline;" data-admin-confirm-message="Delete this archived report and its PDF? This action cannot be undone.">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline btn-sm">Delete</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                {{ $archivedReports->links() }}
+            @endif
+        </div>
+    </section>
+
     <form class="report-filters" method="GET" action="{{ route('admin.statistics-report') }}" aria-label="Statistics report filters">
         <div class="report-filter">
             <label for="filter-period">Application Period</label>

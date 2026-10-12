@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\StatisticsReportController;
 use App\Http\Controllers\Admin\ApplicantAuditController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ApplicantContactPesoController;
+use App\Http\Controllers\Auth\PersonalSecurityVerificationController;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,7 @@ Route::view('/terms-and-conditions', 'terms')->name('terms');
 // Authenticated users
 Route::middleware([
     'auth',
+    'personal-security.recovery',
     \App\Http\Middleware\ApplyApplicantLanguage::class,
     'admin.preferences',
     \App\Http\Middleware\TrackUserActivity::class,
@@ -318,6 +320,13 @@ Route::middleware([
     Route::get('/settings', [\App\Http\Controllers\ApplicantSettingsController::class, 'index'])->name('settings.index');
     Route::get('/settings/account', [\App\Http\Controllers\ApplicantSettingsController::class, 'account'])->name('settings.account');
     Route::get('/settings/security', [\App\Http\Controllers\ApplicantSettingsController::class, 'security'])->name('settings.security');
+    Route::get('/settings/security/recovery-setup', [PersonalSecurityVerificationController::class, 'recoverySetup'])->name('personal-security.recovery-setup');
+    Route::put('/settings/security/personal-verification', [PersonalSecurityVerificationController::class, 'updateConfiguration'])
+        ->middleware('throttle:6,1')
+        ->name('personal-security.configuration.update');
+    Route::delete('/settings/security/personal-verification', [PersonalSecurityVerificationController::class, 'disable'])
+        ->middleware('throttle:6,1')
+        ->name('personal-security.configuration.disable');
     Route::get('/settings/notifications', [\App\Http\Controllers\ApplicantSettingsController::class, 'notifications'])->name('settings.notifications');
     Route::get('/settings/appearance', [\App\Http\Controllers\ApplicantSettingsController::class, 'appearance'])->name('settings.appearance');
     Route::get('/settings/language', [\App\Http\Controllers\ApplicantSettingsController::class, 'language'])->name('settings.language');
@@ -369,7 +378,7 @@ Route::middleware([
 });
 
 // Admin
-Route::middleware(['auth', 'admin', 'admin.preferences', \App\Http\Middleware\TrackUserActivity::class])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.preferences', \App\Http\Middleware\TrackUserActivity::class])->prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/dashboard', function () {
         $stats = [
@@ -437,6 +446,14 @@ Route::middleware(['auth', 'admin', 'admin.preferences', \App\Http\Middleware\Tr
     Route::get('/users', [ApplicationController::class, 'users'])->name('users');
     Route::get('/users/{user}', [ApplicationController::class, 'showUser'])->name('users.show');
     Route::get('/statistics-report', StatisticsReportController::class)->name('statistics-report');
+    Route::post('/statistics-report/demographic-reports', [StatisticsReportController::class, 'store'])
+        ->middleware('idempotent')
+        ->name('demographic-reports.store');
+    Route::delete('/statistics-report/demographic-reports/{report}', [StatisticsReportController::class, 'destroy'])
+        ->name('demographic-reports.destroy');
+    Route::get('/statistics-report/demographic-reports/{report}/download/{format}', [StatisticsReportController::class, 'download'])
+        ->where('format', 'pdf')
+        ->name('demographic-reports.download');
     Route::get('/applicant-audit', [ApplicantAuditController::class, 'index'])->name('applicant-audit.index');
     Route::get('/applicant-audit/export', [ApplicantAuditController::class, 'export'])->name('applicant-audit.export');
     Route::get('/applicant-audit/applicants/{applicant}/status-history', [ApplicantAuditController::class, 'statusHistory'])
@@ -451,6 +468,13 @@ Route::middleware(['auth', 'admin', 'admin.preferences', \App\Http\Middleware\Tr
         ->middleware('throttle:3,1')
         ->name('settings.email-test');
     Route::get('/settings/preferences', [AdminSettingsFeatureController::class, 'preferences'])->name('preferences');
+    Route::get('/settings/security/recovery-setup', [PersonalSecurityVerificationController::class, 'recoverySetup'])->name('personal-security.recovery-setup');
+    Route::put('/settings/security/personal-verification', [PersonalSecurityVerificationController::class, 'updateConfiguration'])
+        ->middleware('throttle:6,1')
+        ->name('personal-security.configuration.update');
+    Route::delete('/settings/security/personal-verification', [PersonalSecurityVerificationController::class, 'disable'])
+        ->middleware('throttle:6,1')
+        ->name('personal-security.configuration.disable');
     Route::put('/settings/preferences', [AdminSettingsFeatureController::class, 'updatePreferences'])->name('preferences.update');
     Route::get('/manual', [AdminSettingsFeatureController::class, 'manual'])->name('manual');
     Route::get('/security', [AdminSettingsFeatureController::class, 'security'])->name('security');

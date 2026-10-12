@@ -141,6 +141,31 @@ class ApplicantAuditTest extends TestCase
         $this->assertSame(7, substr_count($response->getContent(), '<strong>'.AuditAction::ACCOUNT_CREATED.'</strong>'));
     }
 
+    public function test_applicant_audit_history_shows_all_matching_events_without_pagination_controls(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $applicant = User::factory()->create(['role' => 'user']);
+
+        for ($index = 0; $index < 30; $index++) {
+            app(AuditLogger::class)->record(
+                AuditAction::LOGIN_SUCCESS,
+                'Authentication',
+                $applicant,
+                $applicant,
+            );
+        }
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.applicant-audit.show', ['applicant' => $applicant->id]))
+            ->assertOk()
+            ->assertSee('Audit History')
+            ->assertDontSee('Showing 1 to')
+            ->assertDontSee('Previous')
+            ->assertDontSee('Next');
+
+        $this->assertSame(30, substr_count($response->getContent(), 'class="timeline-entry"'));
+    }
+
     public function test_applicant_activity_details_are_shown_inline_in_applicant_audit(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -217,6 +242,8 @@ class ApplicantAuditTest extends TestCase
         ]))
             ->assertOk()
             ->assertSee('Audit History')
+            ->assertSee('class="audit-history-scroll"', false)
+            ->assertSee('aria-label="Applicant audit history"', false)
             ->assertSee(AuditAction::APPLICATION_APPROVED);
 
         $event = AuditLog::query()->where('action', AuditAction::APPLICATION_APPROVED)->firstOrFail();

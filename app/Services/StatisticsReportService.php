@@ -361,7 +361,12 @@ class StatisticsReportService
             ->selectRaw('COUNT(*) as total')
             ->groupBy('age')
             ->get();
-        $counts = [];
+        $counts = [
+            '15–17' => 0,
+            '18–20' => 0,
+            '21–24' => 0,
+            '25–30' => 0,
+        ];
 
         foreach ($ages as $row) {
             if ($row->age === null) {
@@ -372,9 +377,8 @@ class StatisticsReportService
                     $age < 15 => 'Outside application age range',
                     $age <= 17 => '15–17',
                     $age <= 20 => '18–20',
-                    $age <= 23 => '21–23',
-                    $age <= 26 => '24–26',
-                    $age <= 30 => '27–30',
+                    $age <= 24 => '21–24',
+                    $age <= 30 => '25–30',
                     default => 'Outside application age range',
                 };
             }
@@ -382,7 +386,6 @@ class StatisticsReportService
         }
 
         $items = collect($counts)->map(fn ($count, $label) => ['label' => $label, 'count' => $count])
-            ->sortByDesc('count')
             ->values()
             ->all();
 

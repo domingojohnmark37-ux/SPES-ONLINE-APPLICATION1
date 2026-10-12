@@ -3,17 +3,20 @@
 namespace App\Notifications;
 
 use App\Models\ApplicantSetting;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class ApplicantLoginAlert extends Notification
+class ApplicantLoginAlert extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     public function __construct(
         private readonly ?int $activityId,
         private readonly string $device,
         private readonly ?string $ipAddress,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

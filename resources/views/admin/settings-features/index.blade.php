@@ -37,11 +37,41 @@
     .admin-audit-filters { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-bottom:16px; padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--white); }
     .admin-audit-filters label { display:grid; min-width:160px; gap:5px; color:var(--text-muted); font-size:.75rem; font-weight:700; }
     .admin-audit-filters select,.admin-audit-filters input { min-height:38px; padding:8px 10px; border:1px solid var(--border); border-radius:7px; background:var(--white); color:var(--text); font:inherit; font-size:.82rem; }
+    #personal-security .card-header h2 { color:var(--primary); }
+    .personal-security-content { display:grid; gap:18px; }
+    .personal-security-description { max-width:850px; color:var(--text-muted); font-size:.86rem; line-height:1.6; }
+    .personal-security-status { display:flex; flex-wrap:wrap; align-items:center; gap:9px; padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); font-size:.83rem; }
+    .personal-security-status-badge { display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border-radius:999px; background:#eef0f3; color:#59636f; font-size:.74rem; font-weight:700; }
+    .personal-security-status-badge.is-enabled { background:#e8f5e9; color:#256c32; }
+    .personal-security-status-question { flex-basis:100%; color:var(--text-muted); overflow-wrap:anywhere; }
+    .personal-security-guidance { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border:1px solid rgba(21,101,192,.18); border-radius:10px; background:rgba(21,101,192,.055); color:var(--text-muted); font-size:.8rem; line-height:1.55; }
+    .personal-security-guidance svg.icon { flex:0 0 auto; margin-top:2px; color:var(--info); }
+    .personal-security-form { display:grid; gap:16px; }
+    .personal-security-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    .personal-security-grid .form-group { display:grid; min-width:0; gap:7px; margin:0; }
+    .personal-security-grid .form-group label { color:var(--text); font-size:.78rem; font-weight:700; line-height:1.4; }
+    .personal-security-grid .form-group input { display:block; width:100%; min-width:0; max-width:100%; height:44px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; outline:none; background:var(--white); color:var(--text); font:inherit; font-size:.84rem; transition:border-color .15s,box-shadow .15s; }
+    .personal-security-grid .form-group select { width:100%; min-width:0; max-width:100%; }
+    .personal-security-grid .form-group input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(139,0,0,.12); }
+    .personal-security-grid .form-group input:focus-visible { outline:none; }
+    .personal-security-submit { justify-self:start; min-height:42px; }
+    .personal-security-disable { margin-top:4px; padding-top:18px; border-top:1px solid var(--border); }
+    .personal-security-disable h3 { margin-bottom:5px; color:var(--text); font-size:.9rem; }
+    .personal-security-disable > p { margin-bottom:14px; color:var(--text-muted); font-size:.8rem; line-height:1.5; }
+    html[data-admin-theme="dark"] #personal-security .card-header h2 { color:#f2c94c; }
+    html[data-admin-theme="dark"] .personal-security-status-badge { background:#343941; color:#d1d5db; }
+    html[data-admin-theme="dark"] .personal-security-status-badge.is-enabled { background:#183923; color:#a6e3b1; }
+    html[data-admin-theme="dark"] .personal-security-guidance { border-color:rgba(96,165,250,.22); background:rgba(96,165,250,.08); }
     @media(max-width:650px) {
         .settings-sections { top:64px; }
         .settings-section { scroll-margin-top:120px; }
         .settings-section .card-body { padding:16px; }
         .settings-form-grid { grid-template-columns:1fr; }
+        .personal-security-grid { grid-template-columns:minmax(0,1fr); gap:13px; }
+        .personal-security-submit { width:100%; justify-content:center; }
+    }
+    @media(prefers-color-scheme:dark) {
+        html[data-admin-theme="system"] #personal-security .card-header h2 { color:#f2c94c; }
     }
 </style>
 @endsection
@@ -64,6 +94,7 @@
 
     <nav class="settings-sections" aria-label="Settings sections">
         <a href="#preferences">{{ __('Preferences') }}</a>
+        <a href="#personal-security">{{ __('Personal Security') }}</a>
         <a href="#manual">{{ __('Manual') }}</a>
         <a href="#admin-audit">{{ __('Admin Audit Logs') }}</a>
         <a href="#backup">{{ __('Backup') }}</a>
@@ -115,6 +146,68 @@
                 </div>
                 <button class="btn btn-primary settings-save" type="submit"><x-icon class="fa-solid fa-floppy-disk" aria-hidden="true" /> {{ __('Save Preferences') }}</button>
             </form>
+        </div>
+    </section>
+
+    <section class="settings-section" id="personal-security" aria-labelledby="personal-security-heading" style="border-top:4px solid var(--accent);">
+        <div class="card-header"><h2 id="personal-security-heading"><x-icon class="fa-solid fa-shield-halved" aria-hidden="true" /> {{ __('Personalized Security Verification') }}</h2></div>
+        <div class="card-body personal-security-content">
+            <p class="personal-security-description">{{ __('Add a personal question after your password at sign-in. This knowledge-based check is not an independent second factor like a passkey or authenticator app.') }}</p>
+            <div class="personal-security-status" role="status">
+                <strong>{{ __('Verification status') }}</strong>
+                <span class="personal-security-status-badge {{ $personalSecurityVerification ? 'is-enabled' : '' }}">
+                    <x-icon class="fa-solid {{ $personalSecurityVerification ? 'fa-circle-check' : 'fa-circle-minus' }}" aria-hidden="true" />
+                    {{ $personalSecurityVerification ? __('Enabled') : __('Not enabled') }}
+                </span>
+                @if($personalSecurityVerification)
+                    <span class="personal-security-status-question">{{ $personalSecurityVerification->question }}</span>
+                @endif
+            </div>
+            <div class="personal-security-guidance">
+                <x-icon class="fa-solid fa-circle-info" aria-hidden="true" />
+                <p>{{ __('Choose an answer that is memorable to you and difficult for other people to guess. Answers are case-insensitive and repeated whitespace is ignored.') }}</p>
+            </div>
+            <form method="POST" action="{{ route('admin.personal-security.configuration.update') }}" class="personal-security-form" data-loading-label="{{ __('Saving...') }}">
+                @csrf
+                @method('PUT')
+                <div class="personal-security-grid">
+                    <div class="form-group">
+                        <x-security-question-select selected="{{ $personalSecurityVerification?->question }}" />
+                    </div>
+                    <div class="form-group">
+                        <label for="personal_security_answer">{{ __('Private answer') }}</label>
+                        <input id="personal_security_answer" name="security_answer" type="password" minlength="8" maxlength="255" autocomplete="new-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="personal_security_answer_confirmation">{{ __('Confirm private answer') }}</label>
+                        <input id="personal_security_answer_confirmation" name="security_answer_confirmation" type="password" minlength="8" maxlength="255" autocomplete="new-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="personal_security_current_password">{{ __('Current password') }}</label>
+                        <input id="personal_security_current_password" name="current_password" type="password" autocomplete="current-password" required>
+                    </div>
+                </div>
+                <button class="btn btn-primary personal-security-submit" type="submit">{{ $personalSecurityVerification ? __('Replace Question and Answer') : __('Enable Personalized Verification') }}</button>
+            </form>
+            @if($personalSecurityVerification)
+                <form method="POST" action="{{ route('admin.personal-security.configuration.disable') }}" class="personal-security-disable">
+                    @csrf
+                    @method('DELETE')
+                    <h3>{{ __('Disable personalized verification') }}</h3>
+                    <p>{{ __('Confirm your password and enter DISABLE to turn off this sign-in check.') }}</p>
+                    <div class="personal-security-grid">
+                        <div class="form-group">
+                            <label for="personal_security_disable_password">{{ __('Current password to disable') }}</label>
+                            <input id="personal_security_disable_password" name="current_password" type="password" autocomplete="current-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="personal_security_disable_confirmation">{{ __('Type DISABLE to confirm') }}</label>
+                            <input id="personal_security_disable_confirmation" name="disable_confirmation" type="text" required>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger personal-security-submit" type="submit">{{ __('Disable Personalized Verification') }}</button>
+                </form>
+            @endif
         </div>
     </section>
 

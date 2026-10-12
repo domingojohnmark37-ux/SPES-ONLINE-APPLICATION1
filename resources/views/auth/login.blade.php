@@ -49,21 +49,21 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('login') }}" data-auth-form="login" data-loading-label="Signing in..." data-loading-message="Signing in... Please wait while we securely verify your account." data-network-error="We couldn't reach the server. Check your connection and try again." data-server-error="We couldn't sign you in right now. Please try again." data-validation-error="Please check your email and password and try again." data-success-message="Your request was completed. Continue to the portal to proceed." data-recovery-url="{{ route('auth.recovery') }}">
+                <form method="POST" action="{{ route('login') }}" data-auth-form="login" data-loading-label="Signing in..." data-loading-message="Signing in... Please wait while we securely verify your account." data-network-error="We couldn't reach the server. Check your connection and try again." data-server-error="We couldn't sign you in right now. Please try again." data-validation-error="Please check your username/email and password and try again." data-success-message="Your request was completed. Continue to the portal to proceed." data-recovery-url="{{ route('auth.recovery') }}" data-csrf-refresh-url="{{ route('login') }}">
                     @csrf
 
                     <!-- Email Address -->
                     <div class="form-group">
-                        <label for="email">Email Address</label>
+                        <label for="email">Username or Email Address</label>
                         <input 
                             id="email" 
-                            type="email" 
+                            type="text"
                             name="email" 
                             value="{{ old('email') }}"
-                            placeholder="Email Address"
+                            placeholder="Username or Email Address"
                             required 
                             autofocus 
-                            autocomplete="email"
+                            autocomplete="username"
                         />
                         @error('email')
                             <span class="error-message">{{ $message }}</span>

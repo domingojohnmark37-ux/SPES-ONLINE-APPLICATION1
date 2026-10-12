@@ -11,6 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', __('Admin')) — {{ __('SPES Management System') }}</title>
+    <link rel="stylesheet" href="{{ asset('css/personal-security-question.css') }}?v={{ filemtime(public_path('css/personal-security-question.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -259,6 +260,7 @@
         .admin-confirm-top { display:flex; align-items:center; gap:13px; padding:22px 24px 13px; }
         .admin-confirm-icon { display:grid; width:44px; height:44px; flex:0 0 44px; place-items:center; border-radius:13px; background:rgba(21,101,192,.1); color:var(--info); font-size:1.1rem; }
         .admin-confirm-dialog[data-kind="save"] .admin-confirm-icon { background:rgba(46,125,50,.11); color:var(--success); }
+        .admin-confirm-dialog[data-kind="delete"] .admin-confirm-icon { background:rgba(180,35,47,.1); color:var(--danger); }
         .admin-confirm-dialog h2 { font-size:1.05rem; font-weight:750; }
         .admin-confirm-copy { padding:0 24px 20px 81px; color:var(--text-muted); font-size:.88rem; line-height:1.55; }
         .admin-confirm-actions { display:flex; justify-content:flex-end; gap:9px; padding:15px 20px; border-top:1px solid var(--border); background:var(--bg); }
@@ -266,6 +268,7 @@
         .admin-confirm-actions button:focus-visible { outline:3px solid rgba(21,101,192,.35); outline-offset:2px; }
         .admin-confirm-actions [data-admin-confirm] { border-color:var(--primary); background:var(--primary); color:#fff; }
         .admin-confirm-dialog[data-kind="leave"] .admin-confirm-actions [data-admin-confirm] { border-color:var(--danger); background:var(--danger); }
+        .admin-confirm-dialog[data-kind="delete"] .admin-confirm-actions [data-admin-confirm] { border-color:var(--danger); background:var(--danger); }
         @keyframes admin-confirm-in { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
         @media(prefers-reduced-motion:reduce) { .admin-confirm-dialog { animation:none; } }
         .approval-limit-toast { position:fixed; right:24px; bottom:24px; z-index:1450; display:flex; width:min(460px,calc(100vw - 32px)); align-items:flex-start; gap:13px; padding:17px 18px; border:1px solid rgba(198,40,40,.2); border-left:5px solid var(--danger); border-radius:12px; background:var(--white); color:var(--text); box-shadow:0 16px 45px rgba(17,24,39,.22); animation:admin-confirm-in .2s ease-out; }
@@ -710,7 +713,7 @@ document.addEventListener('DOMContentLoaded', function(){
             returnFocus?.focus();
         };
 
-        const openDialog = (kind, action, trigger) => {
+        const openDialog = (kind, action, trigger, message = null) => {
             activeAction = action;
             returnFocus = trigger || document.activeElement;
             dialog.dataset.kind = kind;
@@ -721,6 +724,12 @@ document.addEventListener('DOMContentLoaded', function(){
                 icon.className = 'fa-solid fa-circle-question';
                 confirmButton.textContent = 'Save changes';
                 cancelButton.textContent = 'Keep editing';
+            } else if (kind === 'delete') {
+                title.textContent = 'Confirm deletion';
+                copy.textContent = message;
+                icon.className = 'fa-solid fa-triangle-exclamation';
+                confirmButton.textContent = 'Delete';
+                cancelButton.textContent = 'Cancel';
             } else {
                 title.textContent = 'Leave without saving?';
                 copy.textContent = 'You have unsaved changes. If you leave this page or cancel editing, those changes will be lost.';
@@ -735,11 +744,27 @@ document.addEventListener('DOMContentLoaded', function(){
 
         document.addEventListener('submit', (event) => {
             const form = event.target;
-            if (!formStates.has(form)) return;
             if (approvedForms.has(form)) {
                 approvedForms.delete(form);
                 return;
             }
+
+            if (form.dataset.adminConfirmMessage) {
+                event.preventDefault();
+                const message = form.dataset.adminConfirmMessage;
+                const submitter = event.submitter;
+                openDialog('delete', () => {
+                    approvedForms.add(form);
+                    if (submitter) {
+                        form.requestSubmit(submitter);
+                    } else {
+                        form.requestSubmit();
+                    }
+                }, submitter, message);
+                return;
+            }
+
+            if (!formStates.has(form)) return;
 
             if (JSON.stringify(fieldSignature(form)) === formStates.get(form)) return;
             event.preventDefault();

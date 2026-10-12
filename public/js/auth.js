@@ -100,12 +100,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function submitAuthForm(form) {
     try {
-        const response = await fetch(form.action, {
-            method: form.method.toUpperCase(),
-            body: new FormData(form),
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json' },
-        });
+        let response = await postAuthForm(form);
+        if (response.status === 419 && form.dataset.csrfRefreshUrl) {
+            const refreshed = await refreshAuthCsrfToken(form);
+            if (refreshed) {
+                response = await postAuthForm(form);
+            }
+        }
+
         const contentType = response.headers.get('content-type') ?? '';
         const responseBody = contentType.includes('application/json')
             ? await response.json()
@@ -117,6 +119,8 @@ async function submitAuthForm(form) {
             }
             const errorMessage = response.status >= 500
                 ? form.dataset.serverError
+                : response.status === 419
+                    ? 'Your login session expired. We refreshed it, but sign-in could not continue. Reload the page and try again.'
                 : extractAuthErrors(responseBody) || form.dataset.serverError;
             restoreAuthForm(form, errorMessage, 'error');
             return;
@@ -155,6 +159,48 @@ async function submitAuthForm(form) {
         }
 
         restoreAuthForm(form, form.dataset.networkError, 'error');
+    }
+}
+
+function postAuthForm(form) {
+    return fetch(form.action, {
+        method: form.method.toUpperCase(),
+        body: new FormData(form),
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+    });
+}
+
+async function refreshAuthCsrfToken(form) {
+    try {
+        const refreshUrl = new URL(form.dataset.csrfRefreshUrl, window.location.href);
+        if (refreshUrl.origin !== window.location.origin) {
+            return false;
+        }
+
+        const response = await fetch(refreshUrl.href, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { Accept: 'text/html' },
+        });
+        if (!response.ok || new URL(response.url).origin !== window.location.origin) {
+            return false;
+        }
+
+        const html = await response.text();
+        const refreshedPage = new DOMParser().parseFromString(html, 'text/html');
+        const token = refreshedPage.querySelector('form[data-auth-form="login"] input[name="_token"]')?.value;
+        const tokenInput = form.querySelector('input[name="_token"]');
+        if (!token || !tokenInput) {
+            return false;
+        }
+
+        tokenInput.value = token;
+        document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', token);
+        return true;
+    } catch {
+        return false;
     }
 }
 

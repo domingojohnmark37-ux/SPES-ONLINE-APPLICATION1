@@ -27,8 +27,29 @@ class AdminUserProfileTest extends TestCase
             ->assertSee('Jordan Rivera')
             ->assertSee('No phone provided')
             ->assertSee('No address provided')
-            ->assertSee('No information on file')
+            ->assertSee('The applicant has not added profile details yet.')
+            ->assertDontSee('Not provided')
             ->assertSee(route('admin.users', ['search' => 'jordan']));
+    }
+
+    public function test_admin_profile_does_not_mix_application_answers_with_portal_profile_details(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $applicant = User::factory()->create(['name' => 'Portal Applicant']);
+        Application::factory()->for($applicant)->create([
+            'birthday' => '2001-02-03',
+            'f3_position' => 'Application-only position',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.show', $applicant))
+            ->assertOk()
+            ->assertSee('Applicant Portal Profile')
+            ->assertSee('Application History')
+            ->assertDontSee('Application-only position')
+            ->assertDontSee('Feb 03, 2001')
+            ->assertDontSee('Program Information')
+            ->assertDontSee('Not provided');
     }
 
     public function test_admin_user_profile_displays_existing_application_history(): void
@@ -168,7 +189,7 @@ class AdminUserProfileTest extends TestCase
             ->assertOk()
             ->assertSee('Jordan Lee Rivera')
             ->assertSee('Female')
-            ->assertSee('Jan 01, 2000 (' . \Illuminate\Support\Carbon::parse('2000-01-01')->age . ' years old)')
+            ->assertSee('Jan 1, 2000 (' . \Illuminate\Support\Carbon::parse('2000-01-01')->age . ' years old)')
             ->assertSee('Lal-lo, Cagayan')
             ->assertSee('Single')
             ->assertSee('Filipino')

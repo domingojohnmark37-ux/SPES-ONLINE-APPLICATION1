@@ -1,0 +1,31 @@
+.security-question-picker {
+    width: 100%;
+    min-width: 0;
+}
+
+.security-question-picker select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 48px;
+    padding: 10px 38px 10px 12px;
+    border: 1px solid var(--security-question-border, #d1d5db);
+    border-radius: 8px;
+    background-color: var(--security-question-surface, #fff);
+    color: var(--security-question-text, #212121);
+    font: inherit;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.security-question-picker select:focus-visible {
+    outline: 3px solid var(--security-question-focus, rgba(139, 0, 0, .2));
+    outline-offset: 2px;
+}
+
+.security-question-picker option {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}

@@ -6,7 +6,10 @@ use App\Models\ApplicantSetting;
 use App\Models\User;
 use App\Notifications\ApplicantLoginAlert;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -18,12 +21,15 @@ class AuthenticationTest extends TestCase
         $response = $this->get('/login');
 
         $response->assertOk()
+            ->assertHeader('Pragma', 'no-cache')
             ->assertSee('data-auth-form="login"', false)
             ->assertSee('data-loading-label="Signing in..."', false)
             ->assertSee('data-auth-spinner', false)
             ->assertSee('data-auth-request-status', false)
             ->assertSee('data-auth-submit', false)
-            ->assertSee('data-recovery-url=', false);
+            ->assertSee('data-recovery-url=', false)
+            ->assertSee('data-csrf-refresh-url=', false);
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
@@ -37,6 +43,70 @@ class AuthenticationTest extends TestCase
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_applicant_login_does_not_redirect_to_an_intended_admin_route(): void
+    {
+        $user = User::factory()->create();
+        Queue::fake();
+
+        $this->get(route('admin.settings'))
+            ->assertRedirect(route('login'));
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($user);
+        $this->get(route('dashboard'))->assertOk();
+    }
+
+    public function test_admin_login_does_not_redirect_to_an_intended_applicant_route(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Queue::fake();
+
+        $this->get(route('applications.create'))
+            ->assertRedirect(route('login'));
+
+        $this->post('/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])->assertRedirect(route('admin.dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($admin);
+    }
+
+    public function test_admin_can_sign_in_even_if_personal_security_migrations_are_pending(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Schema::dropIfExists('pending_personal_security_recoveries');
+        Schema::dropIfExists('personalized_security_verifications');
+        Queue::fake();
+
+        $response = $this->post('/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect(route('admin.dashboard', absolute: false));
+        $this->assertAuthenticatedAs($admin);
+        Queue::assertPushed(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->notification instanceof ApplicantLoginAlert);
+    }
+
+    public function test_admin_login_alert_is_queued_instead_of_sending_mail_during_login(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Queue::fake();
+
+        $this->post('/login', [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])->assertRedirect(route('admin.dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($admin);
+        Queue::assertPushed(SendQueuedNotifications::class, fn (SendQueuedNotifications $job): bool => $job->notification instanceof ApplicantLoginAlert);
     }
 
     public function test_login_can_return_a_json_redirect_for_the_async_auth_form(): void

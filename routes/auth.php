@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\PersonalSecurityVerificationController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\RegistrationVerificationController;
 use App\Http\Controllers\Auth\VerifyEmailController;
@@ -52,6 +53,22 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
+    Route::get('login/personal-security', [PersonalSecurityVerificationController::class, 'challenge'])
+        ->name('login.personal-security.challenge');
+    Route::post('login/personal-security', [PersonalSecurityVerificationController::class, 'verify'])
+        ->middleware('throttle:10,1')
+        ->name('login.personal-security.verify');
+    Route::post('login/personal-security/cancel', [PersonalSecurityVerificationController::class, 'cancel'])
+        ->name('login.personal-security.cancel');
+    Route::get('login/personal-security/recovery', [PersonalSecurityVerificationController::class, 'recovery'])
+        ->name('login.personal-security.recovery');
+    Route::post('login/personal-security/recovery/send', [PersonalSecurityVerificationController::class, 'sendRecoveryCode'])
+        ->middleware('throttle:5,10')
+        ->name('login.personal-security.recovery.send');
+    Route::post('login/personal-security/recovery', [PersonalSecurityVerificationController::class, 'verifyRecoveryCode'])
+        ->middleware('throttle:10,10')
+        ->name('login.personal-security.recovery.verify');
+
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 
@@ -76,7 +93,7 @@ Route::middleware('guest')->group(function () {
         ->name('password.verify.resend');
 });
 
-Route::middleware(['auth', 'admin.preferences'])->group(function () {
+Route::middleware(['auth', 'personal-security.recovery', 'admin.preferences'])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 
