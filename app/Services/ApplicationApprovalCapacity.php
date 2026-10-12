@@ -6,7 +6,6 @@ use App\Models\Application;
 use App\Models\AuditAction;
 use App\Models\SystemSetting;
 use App\Models\User;
-use App\Notifications\ApplicantPortalUpdate;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -90,26 +89,5 @@ class ApplicationApprovalCapacity
         }
 
         return $pending;
-    }
-
-    public function notifyClosedApplicants(
-        Collection $applications,
-        int $limit,
-        ApplicantNotificationService $notifications,
-    ): void
-    {
-        foreach ($applications as $application) {
-            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
-                'notify_documents',
-                'SPES application period closed',
-                "The SPES program has reached its limit of {$limit} approved applicants. Your application was not included in the approved list. Please try again next SPES season.",
-                [
-                    'application_id' => $application->id,
-                    'status' => 'denied',
-                    'event' => 'approval_limit_reached',
-                    'approved_applicant_limit' => $limit,
-                ],
-            ), "application:{$application->id}:approval-limit-reached");
-        }
     }
 }

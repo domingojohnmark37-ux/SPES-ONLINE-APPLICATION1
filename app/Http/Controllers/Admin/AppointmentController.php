@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\NotifyApplicantsJob;
 use App\Models\Appointment;
 use App\Models\User;
-use App\Notifications\ApplicantPortalUpdate;
-use App\Services\ApplicantNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -56,7 +55,7 @@ class AppointmentController extends Controller
         ]);
     }
 
-    public function update(Request $request, Appointment $appointment, ApplicantNotificationService $notifications): RedirectResponse
+    public function update(Request $request, Appointment $appointment): RedirectResponse
     {
         $wasPublished = $appointment->is_published;
         $previousTargetApplicantIds = $appointment->targetApplicants()->pluck('users.id')->all();
@@ -75,7 +74,7 @@ class AppointmentController extends Controller
                 'target_audience', 'target_user_id',
             ]))
         ) {
-            $this->notifyApplicantsAboutAppointment($appointment, $notifications);
+            $this->notifyApplicantsAboutAppointment($appointment);
         }
 
         return redirect()->route('admin.appointments.index')
@@ -90,12 +89,12 @@ class AppointmentController extends Controller
             ->with('success', 'Appointment deleted.');
     }
 
-    public function togglePublish(Appointment $appointment, ApplicantNotificationService $notifications): RedirectResponse
+    public function togglePublish(Appointment $appointment): RedirectResponse
     {
         $appointment->update(['is_published' => ! $appointment->is_published]);
 
         if ($appointment->is_published) {
-            $this->notifyApplicantsAboutAppointment($appointment, $notifications);
+            $this->notifyApplicantsAboutAppointment($appointment);
         }
 
         return redirect()->route('admin.appointments.index')
@@ -155,25 +154,16 @@ class AppointmentController extends Controller
             ->get(['id', 'name', 'email']);
     }
 
-    private function notifyApplicantsAboutAppointment(
-        Appointment $appointment,
-        ApplicantNotificationService $notifications,
-    ): void {
-        $notifications->notifyUsers(
-            $appointment->recipientUsers(),
-            $this->appointmentNotification($appointment),
-            "appointment:{$appointment->id}:{$appointment->updated_at?->getTimestamp()}",
-        );
-    }
-
-    private function appointmentNotification(Appointment $appointment): ApplicantPortalUpdate
+    private function notifyApplicantsAboutAppointment(Appointment $appointment): void
     {
         $details = $appointment->starts_at->format('M j, Y g:i A');
         if ($appointment->location) {
             $details .= ' at '.$appointment->location;
         }
 
-        return new ApplicantPortalUpdate(
+        NotifyApplicantsJob::dispatch(
+            'appointment',
+            "appointment:{$appointment->id}:{$appointment->updated_at?->getTimestamp()}",
             'notify_appointments',
             'Appointment reminder',
             "You have an appointment, \"{$appointment->title}\", on {$details}.",
@@ -182,6 +172,7 @@ class AppointmentController extends Controller
                 'appointment_date' => $appointment->starts_at->toIso8601String(),
                 'appointment_location' => $appointment->location,
             ],
-        );
+            audienceId: $appointment->id,
+        )->afterCommit();
     }
 }

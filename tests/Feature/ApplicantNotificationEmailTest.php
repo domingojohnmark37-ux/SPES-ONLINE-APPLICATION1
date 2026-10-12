@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\NotifyApplicantsJob;
 use App\Models\ApplicantSetting;
 use App\Models\Appointment;
 use App\Models\Application;
@@ -309,5 +310,39 @@ class ApplicantNotificationEmailTest extends TestCase
             'last_error' => null,
         ]);
         Log::shouldHaveReceived('error')->once();
+    }
+
+    public function test_retried_notification_job_does_not_duplicate_a_successful_delivery(): void
+    {
+        $applicant = User::factory()->create(['role' => 'user']);
+        Mail::fake();
+        $job = new NotifyApplicantsJob(
+            'users',
+            'application:49:approved:123',
+            'notify_documents',
+            'Application approved',
+            'Your SPES application has been approved.',
+            ['application_id' => 49, 'status' => 'approved'],
+            userIds: [$applicant->id],
+        );
+
+        $job->handle(app(ApplicantNotificationService::class));
+        $job->handle(app(ApplicantNotificationService::class));
+
+        $this->assertSame(1, $applicant->notifications()->count());
+        $this->assertDatabaseHas('applicant_notification_deliveries', [
+            'user_id' => $applicant->id,
+            'event_hash' => hash('sha256', 'application:49:approved:123'),
+            'channel' => 'database',
+            'status' => 'sent',
+            'attempts' => 1,
+        ]);
+        $this->assertDatabaseHas('applicant_notification_deliveries', [
+            'user_id' => $applicant->id,
+            'event_hash' => hash('sha256', 'application:49:approved:123'),
+            'channel' => 'mail',
+            'status' => 'sent',
+            'attempts' => 1,
+        ]);
     }
 }

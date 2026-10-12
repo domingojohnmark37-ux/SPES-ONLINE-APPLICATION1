@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\AuditAction;
+use App\Jobs\NotifyClosedApplicantsJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AdminApplicationPeriodTest extends TestCase
@@ -137,6 +139,58 @@ class AdminApplicationPeriodTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseCount('audit_logs', 0);
+    }
+
+    public function test_saving_a_schedule_queues_closed_applicant_notifications_after_commit(): void
+    {
+        Queue::fake();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $settings = SystemSetting::current();
+        $settings->update(['approved_applicant_limit' => 1]);
+        $approvedUser = User::factory()->create();
+        $pendingUser = User::factory()->create();
+        \App\Models\Application::factory()->for($approvedUser)->create(['status' => 'approved']);
+        $pending = \App\Models\Application::factory()->for($pendingUser)->create(['status' => 'pending']);
+
+        $response = $this->actingAs($admin)->put(route('admin.settings.update'), [
+            'application_start_date' => now()->subDay()->format('Y-m-d\TH:i'),
+            'application_end_date' => now()->addDay()->format('Y-m-d\TH:i'),
+            'approved_applicant_limit' => 1,
+        ]);
+
+        $response->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame('denied', $pending->fresh()->status);
+        $this->assertDatabaseCount('applicant_notification_deliveries', 0);
+        Queue::assertPushed(NotifyClosedApplicantsJob::class, function (NotifyClosedApplicantsJob $job) use ($pending): bool {
+            return $job->applicationIds === [$pending->id]
+                && $job->limit === 1
+                && $job->afterCommit;
+        });
+        $response->assertSessionHas('approval_limit_notice', fn (string $notice): bool => str_contains($notice, 'being notified in the background'));
+    }
+
+    public function test_settings_update_does_not_send_mail_inline_when_mail_delivery_would_fail(): void
+    {
+        Queue::fake();
+        \Illuminate\Support\Facades\Mail::shouldReceive('to')
+            ->andThrow(new \RuntimeException('Simulated SMTP connection failure.'));
+        $admin = User::factory()->create(['role' => 'admin']);
+        SystemSetting::current()->update(['approved_applicant_limit' => 1]);
+        $approvedUser = User::factory()->create();
+        $pendingUser = User::factory()->create();
+        \App\Models\Application::factory()->for($approvedUser)->create(['status' => 'approved']);
+        \App\Models\Application::factory()->for($pendingUser)->create(['status' => 'pending']);
+
+        $this->actingAs($admin)
+            ->put(route('admin.settings.update'), [
+                'application_start_date' => now()->subDay()->format('Y-m-d\TH:i'),
+                'application_end_date' => now()->addDay()->format('Y-m-d\TH:i'),
+                'approved_applicant_limit' => 1,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        Queue::assertPushed(NotifyClosedApplicantsJob::class);
     }
 
     public function test_admin_cannot_save_a_closing_time_before_the_opening_time(): void

@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\NotifyApplicantsJob;
+use App\Jobs\NotifyClosedApplicantsJob;
 use App\Models\Application;
 use App\Models\AuditAction;
 use App\Models\SystemSetting;
 use App\Models\User;
-use App\Notifications\ApplicantPortalUpdate;
 use App\Services\ApplicationApprovalCapacity;
-use App\Services\ApplicantNotificationService;
 use App\Services\ApplicationReviewSuggestions;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
@@ -97,7 +97,6 @@ class ApplicationController extends Controller
     public function store(
         Request $request,
         AuditLogger $auditLogger,
-        ApplicantNotificationService $notifications,
     )
     {
         $this->normalizeLegacyApplicationData($request);
@@ -254,7 +253,9 @@ class ApplicationController extends Controller
             return $application;
         });
 
-        $notifications->notifyApplicant($applicant, new ApplicantPortalUpdate(
+        NotifyApplicantsJob::dispatch(
+            'users',
+            "application:{$createdApplication->id}:submitted:{$createdApplication->created_at?->getTimestamp()}",
             'notify_documents',
             'Application received',
             'Your SPES application has been received and is pending review by PESO.',
@@ -263,7 +264,8 @@ class ApplicationController extends Controller
                 'status' => 'pending',
                 'event' => 'application_submitted',
             ],
-        ), "application:{$createdApplication->id}:submitted:{$createdApplication->created_at?->getTimestamp()}");
+            userIds: [$applicant->id],
+        )->afterCommit();
 
         return redirect()->route('applications.myApplication')
             ->with('success', 'Your application has been submitted successfully!');
@@ -272,7 +274,6 @@ class ApplicationController extends Controller
     public function update(
         Request $request,
         AuditLogger $auditLogger,
-        ApplicantNotificationService $notifications,
     )
     {
         $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
@@ -417,7 +418,9 @@ class ApplicationController extends Controller
         });
 
         if ($wasDenied) {
-            $notifications->notifyApplicant($applicant, new ApplicantPortalUpdate(
+            NotifyApplicantsJob::dispatch(
+                'users',
+                "application:{$application->id}:resubmitted:{$application->updated_at?->getTimestamp()}",
                 'notify_documents',
                 'Application resubmitted',
                 'Your updated SPES application has been submitted and is pending review by PESO.',
@@ -426,7 +429,8 @@ class ApplicationController extends Controller
                     'status' => 'pending',
                     'event' => 'application_resubmitted',
                 ],
-            ), "application:{$application->id}:resubmitted:{$application->updated_at?->getTimestamp()}");
+                userIds: [$applicant->id],
+            )->afterCommit();
         }
 
         return redirect()->route('applications.myApplication')
@@ -661,14 +665,13 @@ class ApplicationController extends Controller
         Application $application,
         AuditLogger $auditLogger,
         ApplicationApprovalCapacity $capacity,
-        ApplicantNotificationService $notifications,
     )
     {
         $settings = SystemSetting::current();
         $approved = false;
         $justApproved = false;
         $capacityReached = false;
-        $newlyDenied = collect();
+        $newlyDeniedIds = [];
 
         DB::transaction(function () use (
             $application,
@@ -678,7 +681,7 @@ class ApplicationController extends Controller
             &$approved,
             &$justApproved,
             &$capacityReached,
-            &$newlyDenied,
+            &$newlyDeniedIds,
         ): void {
             $lockedSettings = SystemSetting::query()->lockForUpdate()->findOrFail($settings->id);
             $lockedApplication = Application::query()->lockForUpdate()->with('user')->findOrFail($application->id);
@@ -690,11 +693,11 @@ class ApplicationController extends Controller
 
             if ($capacity->isFull($lockedSettings)) {
                 $capacityReached = true;
-                $newlyDenied = $capacity->denyRemainingPending(
+                $newlyDeniedIds = $capacity->denyRemainingPending(
                     $lockedSettings,
                     Auth::user(),
                     $auditLogger,
-                );
+                )->pluck('id')->all();
                 return;
             }
 
@@ -720,16 +723,14 @@ class ApplicationController extends Controller
 
             if ($capacity->isFull($lockedSettings)) {
                 $capacityReached = true;
-                $newlyDenied = $capacity->denyRemainingPending($lockedSettings, Auth::user(), $auditLogger);
+                $newlyDeniedIds = $capacity->denyRemainingPending($lockedSettings, Auth::user(), $auditLogger)->pluck('id')->all();
             }
         });
 
         if (! $approved && $capacityReached) {
-            $capacity->notifyClosedApplicants(
-                $newlyDenied,
-                (int) $settings->fresh()->approved_applicant_limit,
-                $notifications,
-            );
+            if ($newlyDeniedIds !== []) {
+                NotifyClosedApplicantsJob::dispatch($newlyDeniedIds, (int) $settings->fresh()->approved_applicant_limit)->afterCommit();
+            }
 
             return back()
                 ->with('error', 'The approved-applicant limit has been reached. This application was not approved.')
@@ -737,23 +738,24 @@ class ApplicationController extends Controller
         }
 
         if ($justApproved) {
-            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
+            NotifyApplicantsJob::dispatch(
+                'users',
+                "application:{$application->id}:approved:{$application->updated_at?->getTimestamp()}",
                 'notify_documents',
                 'Application approved',
                 'Your SPES application has been approved. Review your application status for next steps.',
                 ['application_id' => $application->id, 'status' => 'approved', 'event' => 'application_approved'],
-            ), "application:{$application->id}:approved:{$application->updated_at?->getTimestamp()}");
+                userIds: [$application->user->id],
+            )->afterCommit();
         }
 
         if ($capacityReached) {
-            $capacity->notifyClosedApplicants(
-                $newlyDenied,
-                (int) $settings->fresh()->approved_applicant_limit,
-                $notifications,
-            );
+            if ($newlyDeniedIds !== []) {
+                NotifyClosedApplicantsJob::dispatch($newlyDeniedIds, (int) $settings->fresh()->approved_applicant_limit)->afterCommit();
+            }
             return back()
                 ->with('success', "Application for {$application->full_name} has been approved. The approved-applicant limit has now been reached.")
-                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed, and remaining pending applicants were notified.');
+                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed. Remaining pending applicants are being notified in the background.');
         }
 
         return back()->with('success', "Application for {$application->full_name} has been approved.");
@@ -765,7 +767,6 @@ class ApplicationController extends Controller
     public function deny(
         Application $application,
         AuditLogger $auditLogger,
-        ApplicantNotificationService $notifications,
     )
     {
         if ($application->status !== 'denied') {
@@ -786,12 +787,15 @@ class ApplicationController extends Controller
                     ],
                 );
             });
-            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
+            NotifyApplicantsJob::dispatch(
+                'users',
+                "application:{$application->id}:denied:{$application->updated_at?->getTimestamp()}",
                 'notify_documents',
                 'Application denied',
                 'Your SPES application was not approved. Review the remarks in your application status for more information.',
                 ['application_id' => $application->id, 'status' => 'denied', 'event' => 'application_denied'],
-            ), "application:{$application->id}:denied:{$application->updated_at?->getTimestamp()}");
+                userIds: [$application->user->id],
+            )->afterCommit();
         }
 
         return back()->with('success', "Application for {$application->full_name} has been denied.");
@@ -804,7 +808,6 @@ class ApplicationController extends Controller
         Request $request,
         Application $application,
         AuditLogger $auditLogger,
-        ApplicantNotificationService $notifications,
     )
     {
         $request->validate([
@@ -833,12 +836,15 @@ class ApplicationController extends Controller
         }
 
         if ($commentChanged) {
-            $notifications->notifyApplicant($application->user, new ApplicantPortalUpdate(
+            NotifyApplicantsJob::dispatch(
+                'users',
+                "application:{$application->id}:feedback:{$application->updated_at?->getTimestamp()}",
                 'notify_documents',
                 'Document requirement update',
                 "PESO left a document requirement update for your application: {$application->admin_comment}",
                 ['application_id' => $application->id, 'event' => 'application_feedback'],
-            ), "application:{$application->id}:feedback:{$application->updated_at?->getTimestamp()}");
+                userIds: [$application->user->id],
+            )->afterCommit();
         }
 
         return back()->with('success', 'Comment saved successfully.');

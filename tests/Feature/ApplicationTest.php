@@ -4,10 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Application;
 use App\Models\User;
-use App\Notifications\ApplicantPortalUpdate;
+use App\Jobs\NotifyApplicantsJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -19,6 +20,8 @@ class ApplicationTest extends TestCase
     /** @test */
     public function user_can_submit_application()
     {
+        Storage::fake('public');
+        Queue::fake();
         $user = User::factory()->create();
         $this->actingAs($user);
 
@@ -34,18 +37,15 @@ class ApplicationTest extends TestCase
         ]);
         $application = Application::where('user_id', $user->id)->firstOrFail();
         $this->assertSame('2nd year', $application->grade_year_level);
-        $this->assertSame('birth-certificate.pdf', $application->document_original_names['resume']);
+        $this->assertStringStartsWith('applications/birth_certificates/', $application->birth_certificate);
+        Storage::disk('public')->assertExists($application->birth_certificate);
+        $this->assertSame('birth-certificate.pdf', $application->document_original_names['birth_certificate']);
         $this->assertSame('certificate-of-enrollment.pdf', $application->document_original_names['certificate_enrollment']);
-        $this->assertDatabaseHas('notifications', [
-            'notifiable_id' => $user->id,
-            'type' => ApplicantPortalUpdate::class,
-        ]);
-        $this->assertDatabaseHas('applicant_notification_deliveries', [
-            'user_id' => $user->id,
-            'event_hash' => hash('sha256', "application:{$application->id}:submitted:{$application->created_at->getTimestamp()}"),
-            'channel' => 'mail',
-            'status' => 'sent',
-        ]);
+        Queue::assertPushed(NotifyApplicantsJob::class, fn (NotifyApplicantsJob $job): bool =>
+            $job->eventKey === "application:{$application->id}:submitted:{$application->created_at->getTimestamp()}"
+            && $job->userIds === [$user->id]
+            && $job->afterCommit
+        );
     }
 
     /** @test */
@@ -84,6 +84,19 @@ class ApplicationTest extends TestCase
             ], false);
     }
 
+    public function test_application_form_uses_birth_certificate_field_name_and_matching_labels(): void
+    {
+            $this->actingAs(User::factory()->create())
+                ->get(route('applications.create'))
+                ->assertOk()
+                ->assertSee('for="birth_certificate"', false)
+                ->assertSee('name="birth_certificate"', false)
+                ->assertSee('id="birth_certificate"', false)
+                ->assertSee('id="birthCertificateName"', false)
+                ->assertSee('validateDocument(this, \'birthCertificateName\')', false)
+                ->assertSee('Birth Certificate');
+    }
+
     /** @test */
     public function application_requires_birth_and_enrollment_certificates()
     {
@@ -91,11 +104,11 @@ class ApplicationTest extends TestCase
         $this->actingAs($user);
 
         $response = $this->post(route('applications.store'), $this->validApplicationPayload([
-            'resume' => null,
+            'birth_certificate' => null,
             'certificate_enrollment' => null,
         ]));
 
-        $response->assertSessionHasErrors(['resume', 'certificate_enrollment']);
+        $response->assertSessionHasErrors(['birth_certificate', 'certificate_enrollment']);
         $this->assertDatabaseMissing('applications', ['user_id' => $user->id]);
     }
 
@@ -140,7 +153,7 @@ class ApplicationTest extends TestCase
     {
         Storage::fake('public');
         $user = User::factory()->create();
-        $birthCertificate = 'applications/resumes/birth-certificate-old.pdf';
+        $birthCertificate = 'applications/birth_certificates/birth-certificate-old.pdf';
         $enrollmentCertificate = 'applications/enrollment/enrollment-old.pdf';
         $gradeCertificate = 'applications/grades/grades.pdf';
         Storage::disk('public')->put($birthCertificate, 'original birth certificate');
@@ -148,12 +161,12 @@ class ApplicationTest extends TestCase
         Storage::disk('public')->put($gradeCertificate, 'original grades');
         $application = Application::factory()->for($user)->create([
             'status' => 'denied',
-            'resume' => $birthCertificate,
+            'birth_certificate' => $birthCertificate,
             'certificate_enrollment' => $enrollmentCertificate,
             'certificate_grade' => $gradeCertificate,
             'mother_name' => 'Existing Mother Name',
             'document_original_names' => [
-                'resume' => 'birth-certificate-old.pdf',
+                'birth_certificate' => 'birth-certificate-old.pdf',
                 'certificate_enrollment' => 'enrollment-old.pdf',
                 'certificate_grade' => 'grades.pdf',
             ],
@@ -168,26 +181,26 @@ class ApplicationTest extends TestCase
             ->assertSee('Choose a replacement PDF (optional)');
 
         $formResponse = $this->get(route('applications.edit'));
-        preg_match('/<input[^>]*name="resume"[^>]*>/', $formResponse->getContent(), $resumeInput);
+        preg_match('/<input[^>]*name="birth_certificate"[^>]*>/', $formResponse->getContent(), $birthCertificateInput);
         preg_match('/<input[^>]*name="certificate_enrollment"[^>]*>/', $formResponse->getContent(), $enrollmentInput);
-        $this->assertNotEmpty($resumeInput);
+        $this->assertNotEmpty($birthCertificateInput);
         $this->assertNotEmpty($enrollmentInput);
-        $this->assertStringNotContainsString('required', $resumeInput[0]);
+        $this->assertStringNotContainsString('required', $birthCertificateInput[0]);
         $this->assertStringNotContainsString('required', $enrollmentInput[0]);
 
         $this->put(route('applications.update'), $this->validApplicationPayload([
-            'resume' => null,
+            'birth_certificate' => null,
             'certificate_enrollment' => null,
             'mother_name' => 'Existing Mother Name',
         ]))->assertRedirect(route('applications.myApplication'));
 
         $application->refresh();
         $this->assertSame('pending', $application->status);
-        $this->assertSame($birthCertificate, $application->resume);
+        $this->assertSame($birthCertificate, $application->birth_certificate);
         $this->assertSame($enrollmentCertificate, $application->certificate_enrollment);
         $this->assertSame($gradeCertificate, $application->certificate_grade);
         $this->assertSame('Existing Mother Name', $application->mother_name);
-        $this->assertSame('birth-certificate-old.pdf', $application->document_original_names['resume']);
+        $this->assertSame('birth-certificate-old.pdf', $application->document_original_names['birth_certificate']);
         Storage::disk('public')->assertExists($birthCertificate);
         Storage::disk('public')->assertExists($enrollmentCertificate);
         Storage::disk('public')->assertExists($gradeCertificate);
@@ -197,33 +210,33 @@ class ApplicationTest extends TestCase
     {
         Storage::fake('public');
         $user = User::factory()->create();
-        $birthCertificate = 'applications/resumes/birth-certificate-old.pdf';
+        $birthCertificate = 'applications/birth_certificates/birth-certificate-old.pdf';
         $enrollmentCertificate = 'applications/enrollment/enrollment-old.pdf';
         Storage::disk('public')->put($birthCertificate, 'original birth certificate');
         Storage::disk('public')->put($enrollmentCertificate, 'original enrollment certificate');
         $application = Application::factory()->for($user)->create([
             'status' => 'denied',
-            'resume' => $birthCertificate,
+            'birth_certificate' => $birthCertificate,
             'certificate_enrollment' => $enrollmentCertificate,
             'document_original_names' => [
-                'resume' => 'birth-certificate-old.pdf',
+                'birth_certificate' => 'birth-certificate-old.pdf',
                 'certificate_enrollment' => 'enrollment-old.pdf',
             ],
         ]);
 
         $this->actingAs($user)
             ->put(route('applications.update'), $this->validApplicationPayload([
-                'resume' => UploadedFile::fake()->create('birth-certificate-replacement.pdf', 100, 'application/pdf'),
+                'birth_certificate' => UploadedFile::fake()->create('birth-certificate-replacement.pdf', 100, 'application/pdf'),
                 'certificate_enrollment' => null,
             ]))
             ->assertRedirect(route('applications.myApplication'));
 
         $application->refresh();
         $this->assertSame('pending', $application->status);
-        $this->assertNotSame($birthCertificate, $application->resume);
-        $this->assertSame('birth-certificate-replacement.pdf', $application->document_original_names['resume']);
+        $this->assertNotSame($birthCertificate, $application->birth_certificate);
+        $this->assertSame('birth-certificate-replacement.pdf', $application->document_original_names['birth_certificate']);
         Storage::disk('public')->assertMissing($birthCertificate);
-        Storage::disk('public')->assertExists($application->resume);
+        Storage::disk('public')->assertExists($application->birth_certificate);
         Storage::disk('public')->assertExists($enrollmentCertificate);
         $this->assertSame($enrollmentCertificate, $application->certificate_enrollment);
     }
@@ -234,16 +247,16 @@ class ApplicationTest extends TestCase
         $user = User::factory()->create();
         Application::factory()->for($user)->create([
             'status' => 'denied',
-            'resume' => null,
+            'birth_certificate' => null,
             'certificate_enrollment' => null,
         ]);
 
         $this->actingAs($user)
             ->put(route('applications.update'), $this->validApplicationPayload([
-                'resume' => null,
+                'birth_certificate' => null,
                 'certificate_enrollment' => null,
             ]))
-            ->assertSessionHasErrors(['resume', 'certificate_enrollment']);
+            ->assertSessionHasErrors(['birth_certificate', 'certificate_enrollment']);
     }
 
     /** @test */
@@ -252,7 +265,7 @@ class ApplicationTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user);
 
-        Application::factory()->for($user)->create(['resume' => null]);
+        Application::factory()->for($user)->create(['birth_certificate' => null]);
 
         $this->get(route('applications.myApplication'))
             ->assertOk()
@@ -266,14 +279,13 @@ class ApplicationTest extends TestCase
         $this->actingAs($user);
 
         Application::factory()->for($user)->create([
-            'resume' => 'applications/resumes/sample.pdf',
+            'birth_certificate' => 'applications/birth_certificates/sample.pdf',
             'status' => 'pending',
         ]);
 
         $this->get(route('applications.myApplication'))
             ->assertOk()
             ->assertSee('Birth Certificate')
-            ->assertDontSee('Resume')
             ->assertSee('View');
     }
 
@@ -284,14 +296,14 @@ class ApplicationTest extends TestCase
         $this->actingAs($user);
 
         Application::factory()->for($user)->create([
-            'resume' => 'applications/resumes/sample.pdf',
+            'birth_certificate' => 'applications/birth_certificates/sample.pdf',
             'certificate_enrollment' => 'applications/enrollment/sample.pdf',
         ]);
 
         $this->get(route('applicant.requirements'))
             ->assertOk()
             ->assertSee('View and manage your application requirements')
-            ->assertSee('0 of 0 requested documents submitted')
+            ->assertSee('0 of 0 requested files submitted')
             ->assertSee('No additional documents have been requested by PESO.')
             ->assertDontSee('Certificate of Enrollment')
             ->assertDontSee('Certificate of Grades')
@@ -384,17 +396,17 @@ class ApplicationTest extends TestCase
     {
         Storage::fake('public');
         $user = User::factory()->create();
-        $path = 'applications/resumes/sample.pdf';
+        $path = 'applications/birth_certificates/sample.pdf';
         $enrollmentPath = 'applications/enrollment/enrollment.pdf';
         Storage::disk('public')->put($path, 'sample pdf');
         Storage::disk('public')->put($enrollmentPath, 'sample enrollment pdf');
 
         $application = Application::factory()->for($user)->create([
-            'resume' => $path,
+            'birth_certificate' => $path,
             'certificate_enrollment' => $enrollmentPath,
             'status' => 'denied',
             'document_original_names' => [
-                'resume' => 'birth-certificate.pdf',
+                'birth_certificate' => 'birth-certificate.pdf',
                 'certificate_enrollment' => 'enrollment-certificate.pdf',
             ],
         ]);
@@ -403,15 +415,15 @@ class ApplicationTest extends TestCase
 
         $this->get(route('applications.myApplication'))
             ->assertOk()
-            ->assertSee(route('applications.document.preview', ['application' => $application, 'document' => 'resume']), false)
+            ->assertSee(route('applications.document.preview', ['application' => $application, 'document' => 'birth_certificate']), false)
             ->assertSee(route('applications.document.preview', ['application' => $application, 'document' => 'certificate_enrollment']), false)
             ->assertDontSee('openDocumentModal');
 
-        $this->get(route('applications.document.preview', ['application' => $application, 'document' => 'resume']))
+        $this->get(route('applications.document.preview', ['application' => $application, 'document' => 'birth_certificate']))
             ->assertOk()
             ->assertSee('Back to application')
             ->assertSee(route('applications.edit'), false)
-            ->assertSee(route('applications.document.stream', ['application' => $application, 'document' => 'resume']), false)
+            ->assertSee(route('applications.document.stream', ['application' => $application, 'document' => 'birth_certificate']), false)
             ->assertSee('Birth Certificate')
             ->assertSee('birth-certificate.pdf');
 
@@ -423,7 +435,7 @@ class ApplicationTest extends TestCase
             ->assertSee('Certificate of Enrollment')
             ->assertSee('enrollment-certificate.pdf');
 
-        $this->get(route('applications.document.stream', ['application' => $application, 'document' => 'resume']))
+        $this->get(route('applications.document.stream', ['application' => $application, 'document' => 'birth_certificate']))
             ->assertOk()
             ->assertHeader('content-disposition', 'inline; filename=birth-certificate.pdf');
 
@@ -435,9 +447,13 @@ class ApplicationTest extends TestCase
     /** @test */
     public function admin_sees_uploaded_birth_certificate_on_application_detail()
     {
+        Storage::fake('public');
+        $path = 'applications/birth_certificates/sample.pdf';
+        Storage::disk('public')->put($path, "%PDF-1.4\nBirth Certificate");
         $admin = User::factory()->create(['role' => 'admin']);
         $application = Application::factory()->create([
-            'resume' => 'applications/resumes/sample.pdf',
+            'birth_certificate' => $path,
+            'document_original_names' => ['birth_certificate' => 'birth-certificate.pdf'],
         ]);
 
         $this->actingAs($admin);
@@ -447,6 +463,14 @@ class ApplicationTest extends TestCase
             ->assertSee('Birth Certificate')
             ->assertSee('View')
             ->assertSee('Download');
+
+        $this->get(route('applications.document.preview', ['application' => $application, 'document' => 'birth_certificate']))
+            ->assertOk()
+            ->assertSee('Birth Certificate')
+            ->assertSee('birth-certificate.pdf');
+        $this->get(route('applications.document.stream', ['application' => $application, 'document' => 'birth_certificate']))
+            ->assertOk()
+            ->assertHeader('content-disposition', 'inline; filename=birth-certificate.pdf');
     }
 
     /** @test */
@@ -487,7 +511,7 @@ class ApplicationTest extends TestCase
             'father_contact_no' => '09987654321',
             'facebook' => 'https://facebook.com/juan',
             'messenger' => 'juan.dela.cruz',
-            'resume' => UploadedFile::fake()->create('birth-certificate.pdf', 100, 'application/pdf'),
+            'birth_certificate' => UploadedFile::fake()->create('birth-certificate.pdf', 100, 'application/pdf'),
             'certificate_enrollment' => UploadedFile::fake()->create('certificate-of-enrollment.pdf', 100, 'application/pdf'),
         ], $overrides);
     }

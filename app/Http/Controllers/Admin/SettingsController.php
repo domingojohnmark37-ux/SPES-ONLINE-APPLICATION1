@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\NotifyClosedApplicantsJob;
 use App\Models\AuditAction;
 use App\Models\AuditLog;
 use App\Models\SystemSetting;
 use App\Mail\SpesMailConfigurationTest;
-use App\Services\ApplicantNotificationService;
 use App\Services\ApplicationApprovalCapacity;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
@@ -51,7 +51,6 @@ class SettingsController extends Controller
         Request $request,
         AuditLogger $auditLogger,
         ApplicationApprovalCapacity $capacity,
-        ApplicantNotificationService $notifications,
     )
     {
         $validated = $request->validate([
@@ -75,7 +74,7 @@ class SettingsController extends Controller
         }
 
         $settings = SystemSetting::current();
-        $pendingApplications = collect();
+        $pendingApplicationIds = [];
         $oldValues = [
             'application_start_date' => $settings->application_start_date?->format('Y-m-d H:i:s'),
             'application_end_date' => $settings->application_end_date?->format('Y-m-d H:i:s'),
@@ -91,7 +90,7 @@ class SettingsController extends Controller
             'approved_applicant_limit' => $validated['approved_applicant_limit'],
         ];
 
-        DB::transaction(function () use ($settings, $validated, $oldValues, $auditValues, $auditLogger, $request, $capacity, $notifications, &$pendingApplications): void {
+        DB::transaction(function () use ($settings, $validated, $oldValues, $auditValues, $auditLogger, $request, $capacity, &$pendingApplicationIds): void {
             $settings->update($validated);
             $auditLogger->recordChanges(
                 $oldValues,
@@ -103,18 +102,23 @@ class SettingsController extends Controller
                 AuditAction::APPLICATION_PERIOD_UPDATED,
                 ['description' => 'Application submission schedule updated'],
             );
-            $pendingApplications = $capacity->denyRemainingPending($settings->fresh(), $request->user(), $auditLogger);
+            $pendingApplicationIds = $capacity->denyRemainingPending($settings->fresh(), $request->user(), $auditLogger)
+                ->pluck('id')
+                ->all();
         });
 
         $settings = $settings->fresh();
-        if ($pendingApplications->isNotEmpty()) {
-            $capacity->notifyClosedApplicants($pendingApplications, (int) $settings->approved_applicant_limit, $notifications);
+        if ($pendingApplicationIds !== []) {
+            NotifyClosedApplicantsJob::dispatch(
+                $pendingApplicationIds,
+                (int) $settings->approved_applicant_limit,
+            )->afterCommit();
         }
 
         if ($capacity->isFull($settings)) {
             return back()
                 ->with('success', 'Application period and approval limit updated successfully.')
-                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed, and remaining pending applicants were notified.');
+                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed. Applicants are being notified in the background.');
         }
 
         return back()->with('success', 'Application period and approval limit updated successfully.');

@@ -3,11 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\NotifyApplicantsJob;
 use App\Http\Requests\StoreNewsRequest;
 use App\Http\Requests\UpdateNewsRequest;
 use App\Models\News;
-use App\Notifications\ApplicantPortalUpdate;
-use App\Services\ApplicantNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -62,14 +61,13 @@ class NewsController extends Controller
     public function update(
         UpdateNewsRequest $request,
         News $news,
-        ApplicantNotificationService $notifications,
     )
     {
         $validated = $request->validated();
         $news->update($validated);
 
         if ($news->is_published && $news->wasChanged(['title', 'content'])) {
-            $this->notifyApplicantsAboutAnnouncement($news, $notifications);
+            $this->notifyApplicantsAboutAnnouncement($news);
         }
 
         return redirect()->route('admin.news.index')
@@ -90,7 +88,7 @@ class NewsController extends Controller
     /**
      * Toggle publish status of a news article
      */
-    public function togglePublish(News $news, ApplicantNotificationService $notifications)
+    public function togglePublish(News $news)
     {
         if ($news->is_published) {
             $news->update([
@@ -103,7 +101,7 @@ class NewsController extends Controller
                 'is_published' => true,
                 'published_at' => now(),
             ]);
-            $this->notifyApplicantsAboutAnnouncement($news, $notifications);
+            $this->notifyApplicantsAboutAnnouncement($news);
             $message = 'News article published.';
         }
 
@@ -111,11 +109,11 @@ class NewsController extends Controller
             ->with('success', $message);
     }
 
-    private function notifyApplicantsAboutAnnouncement(
-        News $news,
-        ApplicantNotificationService $notifications,
-    ): void {
-        $notifications->notifyApplicants(new ApplicantPortalUpdate(
+    private function notifyApplicantsAboutAnnouncement(News $news): void
+    {
+        NotifyApplicantsJob::dispatch(
+            'all',
+            "announcement:{$news->id}:{$news->updated_at?->getTimestamp()}",
             'notify_announcements',
             'New SPES announcement: '.$news->title,
             $news->content,
@@ -124,6 +122,6 @@ class NewsController extends Controller
                 'announcement_title' => $news->title,
                 'announcement_content' => $news->content,
             ],
-        ), "announcement:{$news->id}:{$news->updated_at?->getTimestamp()}");
+        )->afterCommit();
     }
 }
