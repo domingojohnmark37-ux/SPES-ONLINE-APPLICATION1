@@ -311,6 +311,56 @@ class AdditionalRequirementsTest extends TestCase
         ]))->assertOk();
     }
 
+    public function test_applicant_cannot_upload_a_requirement_after_its_deadline(): void
+    {
+        Storage::fake('local');
+        $applicant = User::factory()->create();
+        Application::factory()->for($applicant)->create();
+        $requirement = AdditionalRequirement::create([
+            'name' => 'Deadline Requirement',
+            'is_required' => true,
+            'is_active' => true,
+            'audience' => 'all_applicants',
+            'due_at' => now()->subMinute(),
+        ]);
+
+        $this->actingAs($applicant)
+            ->post(route('applicant.requirements.upload', $requirement), [
+                'documents' => [1 => UploadedFile::fake()->image('late.png')],
+            ])
+            ->assertRedirect(route('applicant.requirements'))
+            ->assertSessionHasErrors('documents');
+
+        $this->assertDatabaseMissing('application_additional_requirements', [
+            'additional_requirement_id' => $requirement->id,
+        ]);
+    }
+
+    public function test_applicant_can_upload_a_requirement_before_its_deadline(): void
+    {
+        Storage::fake('local');
+        $applicant = User::factory()->create();
+        $application = Application::factory()->for($applicant)->create();
+        $requirement = AdditionalRequirement::create([
+            'name' => 'Future Requirement',
+            'is_required' => true,
+            'is_active' => true,
+            'audience' => 'all_applicants',
+            'due_at' => now()->addDay(),
+        ]);
+
+        $this->actingAs($applicant)
+            ->post(route('applicant.requirements.upload', $requirement), [
+                'documents' => [1 => UploadedFile::fake()->image('on-time.png')],
+            ])
+            ->assertRedirect(route('applicant.requirements'));
+
+        $this->assertDatabaseHas('application_additional_requirements', [
+            'application_id' => $application->id,
+            'additional_requirement_id' => $requirement->id,
+        ]);
+    }
+
     public function test_applicant_submits_one_file_for_each_requirement_template_and_can_view_each_separately(): void
     {
         Storage::fake('local');

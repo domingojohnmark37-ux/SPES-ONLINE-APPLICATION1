@@ -103,6 +103,25 @@ class ApplicationTest extends TestCase
         ]);
     }
 
+    public function test_application_age_is_calculated_from_birthday(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('applications.store'), $this->validApplicationPayload([
+                'birthday' => now()->subYears(20)->format('Y-m-d'),
+                'age' => 18,
+            ]))
+            ->assertRedirect(route('applications.myApplication'));
+
+        $this->assertDatabaseHas('applications', [
+            'user_id' => $user->id,
+            'age' => 20,
+        ]);
+    }
+
     public function test_application_form_uses_birth_certificate_field_name_and_matching_labels(): void
     {
             $this->actingAs(User::factory()->create())
@@ -143,6 +162,26 @@ class ApplicationTest extends TestCase
 
         $response->assertSessionHasErrors('middle_name');
         $this->assertDatabaseMissing('applications', ['user_id' => $user->id]);
+    }
+
+    public function test_applicant_can_submit_na_for_middle_name(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('applications.store'), $this->validApplicationPayload([
+                'surname' => 'Dela Cruz',
+                'first_name' => 'Juan',
+                'middle_name' => 'N/A',
+            ]))
+            ->assertRedirect(route('applications.myApplication'));
+
+        $this->assertDatabaseHas('applications', [
+            'user_id' => $user->id,
+            'middle_name' => 'N/A',
+        ]);
     }
 
     /** @test */
@@ -258,6 +297,34 @@ class ApplicationTest extends TestCase
         Storage::disk('local')->assertExists($application->birth_certificate);
         Storage::disk('local')->assertExists($enrollmentCertificate);
         $this->assertSame($enrollmentCertificate, $application->certificate_enrollment);
+    }
+
+    public function test_replacing_birth_certificate_removes_the_old_file_after_update(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $oldPath = 'applications/birth_certificates/birth-certificate-original.pdf';
+        $enrollmentPath = 'applications/enrollment/enrollment-original.pdf';
+        Storage::disk('local')->put($oldPath, 'original birth certificate');
+        Storage::disk('local')->put($enrollmentPath, 'original enrollment certificate');
+        $application = Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'birth_certificate' => $oldPath,
+            'certificate_enrollment' => $enrollmentPath,
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('applications.update'), $this->validApplicationPayload([
+                'birth_certificate' => UploadedFile::fake()->create('birth-certificate-new.pdf', 100, 'application/pdf'),
+                'certificate_enrollment' => null,
+            ]))
+            ->assertRedirect(route('applications.myApplication'));
+
+        $application->refresh();
+        $this->assertNotSame($oldPath, $application->birth_certificate);
+        Storage::disk('local')->assertMissing($oldPath);
+        Storage::disk('local')->assertExists($application->birth_certificate);
+        Storage::disk('local')->assertExists($enrollmentPath);
     }
 
     public function test_reapplication_still_requires_documents_that_are_not_on_file(): void

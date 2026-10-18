@@ -97,6 +97,10 @@ class ApplicantRequirementsController extends Controller
         abort_unless($additionalRequirement->is_active, 404);
         $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
         abort_unless($additionalRequirement->isAvailableTo($application), 403);
+        if ($additionalRequirement->due_at && now()->greaterThan($additionalRequirement->due_at)) {
+            return redirect()->route('applicant.requirements')
+                ->withErrors(['documents' => 'The deadline for this requirement has passed. Please contact PESO.']);
+        }
         if ($application->status !== 'approved' && $capacity->isFull(SystemSetting::current())) {
             return redirect()->route('applicant.requirements')
                 ->with('approval_capacity_closed', true);

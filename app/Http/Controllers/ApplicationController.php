@@ -98,7 +98,6 @@ class ApplicationController extends Controller
         AuditLogger $auditLogger,
     )
     {
-        $hasExplicitMiddleName = $request->exists('middle_name');
         $this->normalizeLegacyApplicationData($request);
 
         // Check if application window is open
@@ -122,7 +121,7 @@ class ApplicationController extends Controller
         }
 
         $middleNameRules = ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'];
-        if ($hasExplicitMiddleName || $request->input('middle_name') !== 'N/A') {
+        if (strtoupper(trim((string) $request->input('middle_name'))) !== 'N/A') {
             $middleNameRules[] = "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u";
         }
 
@@ -155,6 +154,14 @@ class ApplicationController extends Controller
         ], [
             'middle_name.not_regex' => 'Please enter your complete middle name. Single initials such as A or A. are not accepted.',
         ]);
+
+        $computedAge = \Carbon\Carbon::parse($validated['birthday'])->age;
+        if ($computedAge < 15 || $computedAge > 30) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'birthday' => 'Applicants must be between 15 and 30 years old based on the birthday.',
+            ]);
+        }
+        $validated['age'] = $computedAge;
 
         $this->validateFamilyContact($request);
 
@@ -192,6 +199,13 @@ class ApplicationController extends Controller
                 $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
             }
         }
+        $newPaths = array_filter([
+            $birthCertificatePath,
+            $enrollmentPath,
+            $gradePath,
+            $letterPath,
+            $indigencyPath,
+        ]);
 
         $fullName = trim(implode(' ', array_filter([
             $validated['first_name'],
@@ -200,7 +214,8 @@ class ApplicationController extends Controller
         ], fn ($part) => ! empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
 
         $applicant = Auth::user();
-        $createdApplication = DB::transaction(function () use ($validated, $fullName, $birthCertificatePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): Application {
+        try {
+            $createdApplication = DB::transaction(function () use ($validated, $fullName, $birthCertificatePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): Application {
             $application = Application::create([
                 'user_id' => Auth::id(),
                 'full_name' => $fullName,
@@ -256,7 +271,11 @@ class ApplicationController extends Controller
             }
 
             return $application;
-        });
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete(array_filter($newPaths));
+            throw $exception;
+        }
 
         NotifyApplicantsJob::dispatch(
             'users',
@@ -281,7 +300,6 @@ class ApplicationController extends Controller
         AuditLogger $auditLogger,
     )
     {
-        $hasExplicitMiddleName = $request->exists('middle_name');
         $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
         $settings = SystemSetting::current();
         if ($application->status !== 'approved'
@@ -292,7 +310,7 @@ class ApplicationController extends Controller
         }
         $this->normalizeLegacyApplicationData($request);
         $middleNameRules = ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'];
-        if ($hasExplicitMiddleName || $request->input('middle_name') !== 'N/A') {
+        if (strtoupper(trim((string) $request->input('middle_name'))) !== 'N/A') {
             $middleNameRules[] = "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u";
         }
 
@@ -335,26 +353,38 @@ class ApplicationController extends Controller
             'middle_name.not_regex' => 'Please enter your complete middle name. Single initials such as A or A. are not accepted.',
         ]);
 
+        $computedAge = \Carbon\Carbon::parse($validated['birthday'])->age;
+        if ($computedAge < 15 || $computedAge > 30) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'birthday' => 'Applicants must be between 15 and 30 years old based on the birthday.',
+            ]);
+        }
+        $validated['age'] = $computedAge;
+
         $this->validateFamilyContact($request);
         $original = $application->getOriginal();
         $applicant = Auth::user();
         $submittedDocuments = [];
         $documentOriginalNames = $application->document_original_names ?? [];
+        $newPaths = [];
+        $oldPathsToDelete = [];
 
         if ($request->hasFile('birth_certificate')) {
             if ($application->birth_certificate) {
-                Storage::disk('local')->delete($application->birth_certificate);
+                $oldPathsToDelete[] = $application->birth_certificate;
             }
             $application->birth_certificate = $request->file('birth_certificate')->store('applications/birth_certificates', 'local');
+            $newPaths[] = $application->birth_certificate;
             $documentOriginalNames['birth_certificate'] = $request->file('birth_certificate')->getClientOriginalName();
             $submittedDocuments['Birth Certificate'] = true;
         }
         foreach (['certificate_enrollment' => 'applications/enrollment', 'certificate_grade' => 'applications/grades'] as $document => $directory) {
             if ($request->hasFile($document)) {
                 if ($application->{$document}) {
-                    Storage::disk('local')->delete($application->{$document});
+                    $oldPathsToDelete[] = $application->{$document};
                 }
                 $application->{$document} = $request->file($document)->store($directory, 'local');
+                $newPaths[] = $application->{$document};
                 $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
                 if ($document === 'certificate_enrollment') {
                     $submittedDocuments['Certificate of Enrollment'] = true;
@@ -365,17 +395,19 @@ class ApplicationController extends Controller
         }
         if ($request->hasFile('application_letter')) {
             if ($application->application_letter) {
-                Storage::disk('local')->delete($application->application_letter);
+                $oldPathsToDelete[] = $application->application_letter;
             }
             $application->application_letter = $request->file('application_letter')->store('applications/letters', 'local');
+            $newPaths[] = $application->application_letter;
             $documentOriginalNames['application_letter'] = $request->file('application_letter')->getClientOriginalName();
             $submittedDocuments['Application Letter'] = true;
         }
         if ($request->hasFile('indigency')) {
             if ($application->indigency) {
-                Storage::disk('local')->delete($application->indigency);
+                $oldPathsToDelete[] = $application->indigency;
             }
             $application->indigency = $request->file('indigency')->store('applications/indigency', 'local');
+            $newPaths[] = $application->indigency;
             $documentOriginalNames['indigency'] = $request->file('indigency')->getClientOriginalName();
             $submittedDocuments['Certificate of Indigency'] = true;
         }
@@ -402,7 +434,8 @@ class ApplicationController extends Controller
             $updates['admin_comment'] = null;
         }
 
-        DB::transaction(function () use ($application, $updates, $original, $applicant, $submittedDocuments, $auditLogger): void {
+        try {
+            DB::transaction(function () use ($application, $updates, $original, $applicant, $submittedDocuments, $auditLogger): void {
             $application->update($updates);
             $auditedFields = [
                 'full_name', 'surname', 'first_name', 'middle_name', 'sex', 'birthday', 'age',
@@ -425,7 +458,13 @@ class ApplicationController extends Controller
             foreach (array_keys($submittedDocuments) as $documentLabel) {
                 $auditLogger->recordDocumentSubmitted($applicant, $application, $documentLabel);
             }
-        });
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete(array_filter($newPaths));
+            throw $exception;
+        }
+
+        Storage::disk('local')->delete(array_filter($oldPathsToDelete));
 
         if ($wasDenied) {
             NotifyApplicantsJob::dispatch(

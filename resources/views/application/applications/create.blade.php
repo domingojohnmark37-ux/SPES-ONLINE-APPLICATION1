@@ -245,6 +245,7 @@
                     <div class="form-group">
                         <label>{{ __('Middle Name') }} <span class="req">*</span></label>
                         <input type="text" name="middle_name" id="middle_name" value="{{ $getDefault('middle_name') }}" placeholder="{{ __('Middle Name') }}" required>
+                        <small>{{ __('No middle name? Type N/A.') }}</small>
                         @error('middle_name')<div class="error">{{ $message }}</div>@enderror
                         <div id="middle_name_warning" class="error" style="display:none; margin-top:5px;">{{ __('Please enter your complete middle name. Single initials such as A or A. are not accepted.') }}</div>
                     </div>

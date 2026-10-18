@@ -18,7 +18,7 @@ class ApplicationsExport implements FromQuery, WithHeadings, WithMapping
 
     public function query()
     {
-        $query = Application::query();
+        $query = Application::query()->with('user.profile');
 
         // Apply filters
         if (!empty($this->filters['status'])) {
@@ -74,7 +74,7 @@ class ApplicationsExport implements FromQuery, WithHeadings, WithMapping
             $application->barangay,
             $application->civil_status,
             $application->spes_status === 'new' ? 'New' : 'SPES Baby',
-            $application->contact_no,
+            $application->contact_no ?: ($application->user?->profile?->contact_number ?: ($application->mother_contact_no ?: $application->father_contact_no)),
             ucfirst($application->status),
             $application->created_at->format('Y-m-d H:i'),
         ];
