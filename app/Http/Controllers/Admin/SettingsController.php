@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\NotifyClosedApplicantsJob;
+use App\Jobs\EnforceApprovalApplicantLimitJob;
+use App\Mail\SpesMailConfigurationTest;
 use App\Models\AuditAction;
 use App\Models\AuditLog;
 use App\Models\SystemSetting;
-use App\Mail\SpesMailConfigurationTest;
 use App\Services\ApplicationApprovalCapacity;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
@@ -74,7 +74,6 @@ class SettingsController extends Controller
         }
 
         $settings = SystemSetting::current();
-        $pendingApplicationIds = [];
         $oldValues = [
             'application_start_date' => $settings->application_start_date?->format('Y-m-d H:i:s'),
             'application_end_date' => $settings->application_end_date?->format('Y-m-d H:i:s'),
@@ -90,7 +89,7 @@ class SettingsController extends Controller
             'approved_applicant_limit' => $validated['approved_applicant_limit'],
         ];
 
-        DB::transaction(function () use ($settings, $validated, $oldValues, $auditValues, $auditLogger, $request, $capacity, &$pendingApplicationIds): void {
+        DB::transaction(function () use ($settings, $validated, $oldValues, $auditValues, $auditLogger, $request): void {
             $settings->update($validated);
             $auditLogger->recordChanges(
                 $oldValues,
@@ -102,26 +101,62 @@ class SettingsController extends Controller
                 AuditAction::APPLICATION_PERIOD_UPDATED,
                 ['description' => 'Application submission schedule updated'],
             );
-            $pendingApplicationIds = $capacity->denyRemainingPending($settings->fresh(), $request->user(), $auditLogger)
-                ->pluck('id')
-                ->all();
         });
 
         $settings = $settings->fresh();
-        if ($pendingApplicationIds !== []) {
-            NotifyClosedApplicantsJob::dispatch(
-                $pendingApplicationIds,
-                (int) $settings->approved_applicant_limit,
-            )->afterCommit();
-        }
-
         if ($capacity->isFull($settings)) {
+            EnforceApprovalApplicantLimitJob::dispatch($request->user()->id);
+
             return back()
                 ->with('success', 'Application period and approval limit updated successfully.')
-                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed. Applicants are being notified in the background.');
+                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed. Remaining pending applications are being processed in the background.');
         }
 
         return back()->with('success', 'Application period and approval limit updated successfully.');
+    }
+
+    public function updateApprovalLimit(
+        Request $request,
+        AuditLogger $auditLogger,
+        ApplicationApprovalCapacity $capacity,
+    ) {
+        $validated = $request->validate([
+            'approved_applicant_limit' => 'nullable|integer|min:1|max:100000',
+        ]);
+        $limit = $validated['approved_applicant_limit'] ?? null;
+        $settings = SystemSetting::current();
+        $oldLimit = $settings->approved_applicant_limit;
+
+        DB::transaction(function () use ($settings, $limit, $oldLimit, $auditLogger, $request): void {
+            $settings->update(['approved_applicant_limit' => $limit]);
+            $auditLogger->recordChanges(
+                ['approved_applicant_limit' => $oldLimit],
+                ['approved_applicant_limit' => $limit],
+                'Application Period',
+                $request->user(),
+                null,
+                null,
+                AuditAction::APPLICATION_PERIOD_UPDATED,
+                ['description' => 'Approved-applicant limit updated'],
+            );
+        });
+
+        $settings = $settings->fresh();
+        $approvedCount = $capacity->approvedCount($settings);
+        $isFull = $capacity->isFull($settings);
+
+        if ($isFull) {
+            EnforceApprovalApplicantLimitJob::dispatch($request->user()->id);
+        }
+
+        return response()->json([
+            'limit' => $settings->approved_applicant_limit,
+            'approved_count' => $approvedCount,
+            'full' => $isFull,
+            'message' => $isFull
+                ? 'Maximum saved. Remaining pending applications are being processed in the background.'
+                : 'Maximum saved.',
+        ]);
     }
 
     public function sendTestEmail(Request $request)

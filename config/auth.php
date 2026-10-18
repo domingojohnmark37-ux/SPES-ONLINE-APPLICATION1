@@ -111,5 +111,6 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+    'login_ip_max_attempts' => env('LOGIN_IP_MAX_ATTEMPTS', 20),
 
 ];

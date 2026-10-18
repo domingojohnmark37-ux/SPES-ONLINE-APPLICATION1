@@ -98,6 +98,7 @@ class ApplicationController extends Controller
         AuditLogger $auditLogger,
     )
     {
+        $hasExplicitMiddleName = $request->exists('middle_name');
         $this->normalizeLegacyApplicationData($request);
 
         // Check if application window is open
@@ -120,10 +121,15 @@ class ApplicationController extends Controller
                 ->with('error', 'You have already submitted an application.');
         }
 
+        $middleNameRules = ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'];
+        if ($hasExplicitMiddleName || $request->input('middle_name') !== 'N/A') {
+            $middleNameRules[] = "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u";
+        }
+
         $validated = $request->validate([
-            'surname' => 'required|string|max:255',
-            'first_name' => 'required|string|max:255',
-            'middle_name' => ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'],
+            'surname' => ['required', 'string', 'max:255', "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u"],
+            'first_name' => ['required', 'string', 'max:255', "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u"],
+            'middle_name' => $middleNameRules,
             'sex' => 'required|in:Male,Female',
             'birthday' => 'required|date|before:today',
             'age' => 'required|integer|min:15|max:30',
@@ -160,19 +166,19 @@ class ApplicationController extends Controller
         $indigencyPath = null;
 
         if ($request->hasFile('birth_certificate')) {
-            $birthCertificatePath = $request->file('birth_certificate')->store('applications/birth_certificates', 'public');
+            $birthCertificatePath = $request->file('birth_certificate')->store('applications/birth_certificates', 'local');
         }
         if ($request->hasFile('certificate_enrollment')) {
-            $enrollmentPath = $request->file('certificate_enrollment')->store('applications/enrollment', 'public');
+            $enrollmentPath = $request->file('certificate_enrollment')->store('applications/enrollment', 'local');
         }
         if ($request->hasFile('certificate_grade')) {
-            $gradePath = $request->file('certificate_grade')->store('applications/grades', 'public');
+            $gradePath = $request->file('certificate_grade')->store('applications/grades', 'local');
         }
         if ($request->hasFile('application_letter')) {
-            $letterPath = $request->file('application_letter')->store('applications/letters', 'public');
+            $letterPath = $request->file('application_letter')->store('applications/letters', 'local');
         }
         if ($request->hasFile('indigency')) {
-            $indigencyPath = $request->file('indigency')->store('applications/indigency', 'public');
+            $indigencyPath = $request->file('indigency')->store('applications/indigency', 'local');
         }
         $documentOriginalNames = [];
         foreach ([
@@ -275,6 +281,7 @@ class ApplicationController extends Controller
         AuditLogger $auditLogger,
     )
     {
+        $hasExplicitMiddleName = $request->exists('middle_name');
         $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
         $settings = SystemSetting::current();
         if ($application->status !== 'approved'
@@ -284,20 +291,24 @@ class ApplicationController extends Controller
                 ->with('approval_capacity_closed', true);
         }
         $this->normalizeLegacyApplicationData($request);
+        $middleNameRules = ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'];
+        if ($hasExplicitMiddleName || $request->input('middle_name') !== 'N/A') {
+            $middleNameRules[] = "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u";
+        }
 
         $documentRules = [
-            'birth_certificate' => $application->birth_certificate && Storage::disk('public')->exists($application->birth_certificate)
+            'birth_certificate' => $application->birth_certificate && Storage::disk('local')->exists($application->birth_certificate)
                 ? 'nullable|file|mimes:pdf|max:5120'
                 : 'required|file|mimes:pdf|max:5120',
-            'certificate_enrollment' => $application->certificate_enrollment && Storage::disk('public')->exists($application->certificate_enrollment)
+            'certificate_enrollment' => $application->certificate_enrollment && Storage::disk('local')->exists($application->certificate_enrollment)
                 ? 'nullable|file|mimes:pdf|max:5120'
                 : 'required|file|mimes:pdf|max:5120',
         ];
 
         $validated = $request->validate([
-            'surname' => 'required|string|max:255',
-            'first_name' => 'required|string|max:255',
-            'middle_name' => ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'],
+            'surname' => ['required', 'string', 'max:255', "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u"],
+            'first_name' => ['required', 'string', 'max:255', "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u"],
+            'middle_name' => $middleNameRules,
             'sex' => 'required|in:Male,Female',
             'birthday' => 'required|date|before:today',
             'age' => 'required|integer|min:15|max:30',
@@ -332,18 +343,18 @@ class ApplicationController extends Controller
 
         if ($request->hasFile('birth_certificate')) {
             if ($application->birth_certificate) {
-                Storage::disk('public')->delete($application->birth_certificate);
+                Storage::disk('local')->delete($application->birth_certificate);
             }
-            $application->birth_certificate = $request->file('birth_certificate')->store('applications/birth_certificates', 'public');
+            $application->birth_certificate = $request->file('birth_certificate')->store('applications/birth_certificates', 'local');
             $documentOriginalNames['birth_certificate'] = $request->file('birth_certificate')->getClientOriginalName();
             $submittedDocuments['Birth Certificate'] = true;
         }
         foreach (['certificate_enrollment' => 'applications/enrollment', 'certificate_grade' => 'applications/grades'] as $document => $directory) {
             if ($request->hasFile($document)) {
                 if ($application->{$document}) {
-                    Storage::disk('public')->delete($application->{$document});
+                    Storage::disk('local')->delete($application->{$document});
                 }
-                $application->{$document} = $request->file($document)->store($directory, 'public');
+                $application->{$document} = $request->file($document)->store($directory, 'local');
                 $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
                 if ($document === 'certificate_enrollment') {
                     $submittedDocuments['Certificate of Enrollment'] = true;
@@ -354,17 +365,17 @@ class ApplicationController extends Controller
         }
         if ($request->hasFile('application_letter')) {
             if ($application->application_letter) {
-                Storage::disk('public')->delete($application->application_letter);
+                Storage::disk('local')->delete($application->application_letter);
             }
-            $application->application_letter = $request->file('application_letter')->store('applications/letters', 'public');
+            $application->application_letter = $request->file('application_letter')->store('applications/letters', 'local');
             $documentOriginalNames['application_letter'] = $request->file('application_letter')->getClientOriginalName();
             $submittedDocuments['Application Letter'] = true;
         }
         if ($request->hasFile('indigency')) {
             if ($application->indigency) {
-                Storage::disk('public')->delete($application->indigency);
+                Storage::disk('local')->delete($application->indigency);
             }
-            $application->indigency = $request->file('indigency')->store('applications/indigency', 'public');
+            $application->indigency = $request->file('indigency')->store('applications/indigency', 'local');
             $documentOriginalNames['indigency'] = $request->file('indigency')->getClientOriginalName();
             $submittedDocuments['Certificate of Indigency'] = true;
         }
@@ -558,14 +569,18 @@ class ApplicationController extends Controller
     public function streamDocument(Application $application, string $document)
     {
         $path = $this->authorizedDocumentPath($application, $document);
-        $filePath = Storage::disk('public')->path($path);
+        $filePath = Storage::disk('local')->path($path);
         $originalName = $application->document_original_names[$document] ?? basename($path);
         $fileName = basename(str_replace('\\', '/', $originalName));
         $fallbackName = Str::ascii($fileName) ?: 'application-document.pdf';
 
-        return response()->file($filePath, [
+        $response = response()->file($filePath, [
             'Content-Disposition' => HeaderUtils::makeDisposition('inline', $fileName, $fallbackName),
+            'X-Content-Type-Options' => 'nosniff',
         ]);
+        $response->headers->set('Cache-Control', 'private, no-store');
+
+        return $response;
     }
 
     private function authorizedDocumentPath(Application $application, string $document): string
@@ -580,7 +595,7 @@ class ApplicationController extends Controller
         }
 
         $path = $application->{$document};
-        if (! $path || ! Storage::disk('public')->exists($path)) {
+        if (! $path || ! Storage::disk('local')->exists($path)) {
             abort(404);
         }
 

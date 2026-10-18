@@ -76,21 +76,84 @@
 
         /* Topbar */
         .topbar {
-            position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 72px;
-            background: var(--white); box-shadow: var(--shadow); display: flex; align-items: center;
-            justify-content: space-between; padding: 0 22px; z-index: 90;
+            position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 140px;
+            isolation:isolate;
+            background-color:#3c050a;
+            background-image:url('{{ asset("assets/images/lallo-bridge-sunset.jpg") }}');
+            background-position:center 45%;
+            background-size:cover;
+            background-repeat:no-repeat;
+            box-shadow: var(--shadow); display: flex; align-items: center;
+            justify-content: space-between; gap: 24px; padding: 0 28px; z-index: 90;
         }
-        .topbar .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .topbar::before {
+            position:absolute;
+            z-index:0;
+            inset:0;
+            background:
+                linear-gradient(90deg,rgba(60,5,10,.85) 0%,rgba(60,5,10,.6) 35%,rgba(0,0,0,.25) 65%,rgba(0,0,0,.35) 100%),
+                linear-gradient(180deg,rgba(0,0,0,.25) 0%,transparent 40%,rgba(0,0,0,.3) 100%);
+            content:"";
+            pointer-events:none;
+        }
+        .topbar > :not(script) { position:relative; z-index:1; }
+        .topbar .brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
         .topbar .brand > div { min-width: 0; }
-        .topbar h1 { font-size: var(--type-title); font-weight: 700; color: var(--type-primary-color); }
-        .topbar p { font-size: var(--type-secondary); color: var(--type-secondary-color); margin-top: .25rem; }
-        .topbar-right { display: flex; align-items: center; gap: 16px; flex: 0 0 auto; }
+        .topbar h1 { font-size: clamp(1.6rem, 2.2vw, 2rem); font-weight: 700; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+        .topbar h1 .welcome-name { color: #F5B800; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+        .topbar .brand p { font-size: 14px; font-weight: 400; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.7); margin-top: .2rem; }
+        .topbar .brand .tagline { margin-top: .25rem; font-size: 12px; font-style: italic; font-weight: 400; color: #fff; }
+        .topbar-right { display: flex; align-items: center; gap: 20px; flex: 0 0 auto; }
+        .topbar .notif { flex: 0 0 auto; }
+        .topbar .notif .bell {
+            width: 40px; height: 40px; border: 0; border-radius: 10px;
+            padding: 0; appearance: none; background: rgba(255,255,255,.92); color: #8B0000;
+            box-shadow: 0 4px 12px rgba(0,0,0,.35);
+        }
+        .topbar .notif .bell svg.icon { color: #8B0000 !important; }
+        .topbar .notif .count { top: -6px; right: -6px; min-width: 18px; padding: 3px 5px; border: 1px solid #fff; background: #d62828; color:#fff; }
+        .topbar .user-menu { position: relative; }
+        .topbar .user-pill {
+            gap: 10px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.25);
+            border-radius: 999px; background: rgba(30,5,10,.65); backdrop-filter:blur(8px);
+            cursor: pointer; appearance: none;
+            color: #fff; font: inherit; text-align: left;
+        }
+        .topbar .user-pill img {
+            width: 44px; height: 44px; flex: 0 0 44px; border: 2px solid rgba(245,184,0,.9);
+            background: #391e14; object-fit: cover;
+        }
+        .topbar .user-pill .user-avatar-fallback {
+            display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center;
+            border: 2px solid rgba(245,184,0,.9); border-radius: 50%; background: #391e14; color: #F5B800;
+        }
+        .topbar .user-pill > div { min-width: 0; }
+        .topbar .user-pill .user-meta { display: block; max-width: 190px; text-align: left; }
+        .topbar .user-pill .user-name { display: block; overflow: hidden; color: #fff; font-size: 14px; font-weight: 700; text-shadow:0 1px 4px rgba(0,0,0,.7); text-overflow: ellipsis; white-space: nowrap; }
+        .topbar .user-pill .user-email { display: block; overflow: hidden; color: rgba(255,255,255,.9); font-size: 12px; text-shadow:0 1px 4px rgba(0,0,0,.7); text-overflow: ellipsis; white-space: nowrap; }
+        .topbar .user-chevron { color: #fff; font-size: .75rem; transition: transform .18s; }
+        .topbar .user-pill[aria-expanded="true"] .user-chevron { transform: rotate(180deg); }
+        .topbar .lalo-brand { position:relative; isolation:isolate; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; min-width: 132px; text-align: center; }
+        .topbar .lalo-brand::before { position:absolute; z-index:-1; inset:-12px -18px; border-radius:50%; background:radial-gradient(circle,rgba(0,0,0,.35),transparent 70%); content:""; pointer-events:none; }
+        .topbar .lalo-brand-name { color: #F5B800; font-family: "Dancing Script", "Segoe Script", cursive; font-size: 28px; font-weight: 700; line-height: 1; text-shadow:0 2px 6px rgba(0,0,0,.7); }
+        .topbar .lalo-brand-tagline { margin-top: 4px; color: #fff; font-size: 10px; text-shadow:0 1px 4px rgba(0,0,0,.8); white-space: nowrap; }
+        .topbar .profile-dropdown {
+            position: absolute; top: calc(100% + 10px); right: 0; display: none; width: 190px; padding: 6px;
+            border: 1px solid var(--border); border-radius: 10px; background: var(--white);
+            box-shadow: 0 10px 30px rgba(0,0,0,.2); z-index: 125;
+        }
+        .topbar .profile-dropdown.open { display: grid; }
+        .topbar .profile-dropdown a { display: flex; align-items: center; gap: 9px; padding: 10px; border-radius: 7px; color: var(--text); font-size: .84rem; text-decoration: none; }
+        .topbar .profile-dropdown a:hover, .topbar .profile-dropdown a:focus-visible { background: rgba(139,0,0,.08); color: var(--primary); outline: none; }
+        .topbar .profile-dropdown form { margin: 0; }
+        .topbar .profile-dropdown button { display: flex; width: 100%; align-items: center; gap: 9px; padding: 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: .84rem; text-align: left; cursor: pointer; }
+        .topbar .profile-dropdown button:hover, .topbar .profile-dropdown button:focus-visible { background: rgba(139,0,0,.08); color: var(--primary); outline: none; }
         .date-pill {
             background: #f9f5ea; border: 1px solid var(--border); padding: 8px 12px;
             border-radius: 10px; color: var(--primary); font-weight: 700;
         }
         .notif { position:relative; }
-        .notif .bell { position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:10px; background:#f3f6f5; cursor:pointer; }
+        .notif .bell { position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border:1px solid rgba(255,255,255,.28); border-radius:10px; background:rgba(255,255,255,.16); color:#fff; cursor:pointer; }
         .notif .count { position:absolute; top:-6px; right:-6px; background:#e53935; color:#fff; font-size:.72rem; padding:3px 6px; border-radius:999px; font-weight:700; }
         .notif-dropdown { position:absolute; right:0; top:48px; display:none; width:min(360px,calc(100vw - 24px)); max-height:min(72vh,620px); overflow:hidden; border:1px solid var(--border); border-radius:10px; background:var(--white); box-shadow:0 10px 30px rgba(0,0,0,.14); z-index:120; }
         .notif-dropdown.open { display:flex; flex-direction:column; }
@@ -116,7 +179,7 @@
         .badge-baby     { background: #f3e5f5; color: #6a1b9a; }
 
         /* Main */
-        .page-wrapper { margin-left: var(--sidebar-w); padding-top: 72px; }
+        .page-wrapper { margin-left: var(--sidebar-w); padding-top: 140px; }
         .page-content { padding: 20px; max-width: 1600px; margin: 0 auto; }
 
         /* Cards */
@@ -124,13 +187,15 @@
             background: var(--white); border-radius: 12px; box-shadow: var(--shadow);
             overflow: hidden; margin-bottom: 20px; border: 1px solid rgba(139,0,0,.04);
         }
-        .card-header { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-        .card-header h2 { font-size: var(--type-section); font-weight: 600; color: var(--type-primary-color); }
+        .card-header { padding: 13px 18px; border-bottom: 2px solid var(--accent); background: linear-gradient(100deg, var(--primary-dark), var(--primary)); display: flex; align-items: center; justify-content: space-between; }
+        .card-header h2 { font-size: var(--type-section); font-weight: 600; color: #fff; }
+        .card-header a { color: #ffe28a !important; }
         .card-body { padding: 18px; }
 
         /* Stat cards */
         .stats-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
         .stats-row.summary-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+        .summary-stats .summary-card { border-left: 4px solid var(--accent); }
         .stat-card {
             background: var(--white); border-radius: 12px; padding: 18px; box-shadow: var(--shadow);
             display:flex; align-items:center; gap:14px; border: 1px solid rgba(139,0,0,.04);
@@ -145,11 +210,20 @@
         /* Hero / welcome */
         .layout-grid { display: grid; grid-template-columns: minmax(0,1.75fr) minmax(280px,1fr); gap: 14px; align-items: start; }
         .layout-grid > div { min-width: 0; }
-        .hero { display: flex; gap: 18px; align-items: center; padding: 20px; }
-        .hero-ill {
-            width: 84px; height: 84px; background: linear-gradient(135deg, var(--accent-soft), #f8f3d9);
-            border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px rgba(139,0,0,.04);
+        .hero {
+            position: relative; display: flex; gap: 18px; align-items: center; min-height: 132px; padding: 20px;
+            background-color: #fff;
+            background-image: linear-gradient(90deg, #fff 0%, rgba(255,255,255,.98) 42%, rgba(255,255,255,.82) 72%, rgba(255,255,255,.42) 100%), url('{{ asset("images/lal-lo-bridge.png") }}');
+            background-position: center, right center;
+            background-size: 100% 100%, auto 100%;
+            background-repeat: no-repeat;
         }
+        .hero-ill {
+            width: 84px; height: 84px; flex: 0 0 84px; padding: 4px; background: #fff;
+            border: 2px solid var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,.12); overflow: hidden;
+        }
+        .hero-ill img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; }
         .hero h3 { font-size: var(--type-section); color: var(--type-primary-color); font-weight:600; margin-bottom: .3rem; }
         .hero p { color: var(--type-secondary-color); font-size:var(--type-secondary); line-height:var(--type-line-height); }
         .quick-actions { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
@@ -189,7 +263,7 @@
         .summary-card .summary-progress { height: 6px; width: min(130px,100%); margin-top: 9px; border-radius: 99px; background: #edf0f2; overflow: hidden; }
         .summary-card .summary-progress span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
         .dashboard-section { margin-top: 14px; }
-        .dashboard-section .card-header a { color: var(--info); font-size: .76rem; font-weight: 700; text-decoration: none; }
+        .dashboard-section .card-header a { font-size: .76rem; font-weight: 700; text-decoration: none; }
         .announcement-list { display: grid; gap: 0; }
         .announcement-item { padding: 12px 0; border-bottom: 1px solid #edf0f2; }
         .announcement-item:first-child { padding-top: 0; }
@@ -217,6 +291,16 @@
         .quick-action-link { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-size: .84rem; font-weight: 700; text-decoration: none; }
         .quick-action-link svg.icon { width: 18px; color: var(--primary); }
         .quick-action-link:hover { border-color: var(--primary); background: #fffafa; }
+        .profile-completion { display: flex; align-items: center; gap: 14px; }
+        .completion-ring {
+            position: relative; display: grid; width: 64px; height: 64px; flex: 0 0 64px; place-items: center; border-radius: 50%;
+            background: conic-gradient(var(--accent) var(--completion), #edf0f2 var(--completion));
+        }
+        .completion-ring::before { content: ""; position: absolute; width: 48px; height: 48px; border-radius: 50%; background: var(--white); }
+        .completion-ring span { position: relative; z-index: 1; color: var(--primary); font-size: .72rem; font-weight: 800; }
+        .completion-copy { min-width: 0; }
+        .completion-copy strong { display: block; color: var(--type-primary-color); font-size: .88rem; }
+        .completion-copy a { display: inline-block; margin-top: 5px; color: var(--info); font-size: var(--type-caption); font-weight: 700; text-decoration: none; }
         .requirement-list { display: grid; gap: 11px; }
         .requirement-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .82rem; }
         .requirement-item span:first-child { display: flex; align-items: center; gap: 8px; }
@@ -290,7 +374,7 @@
         @media(max-width:900px) {
             .stats-row { grid-template-columns: repeat(2,minmax(0,1fr)); }
             .topbar { left: 0; }
-            .page-wrapper { margin-left: 0; padding-top: 72px; }
+            .page-wrapper { margin-left: 0; padding-top: 140px; }
             .applicant-sidebar:not(.open) { transform: translateX(-100%); }
             .applicant-sidebar.open { transform: translateX(0); }
             .applicant-sidebar .sidebar-brand .sidebar-close { display: inline-flex; }
@@ -304,16 +388,24 @@
                 cursor: pointer;
             }
         }
+        @media(max-width:1100px) {
+            .topbar .lalo-brand { display: none; }
+        }
         @media(max-width:767.98px) {
-            .topbar { height: 60px; padding: 0 12px; gap: 8px; }
+            .topbar { height: 104px; padding: 0 12px; gap: 8px; background-position:65% center; }
             .topbar .brand { min-width: 0; flex: 1; gap: 8px; }
-            .topbar h1 { overflow: hidden; font-size: var(--type-section); text-overflow: ellipsis; white-space: nowrap; }
-            .topbar p { display: none; }
+            .topbar h1 { overflow: hidden; font-size: 1.2rem; text-overflow: ellipsis; white-space: nowrap; }
+            .topbar .brand p { display: block; font-size: 11px; }
+            .topbar .brand .tagline { display: block; font-size: 10px; }
             .hamburger { flex: 0 0 auto; margin-right: 0; }
             .topbar-right { flex: 0 0 auto; gap: 8px; }
-            .user-pill > div { display: none; }
-            .user-pill img { width: 34px; height: 34px; }
-            .page-wrapper { padding-top: 60px; }
+            .topbar .user-pill { gap: 0; padding: 3px; border: 0; background: transparent; }
+            .topbar .user-pill .user-meta,
+            .topbar .user-pill .user-chevron { display: none; }
+            .topbar .user-pill img,
+            .topbar .user-pill .user-avatar-fallback { width: 38px; height: 38px; flex-basis: 38px; }
+            .topbar .notif .bell { width: 38px; height: 38px; }
+            .page-wrapper { padding-top: 104px; }
             .page-content { min-width: 0; padding: 14px clamp(12px, 3.5vw, 20px); }
             .stats-row { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
             .stat-card { min-width: 0; padding: 14px; }
@@ -328,7 +420,7 @@
                 gap: 12px;
                 padding: 16px;
             }
-            .hero-ill { width: 52px; height: 52px; }
+            .hero-ill { width: 52px; height: 52px; flex-basis: 52px; }
             .hero h3 { font-size: 1rem; }
             .hero p { font-size: .9rem; line-height: 1.45; overflow-wrap: anywhere; }
             .hero > div:nth-child(2) { min-width: 0; }
@@ -375,22 +467,27 @@
 
 <x-applicant-sidebar />
 
+@php
+    $applicantFirstName = explode(' ', trim(Auth::user()->name))[0];
+    $headerWelcome = __('Welcome back, :name!', ['name' => '__APPLICANT_NAME__']);
+@endphp
 <header class="topbar">
     <div class="brand" style="display:flex;align-items:center;">
         <button class="hamburger" type="button" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Toggle applicant navigation') }}"><x-icon class="fa-solid fa-bars" aria-hidden="true" /></button>
         <div>
-            <h1>{{ __('Welcome back, :name!', ['name' => explode(' ', Auth::user()->name)[0]]) }}</h1>
+            <h1>{!! str_replace('__APPLICANT_NAME__', '<span class="welcome-name">'.e($applicantFirstName).'</span>', e($headerWelcome)) !!}</h1>
             <p>{{ __('SPES Applicant Portal') }}</p>
+            <p class="tagline">{{ __('Empowering Youth Since 1992') }}</p>
         </div>
     </div>
     <div class="topbar-right">
         <div class="notif">
-            <div class="bell" id="notifBellUser" title="{{ __('Notifications') }}">
-                <x-icon class="fa-solid fa-bell" style="color:var(--primary);" />
+            <button class="bell" id="notifBellUser" type="button" title="{{ __('Notifications') }}" aria-label="{{ __('Notifications') }}" aria-controls="notifDropdownUser" aria-expanded="false">
+                <x-icon class="fa-solid fa-bell" style="color:#fff;" />
                 @if($unread_u > 0)
                     <div class="count" id="notifCountUser">{{ $unread_u }}</div>
                 @endif
-            </div>
+            </button>
             <div class="notif-dropdown" id="notifDropdownUser">
                 @if($notes_u->count())
                     <div class="notif-list" role="region" aria-label="{{ __('Unread notifications') }}" tabindex="0">
@@ -410,22 +507,70 @@
                 @endif
             </div>
         </div>
-        <div class="user-pill">
-            <img src="{{ Auth::user()->profile_photo_url ?? asset('images/avatar.png') }}" alt="User">
-            <div style="text-align:left;">
-                <div style="font-weight:700;color:var(--primary);">{{ Auth::user()->name }}</div>
-                <div style="font-size:.78rem;color:var(--text-muted);">{{ Auth::user()->email }}</div>
+        <div class="user-menu">
+            <button class="user-pill" id="userMenuToggle" type="button" aria-controls="userProfileDropdown" aria-expanded="false" aria-label="{{ __('Open profile menu') }}">
+                @if(Auth::user()->profile_photo_url)
+                    <img src="{{ Auth::user()->profile_photo_url }}" alt="">
+                @else
+                    <span class="user-avatar-fallback" aria-hidden="true"><x-icon class="fa-solid fa-user" /></span>
+                @endif
+                <span class="user-meta">
+                    <span class="user-name">{{ Auth::user()->name }}</span>
+                    <span class="user-email">{{ Auth::user()->email }}</span>
+                </span>
+                <x-icon class="fa-solid fa-chevron-down user-chevron" aria-hidden="true" />
+            </button>
+            <div class="profile-dropdown" id="userProfileDropdown">
+                <a href="{{ route('profile.edit') }}"><x-icon class="fa-solid fa-user-pen" aria-hidden="true" /> {{ __('Profile') }}</a>
+                <a href="{{ route('settings.index') }}"><x-icon class="fa-solid fa-gear" aria-hidden="true" /> {{ __('Settings') }}</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit"><x-icon class="fa-solid fa-right-from-bracket" aria-hidden="true" /> {{ __('Log Out') }}</button>
+                </form>
             </div>
         </div>
+        <div class="lalo-brand" aria-label="{{ __('Lal-lo, Golden Gate of Cagayan') }}">
+            <span class="lalo-brand-name">Lal-lo</span>
+            <span class="lalo-brand-tagline">{{ __('Golden Gate of Cagayan') }}</span>
         </div>
 <script>
 document.addEventListener('DOMContentLoaded', function(){
     const bellU = document.getElementById('notifBellUser');
     const ddU = document.getElementById('notifDropdownUser');
+    const userMenuToggle = document.getElementById('userMenuToggle');
+    const userProfileDropdown = document.getElementById('userProfileDropdown');
     const markAllU = document.getElementById('markAllReadUser');
     if (bellU) {
-        bellU.addEventListener('click', ()=> ddU.classList.toggle('open'));
-        document.addEventListener('click', (e)=>{ if (!bellU.contains(e.target) && !ddU.contains(e.target)) ddU.classList.remove('open'); });
+        bellU.addEventListener('click', ()=> {
+            userProfileDropdown?.classList.remove('open');
+            userMenuToggle?.setAttribute('aria-expanded', 'false');
+            const isOpen = ddU.classList.toggle('open');
+            bellU.setAttribute('aria-expanded', String(isOpen));
+        });
+        document.addEventListener('click', (e)=>{ if (!bellU.contains(e.target) && !ddU.contains(e.target)) { ddU.classList.remove('open'); bellU.setAttribute('aria-expanded', 'false'); } });
+    }
+    if (userMenuToggle && userProfileDropdown) {
+        userMenuToggle.addEventListener('click', ()=> {
+            ddU?.classList.remove('open');
+            bellU?.setAttribute('aria-expanded', 'false');
+            const isOpen = userProfileDropdown.classList.toggle('open');
+            userMenuToggle.setAttribute('aria-expanded', String(isOpen));
+        });
+        const closeUserMenu = ()=> {
+            userProfileDropdown.classList.remove('open');
+            userMenuToggle.setAttribute('aria-expanded', 'false');
+        };
+        document.addEventListener('click', (e)=> {
+            if (!userMenuToggle.contains(e.target) && !userProfileDropdown.contains(e.target)) {
+                closeUserMenu();
+            }
+        });
+        userProfileDropdown.addEventListener('keydown', (e)=> {
+            if (e.key === 'Escape') {
+                closeUserMenu();
+                userMenuToggle.focus();
+            }
+        });
     }
     if (markAllU) {
         markAllU.addEventListener('click', function(){ fetch('{{ route('notifications.readAll') }}', { method: 'POST', headers: {'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(response=>{ if (!response.ok) throw new Error('Could not mark notifications as read.'); document.getElementById('notifCountUser')?.remove(); ddU.innerHTML = '<div class="notif-empty">' + @json(__('No new notifications')) + '</div>'; }).catch(error=>console.error(error)); });
@@ -478,7 +623,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <div>
             <div class="card">
                 <div class="card-body hero">
-                    <div class="hero-ill"><x-icon class="fa-solid fa-clipboard-check" style="font-size:28px;color:var(--primary);" /></div>
+                    <div class="hero-ill"><img src="{{ asset('images/lal-lo_logo.png') }}" alt="{{ __('Lal-lo municipal seal') }}"></div>
                     <div style="flex:1;">
                         <h2 class="text-primary-line">{{ __('Welcome back, :name!', ['name' => explode(' ', Auth::user()->name)[0]]) }}</h2>
                         <p class="text-secondary">{{ __($application ? 'Your application is on file. Review your submitted information and documents here.' : 'Start your SPES application by completing your personal information and required documents.') }}</p>
@@ -568,7 +713,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
         <div>
             <div class="card">
-                <div class="card-header"><h2 class="text-section">{{ __('Quick Actions') }}</h2></div>
+                <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-bolt" aria-hidden="true" /> {{ __('Quick Actions') }}</h2></div>
                 <div class="card-body">
                     <div class="quick-action-list">
                         <a class="quick-action-link" href="{{ $application ? route('applications.myApplication') : route('applications.create') }}">
@@ -593,12 +738,20 @@ document.addEventListener('DOMContentLoaded', function(){
             <div class="card dashboard-section" id="profile-completion">
                 <div class="card-header"><h2 class="text-section">{{ __('Profile Completion') }}</h2></div>
                 <div class="card-body">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                        <strong class="text-primary-line">{{ $profileCompletion }}% {{ __('complete') }}</strong>
-                        <a href="{{ route('profile.edit') }}" style="color:var(--info);font-weight:700;text-decoration:none;">{{ __($profileCompletion === 100 ? 'Review profile' : 'Complete profile') }} →</a>
-                    </div>
-                    <div class="summary-progress" role="progressbar" aria-label="Profile completion" aria-valuenow="{{ $profileCompletion }}" aria-valuemin="0" aria-valuemax="100">
-                        <span style="width:{{ $profileCompletion }}%;"></span>
+                    <div class="profile-completion">
+                        <div
+                            class="completion-ring"
+                            role="progressbar"
+                            aria-label="{{ __('Profile completion') }}"
+                            aria-valuenow="{{ $profileCompletion }}"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            style="--completion:{{ $profileCompletion }}%;"
+                        ><span>{{ $profileCompletion }}%</span></div>
+                        <div class="completion-copy">
+                            <strong>{{ $profileCompletion }}% {{ __('complete') }}</strong>
+                            <a href="{{ route('profile.edit') }}">{{ __($profileCompletion === 100 ? 'Review profile' : 'Complete profile') }} →</a>
+                        </div>
                     </div>
                     <p class="text-secondary" style="margin-top:.6rem;">{{ __('Keep your personal and contact details up to date.') }}</p>
                 </div>

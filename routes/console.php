@@ -17,6 +17,42 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Artisan::command('spes:move-documents-to-private', function (): void {
+    $public = Storage::disk('public');
+    $private = Storage::disk('local');
+    $moved = 0;
+    $skipped = 0;
+
+    foreach ($public->allFiles('applications') as $path) {
+        if ($private->exists($path)) {
+            $skipped++;
+            continue;
+        }
+
+        $stream = $public->readStream($path);
+        if ($stream === false) {
+            throw new RuntimeException("Unable to read public application document [{$path}].");
+        }
+
+        try {
+            $written = $private->writeStream($path, $stream);
+        } finally {
+            fclose($stream);
+        }
+
+        if (! $written) {
+            throw new RuntimeException("Unable to write private application document [{$path}].");
+        }
+        if (! $public->delete($path)) {
+            throw new RuntimeException("Private copy created, but public application document [{$path}] could not be removed.");
+        }
+
+        $moved++;
+    }
+
+    $this->info("Application documents moved to private storage: {$moved}; skipped because private copies already exist: {$skipped}.");
+})->purpose('Move existing public application documents to private storage');
+
 Artisan::command('appointments:send-reminders', function (ApplicantNotificationService $notifications): void {
     $windowBase = now();
     $windowStart = $windowBase->copy()->addHours(23);

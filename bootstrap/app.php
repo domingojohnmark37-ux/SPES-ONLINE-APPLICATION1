@@ -12,7 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->trustProxies(at: '*');
+        $middleware->trustProxies(at: env('TRUSTED_PROXIES', '*'));
         $middleware->appendToGroup('web', [LogSlowRequests::class]);
         $middleware->alias([
             'admin' => \App\Http\Middleware\CheckAdminRole::class,

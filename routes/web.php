@@ -464,6 +464,8 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
         ->name('applicant-audit.event');
     Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
+    Route::put('/settings/approval-limit', [SettingsController::class, 'updateApprovalLimit'])
+        ->name('settings.approval-limit.update');
     Route::post('/settings/email-test', [SettingsController::class, 'sendTestEmail'])
         ->middleware('throttle:3,1')
         ->name('settings.email-test');

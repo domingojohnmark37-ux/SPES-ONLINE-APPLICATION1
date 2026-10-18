@@ -42,13 +42,14 @@ class ProfileUpdateRequest extends FormRequest
         $requiredOrOptional = static fn (array $rules): array => $isApplicant
             ? ['required', ...$rules]
             : ['nullable', ...$rules];
+        $nameRules = ['string', 'max:255', "regex:/^[\\p{L}\\p{M}\\s.'’-]+$/u"];
 
         return [
             'profile_photo' => ['nullable', 'image', 'max:5120'],
-            'name' => ['sometimes', 'string', 'max:255'],
-            'last_name' => $requiredOrOptional(['string', 'max:255']),
-            'first_name' => $requiredOrOptional(['string', 'max:255']),
-            'middle_name' => $requiredOrOptional(['string', 'max:255']),
+            'name' => ['sometimes', ...$nameRules],
+            'last_name' => $requiredOrOptional($nameRules),
+            'first_name' => $requiredOrOptional($nameRules),
+            'middle_name' => $requiredOrOptional($nameRules),
             'sex' => $requiredOrOptional([Rule::in(['Male', 'Female'])]),
             'date_of_birth' => $requiredOrOptional(['date']),
             'place_of_birth' => $requiredOrOptional(['string', 'max:255']),
@@ -70,10 +71,10 @@ class ProfileUpdateRequest extends FormRequest
             'education_history.*.course' => ['nullable', 'string', 'max:255'],
             'education_history.*.year_level' => ['nullable', 'string', 'max:100'],
             'education_history.*.date_attended' => ['nullable', 'string', 'max:255'],
-            'father_name' => $requiredOrOptional(['string', 'max:255']),
+            'father_name' => $requiredOrOptional($nameRules),
             'father_contact_number' => $requiredOrOptional(['string', 'max:50']),
             'father_occupation' => $requiredOrOptional(['string', 'max:255']),
-            'mother_name' => $requiredOrOptional(['string', 'max:255']),
+            'mother_name' => $requiredOrOptional($nameRules),
             'mother_contact_number' => $requiredOrOptional(['string', 'max:50']),
             'mother_occupation' => $requiredOrOptional(['string', 'max:255']),
             'parent_status_details' => $isApplicant

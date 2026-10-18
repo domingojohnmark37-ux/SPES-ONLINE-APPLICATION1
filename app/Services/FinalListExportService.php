@@ -72,7 +72,7 @@ class FinalListExportService
                             $folder,
                             $label,
                             (string) $application->{$attribute},
-                            'public',
+                            'local',
                         );
                     }
                 }

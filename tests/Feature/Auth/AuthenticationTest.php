@@ -195,6 +195,29 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_login_ip_limiter_applies_across_different_emails(): void
+    {
+        config(['auth.login_ip_max_attempts' => 3]);
+
+        foreach (['first', 'second', 'third'] as $emailPrefix) {
+            $this->postJson('/login', [
+                'email' => "{$emailPrefix}@example.com",
+                'password' => 'wrong-password',
+            ])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('email');
+        }
+
+        $response = $this->postJson('/login', [
+            'email' => 'fourth@example.com',
+            'password' => 'wrong-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->assertNotSame(trans('auth.failed'), $response->json('errors.email.0'));
+    }
+
     public function test_async_login_reports_invalid_credentials_as_json_validation_errors(): void
     {
         $user = User::factory()->create();

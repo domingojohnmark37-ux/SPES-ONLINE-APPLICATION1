@@ -206,7 +206,8 @@
             <h2><x-icon class="fa-solid fa-calendar-days" aria-hidden="true" /> Application schedule</h2>
         </div>
         <div class="card-body">
-            <form class="application-period-form" method="POST" action="{{ route('admin.settings.update') }}" id="application-period-form" data-unsaved-guard="off"
+            <form class="application-period-form" method="POST" action="{{ route('admin.settings.update') }}" id="application-period-form"
+                  data-approval-limit-url="{{ route('admin.settings.approval-limit.update') }}" data-unsaved-guard="off"
                   data-saved-start="{{ $settings->application_start_date?->format('Y-m-d\TH:i') ?? '' }}"
                   data-saved-end="{{ $settings->application_end_date?->format('Y-m-d\TH:i') ?? '' }}"
                   data-saved-limit="{{ $settings->approved_applicant_limit ?? '' }}">
@@ -244,6 +245,7 @@
                                value="{{ old('approved_applicant_limit', $settings->approved_applicant_limit) }}"
                                placeholder="No limit">
                         <small>Optional. Leave blank for no approval cap. The system counts approved applicants in the current application season.</small>
+                        <small id="approval-limit-save-status" data-approval-limit-save-status role="status" aria-live="polite">Changes to this maximum are saved immediately.</small>
                         @error('approved_applicant_limit')
                             <div class="application-period-error"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ $message }}</div>
                         @enderror
@@ -365,6 +367,7 @@
         const dialogIcon = dialog.querySelector('[data-confirm-icon]');
         const confirmButton = dialog.querySelector('[data-confirm-action]');
         const cancelButton = dialog.querySelector('[data-cancel-action]');
+        const limitSaveStatus = form.querySelector('[data-approval-limit-save-status]');
         const initialValues = {
             start: form.dataset.savedStart,
             end: form.dataset.savedEnd,
@@ -376,6 +379,7 @@
         let allowUnload = false;
         let submittingAfterConfirmation = false;
         let pendingSubmitter = null;
+        let pendingLimitValue;
 
         const hasUnsavedChanges = () => (
             startInput.value !== initialValues.start
@@ -384,6 +388,11 @@
         );
 
         const closeDialog = () => {
+            if (modalPurpose === 'limit-save' && pendingLimitValue !== undefined) {
+                limitInput.value = initialValues.limit;
+                pendingLimitValue = undefined;
+                updateStatus();
+            }
             backdrop.hidden = true;
             modalPurpose = null;
             returnFocus?.focus();
@@ -400,6 +409,12 @@
                 dialogIcon.className = 'fa-solid fa-circle-question';
                 confirmButton.textContent = 'Yes, save changes';
                 cancelButton.textContent = 'Review changes';
+            } else if (purpose === 'limit-save') {
+                dialogTitle.textContent = 'Update approval maximum now?';
+                dialogCopy.textContent = 'This maximum takes effect immediately. If the approved count has reached it, remaining pending applications will be processed.';
+                dialogIcon.className = 'fa-solid fa-triangle-exclamation';
+                confirmButton.textContent = 'Yes, update maximum';
+                cancelButton.textContent = 'Keep current maximum';
             } else {
                 dialogTitle.textContent = 'Leave without saving?';
                 dialogCopy.textContent = 'Your application schedule edits have not been saved. If you leave now, those changes will be lost.';
@@ -423,6 +438,8 @@
             const limit = limitInput.value ? Number(limitInput.value) : null;
             const capacityFull = limit !== null && Number(status.dataset.currentApproved) >= limit;
             if (capacityFull) {
+                status.dataset.state = 'closed';
+                status.dataset.capacityFull = 'true';
                 title.textContent = 'Approval limit reached';
                 summary.textContent = `The program has approved ${status.dataset.currentApproved} of ${limit} applicants. New applications and approvals are closed.`;
                 icon.className = 'fa-solid fa-lock';
@@ -455,6 +472,7 @@
             }
 
             status.dataset.state = state;
+            status.dataset.capacityFull = 'false';
             title.textContent = heading;
             summary.textContent = message;
             icon.className = `fa-solid ${state === 'open' ? 'fa-door-open' : (state === 'closed' ? 'fa-lock' : 'fa-clock')}`;
@@ -463,6 +481,17 @@
         startInput.addEventListener('input', updateStatus);
         endInput.addEventListener('input', updateStatus);
         limitInput.addEventListener('input', updateStatus);
+        limitInput.addEventListener('change', () => {
+            if (limitInput.value === initialValues.limit || !limitInput.checkValidity()) return;
+            pendingLimitValue = limitInput.value === '' ? null : Number(limitInput.value);
+            openDialog('limit-save', limitInput);
+        });
+        limitInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                limitInput.blur();
+            }
+        });
 
         form.addEventListener('submit', (event) => {
             if (submittingAfterConfirmation || !hasUnsavedChanges()) return;
@@ -472,6 +501,47 @@
         });
 
         confirmButton.addEventListener('click', () => {
+            if (modalPurpose === 'limit-save') {
+                confirmButton.disabled = true;
+                limitInput.disabled = true;
+                limitSaveStatus.textContent = 'Saving maximum...';
+                fetch(form.dataset.approvalLimitUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ approved_applicant_limit: pendingLimitValue }),
+                }).then(async (response) => {
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        const validationMessage = result.errors?.approved_applicant_limit?.[0];
+                        throw new Error(validationMessage || result.message || `The maximum could not be saved (${response.status}).`);
+                    }
+
+                    initialValues.limit = result.limit === null ? '' : String(result.limit);
+                    form.dataset.savedLimit = initialValues.limit;
+                    limitInput.value = initialValues.limit;
+                    status.dataset.currentApproved = String(result.approved_count);
+                    limitSaveStatus.textContent = result.message;
+                    pendingLimitValue = undefined;
+                    updateStatus();
+                    closeDialog();
+                }).catch((error) => {
+                    limitInput.value = initialValues.limit;
+                    limitSaveStatus.textContent = error.message || 'Could not save the maximum. Please try again.';
+                    pendingLimitValue = undefined;
+                    updateStatus();
+                    closeDialog();
+                }).finally(() => {
+                    confirmButton.disabled = false;
+                    limitInput.disabled = false;
+                });
+                return;
+            }
+
             if (modalPurpose === 'save') {
                 submittingAfterConfirmation = true;
                 allowUnload = true;

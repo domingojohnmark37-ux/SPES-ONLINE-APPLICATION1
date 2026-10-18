@@ -183,8 +183,8 @@
         $defaults = $defaults ?? [];
         $getDefault = fn ($field, $fallback = '') => old($field, $application->{$field} ?? $defaults[$field] ?? $fallback);
         $documentOriginalNames = $application?->document_original_names ?? [];
-        $hasCurrentBirthCertificate = $reapplying && $application->birth_certificate && \Illuminate\Support\Facades\Storage::disk('public')->exists($application->birth_certificate);
-        $hasCurrentEnrollmentCertificate = $reapplying && $application->certificate_enrollment && \Illuminate\Support\Facades\Storage::disk('public')->exists($application->certificate_enrollment);
+        $hasCurrentBirthCertificate = $reapplying && $application->birth_certificate && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->birth_certificate);
+        $hasCurrentEnrollmentCertificate = $reapplying && $application->certificate_enrollment && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->certificate_enrollment);
     @endphp
 
     @if($errors->any())

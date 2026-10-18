@@ -212,11 +212,17 @@ Key routes:
 
 ## File Storage
 
-Applicant documents are stored on the `public` filesystem disk under:
-- `storage/app/public/applications/` - Application documents
-- `storage/app/public/profile-photos/` - Profile photos
+Application documents and applicant-submitted additional requirements are stored on Laravel's private `local` disk under `storage/app/private/` and are served only through authenticated, authorized controller routes. Existing public application documents can be moved once with:
 
-Run `php artisan storage:link` so these files are available through `public/storage/`.
+```bash
+php artisan spes:move-documents-to-private
+```
+
+The command is safe to run more than once. Profile photos and other intentionally public files remain on the `public` disk under `storage/app/public/`.
+
+Run `php artisan storage:link` only to expose intentionally public files through `public/storage/`.
+
+For container deployments, migrations run at startup by default. Set `RUN_MIGRATIONS=false` to disable automatic migrations and manage them separately. `TRUSTED_PROXIES` defaults to `*` for Render; set it to the trusted proxy IPs when deploying behind a known proxy range. `SESSION_ENCRYPT=true` encrypts session data and will log out existing users once when enabled.
 
 ### Render Deployment
 

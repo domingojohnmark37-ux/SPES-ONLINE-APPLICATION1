@@ -250,7 +250,8 @@ class AdminSettingsFeaturesTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         Storage::disk('local')->put('applications/private-proof.pdf', 'private document');
-        Storage::disk('public')->put('applications/birth_certificates/birth-certificate.pdf', 'public document');
+        Storage::disk('local')->put('applications/birth_certificates/birth-certificate.pdf', 'private application document');
+        Storage::disk('public')->put('profile-photos/profile-photo.jpg', 'public profile photo');
         $logName = 'backup-test-'.uniqid('', true).'.log';
         $logPath = storage_path('logs/'.$logName);
         file_put_contents($logPath, 'backup log fixture');
@@ -264,7 +265,8 @@ class AdminSettingsFeaturesTest extends TestCase
             $this->assertNotFalse($archive->locateName('database/data.json'));
             $this->assertNotFalse($archive->locateName('manifest.json'));
             $this->assertNotFalse($archive->locateName('uploads/private/applications/private-proof.pdf'));
-            $this->assertNotFalse($archive->locateName('uploads/public/applications/birth_certificates/birth-certificate.pdf'));
+            $this->assertNotFalse($archive->locateName('uploads/private/applications/birth_certificates/birth-certificate.pdf'));
+            $this->assertNotFalse($archive->locateName('uploads/public/profile-photos/profile-photo.jpg'));
             $this->assertNotFalse($archive->locateName('logs/'.$logName));
             $this->assertNotFalse($archive->locateName('README.txt'));
             $snapshot = json_decode($archive->getFromName('database/data.json'), true, 512, JSON_THROW_ON_ERROR);

@@ -1086,8 +1086,8 @@ class AdminBackupService
                 $disk = 'local';
                 $relativePath = substr($name, strlen('uploads/private/'));
             } elseif (str_starts_with($name, 'uploads/public/')) {
-                $disk = 'public';
                 $relativePath = substr($name, strlen('uploads/public/'));
+                $disk = str_starts_with($relativePath, 'applications/') ? 'local' : 'public';
                 if (str_starts_with($relativePath, 'applications/resumes/')) {
                     $relativePath = 'applications/birth_certificates/'.substr(
                         $relativePath,

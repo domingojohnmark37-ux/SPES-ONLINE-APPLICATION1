@@ -228,7 +228,7 @@
                 <div class="activity-item">
                     <div class="activity-avatar"><x-icon class="{{ $activity['icon'] }}" /></div>
                     <div class="activity-content">
-                        <div class="activity-title">{!! $activity['message'] !!}</div>
+                        <div class="activity-title">{{ $activity['message'] }}</div>
                         <div class="activity-meta">{{ $activity['time'] }}</div>
                     </div>
                 </div>

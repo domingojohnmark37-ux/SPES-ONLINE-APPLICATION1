@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\EnforceApprovalApplicantLimitJob;
+use App\Jobs\NotifyClosedApplicantsJob;
+use App\Models\AuditAction;
 use App\Models\SystemSetting;
 use App\Models\User;
-use App\Models\AuditAction;
-use App\Jobs\NotifyClosedApplicantsJob;
+use App\Services\ApplicationApprovalCapacity;
+use App\Services\AuditLogger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -32,6 +35,7 @@ class AdminApplicationPeriodTest extends TestCase
             ->assertSee('Close applications now')
             ->assertSee('Changes take effect when saved.')
             ->assertSee('Save application schedule')
+            ->assertSee('Changes to this maximum are saved immediately.')
             ->assertSee('Cancel')
             ->assertSee('Confirm schedule changes')
             ->assertSee('Yes, save changes')
@@ -141,12 +145,12 @@ class AdminApplicationPeriodTest extends TestCase
         $this->assertDatabaseCount('audit_logs', 0);
     }
 
-    public function test_saving_a_schedule_queues_closed_applicant_notifications_after_commit(): void
+    public function test_changing_the_approval_limit_saves_immediately_and_processes_pending_applicants_in_the_background(): void
     {
         Queue::fake();
         $admin = User::factory()->create(['role' => 'admin']);
         $settings = SystemSetting::current();
-        $settings->update(['approved_applicant_limit' => 1]);
+        $settings->update(['approved_applicant_limit' => 2]);
         $approvedUser = User::factory()->create();
         $pendingUser = User::factory()->create();
         \App\Models\Application::factory()->for($approvedUser)->create(['status' => 'approved']);
@@ -159,38 +163,78 @@ class AdminApplicationPeriodTest extends TestCase
         ]);
 
         $response->assertRedirect()->assertSessionHasNoErrors();
-        $this->assertSame('denied', $pending->fresh()->status);
+        $this->assertSame(1, $settings->fresh()->approved_applicant_limit);
+        $this->assertSame('pending', $pending->fresh()->status);
         $this->assertDatabaseCount('applicant_notification_deliveries', 0);
+        Queue::assertPushed(EnforceApprovalApplicantLimitJob::class, fn (EnforceApprovalApplicantLimitJob $job): bool => $job->actorId === $admin->id);
+
+        (new EnforceApprovalApplicantLimitJob($admin->id))->handle(
+            app(ApplicationApprovalCapacity::class),
+            app(AuditLogger::class),
+        );
+
+        $this->assertSame('denied', $pending->fresh()->status);
         Queue::assertPushed(NotifyClosedApplicantsJob::class, function (NotifyClosedApplicantsJob $job) use ($pending): bool {
             return $job->applicationIds === [$pending->id]
                 && $job->limit === 1
                 && $job->afterCommit;
         });
-        $response->assertSessionHas('approval_limit_notice', fn (string $notice): bool => str_contains($notice, 'being notified in the background'));
+        $response->assertSessionHas('approval_limit_notice', fn (string $notice): bool => str_contains($notice, 'processed in the background'));
     }
 
-    public function test_settings_update_does_not_send_mail_inline_when_mail_delivery_would_fail(): void
+    public function test_admin_can_update_the_approval_maximum_immediately_without_submitting_schedule_dates(): void
     {
         Queue::fake();
-        \Illuminate\Support\Facades\Mail::shouldReceive('to')
-            ->andThrow(new \RuntimeException('Simulated SMTP connection failure.'));
         $admin = User::factory()->create(['role' => 'admin']);
-        SystemSetting::current()->update(['approved_applicant_limit' => 1]);
+        $settings = SystemSetting::current();
+        $settings->update(['approved_applicant_limit' => 3]);
         $approvedUser = User::factory()->create();
         $pendingUser = User::factory()->create();
         \App\Models\Application::factory()->for($approvedUser)->create(['status' => 'approved']);
-        \App\Models\Application::factory()->for($pendingUser)->create(['status' => 'pending']);
+        $pending = \App\Models\Application::factory()->for($pendingUser)->create(['status' => 'pending']);
 
         $this->actingAs($admin)
-            ->put(route('admin.settings.update'), [
-                'application_start_date' => now()->subDay()->format('Y-m-d\TH:i'),
-                'application_end_date' => now()->addDay()->format('Y-m-d\TH:i'),
+            ->putJson(route('admin.settings.approval-limit.update'), [
                 'approved_applicant_limit' => 1,
             ])
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
+            ->assertOk()
+            ->assertJson([
+                'limit' => 1,
+                'approved_count' => 1,
+                'full' => true,
+            ]);
 
-        Queue::assertPushed(NotifyClosedApplicantsJob::class);
+        $this->assertSame(1, $settings->fresh()->approved_applicant_limit);
+        $this->assertSame('pending', $pending->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $admin->id,
+            'module' => 'Application Period',
+            'field_name' => 'approved_applicant_limit',
+            'old_value' => '3',
+            'new_value' => '1',
+        ]);
+        Queue::assertPushed(EnforceApprovalApplicantLimitJob::class, fn (EnforceApprovalApplicantLimitJob $job): bool => $job->actorId === $admin->id);
+    }
+
+    public function test_admin_can_remove_the_approval_maximum_immediately(): void
+    {
+        Queue::fake();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $settings = SystemSetting::current();
+        $settings->update(['approved_applicant_limit' => 5]);
+
+        $this->actingAs($admin)
+            ->putJson(route('admin.settings.approval-limit.update'), [
+                'approved_applicant_limit' => null,
+            ])
+            ->assertOk()
+            ->assertJson([
+                'limit' => null,
+                'full' => false,
+            ]);
+
+        $this->assertNull($settings->fresh()->approved_applicant_limit);
+        Queue::assertNotPushed(EnforceApprovalApplicantLimitJob::class);
     }
 
     public function test_admin_cannot_save_a_closing_time_before_the_opening_time(): void

@@ -35,11 +35,25 @@
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-user .meta {
             display:none;
         }
+        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-brand > img {
+            width:48px !important;
+            min-width:48px;
+            max-width:48px;
+            height:48px !important;
+            min-height:48px;
+            max-height:48px;
+            flex-basis:48px;
+        }
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-brand,
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-user {
             justify-content:center;
             padding-right:8px;
             padding-left:8px;
+        }
+        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-brand {
+            min-height:84px;
+            padding-top:12px;
+            padding-bottom:12px;
         }
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-nav {
             padding-right:8px;
@@ -58,7 +72,13 @@
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-profile-link svg.icon,
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .btn-logout svg.icon {
             flex:0 0 auto;
-            font-size:.95rem;
+            font-size:1.05rem;
+        }
+        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-user img,
+        html[data-sidebar-behavior="collapsed"] .applicant-sidebar .sidebar-user .sidebar-user-fallback {
+            width:42px;
+            height:42px;
+            flex-basis:42px;
         }
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .nav-chevron,
         html[data-sidebar-behavior="collapsed"] .applicant-sidebar .nav-count,
@@ -119,17 +139,42 @@
         height:100dvh;
         overflow-y:auto;
         overflow-x:hidden;
-        background:#660000;
+        background:linear-gradient(180deg,#5E0A0F 0%,#5E0A0F 58%,#3c080c 100%);
         transition:transform .24s ease;
     }
+    .applicant-sidebar::before {
+        position:fixed;
+        z-index:0;
+        inset:auto auto 0 0;
+        width:var(--sidebar-w,260px);
+        height:50vh;
+        background:
+            linear-gradient(to bottom,#5E0A0F 0%,rgba(94,10,15,.85) 40%,rgba(94,10,15,.7) 100%),
+            url('{{ asset('assets/images/lallo-bridge-sidebar.jpg') }}') center bottom / cover no-repeat;
+        content:"";
+        pointer-events:none;
+    }
+    .applicant-sidebar::after {
+        position:fixed;
+        z-index:0;
+        bottom:0;
+        left:0;
+        width:var(--sidebar-w,260px);
+        height:52px;
+        background:linear-gradient(100deg,#C99700,#F5B800 72%,#FFD23F);
+        clip-path:polygon(0 55%,18% 47%,42% 59%,67% 38%,100% 48%,100% 100%,0 100%);
+        content:"";
+        pointer-events:none;
+    }
+    .applicant-sidebar > * { position:relative; z-index:1; }
     .applicant-sidebar .sidebar-brand {
         display:flex;
         flex:0 0 auto;
         align-items:center;
         gap:12px;
-        min-height:80px;
-        padding:18px 14px;
-        border-bottom:1px solid rgba(255,255,255,.12);
+        min-height:112px;
+        padding:16px 14px;
+        border-bottom:1px solid rgba(255,255,255,.18);
         color:#fff;
     }
     .applicant-sidebar .sidebar-close {
@@ -152,73 +197,89 @@
     .applicant-sidebar .sidebar-backdrop { display:none; }
     .applicant-sidebar .sidebar-brand > img {
         display:block;
-        flex:0 0 40px;
-        width:40px !important;
-        min-width:40px;
-        max-width:40px;
-        height:40px !important;
-        min-height:40px;
-        max-height:40px;
+        flex:0 0 68px;
+        width:68px !important;
+        min-width:68px;
+        max-width:68px;
+        height:68px !important;
+        min-height:68px;
+        max-height:68px;
+        border:2px solid rgba(255,255,255,.92);
         border-radius:50%;
         object-fit:cover;
+        box-shadow:0 2px 10px rgba(0,0,0,.25);
     }
     .applicant-sidebar .sidebar-brand > div { min-width:0; }
+    .applicant-sidebar .sidebar-brand-copy { flex:1; }
     .applicant-sidebar .sidebar-brand span {
         display:block;
         color:#fff;
-        font-size:.92rem;
+        font-size:1.5rem;
+        font-weight:700;
+        line-height:1.2;
+    }
+    .applicant-sidebar .sidebar-brand .sidebar-brand-subtitle {
+        margin-top:2px;
+        font-size:1rem;
         font-weight:700;
         line-height:1.2;
     }
     .applicant-sidebar .sidebar-brand small {
         display:block;
         margin-top:3px;
-        color:rgba(255,255,255,.72);
-        font-size:.7rem;
+        color:rgba(255,255,255,.86);
+        font-size:.65rem;
         font-weight:400;
+        line-height:1.3;
     }
     .applicant-sidebar .sidebar-nav {
         display:flex;
         flex-direction:column;
         flex:1;
-        gap:4px;
+        gap:5px;
         padding:14px 10px;
     }
     .applicant-sidebar .nav-link {
         display:flex;
         align-items:center;
-        gap:10px;
+        gap:12px;
         width:100%;
-        min-height:38px;
+        min-height:48px;
         margin:0;
-        padding:9px 10px;
-        border-radius:9px;
-        color:rgba(255,255,255,.88);
-        font-size:.86rem;
+        padding:12px 12px;
+        border-radius:11px;
+        color:rgba(255,255,255,.96);
+        font-size:.94rem;
+        font-weight:500;
         text-align:left;
         text-decoration:none;
-        transition:background .18s, color .18s, transform .08s;
+        transition:background .18s, color .18s, transform .08s, box-shadow .18s;
     }
-    .applicant-sidebar .nav-link svg.icon { width:18px; text-align:center; }
-    .applicant-sidebar .nav-link:hover { background:rgba(255,255,255,.08); color:#fff; transform:translateX(2px); }
-    .applicant-sidebar .nav-link.active { background:#FFD700; color:#660000; font-weight:700; }
-    .applicant-sidebar .nav-link.active svg.icon { color:#660000; }
+    .applicant-sidebar .nav-link svg.icon { width:22px; flex:0 0 22px; color:#fff4d6; font-size:1.12rem; text-align:center; }
+    .applicant-sidebar .nav-link:hover { background:rgba(255,255,255,.08); color:#fff; }
+    .applicant-sidebar .nav-link.active {
+        background:linear-gradient(110deg,#F5B800,#FFD23F);
+        color:#4A0B10;
+        font-weight:700;
+        box-shadow:0 4px 12px rgba(0,0,0,.2);
+    }
+    .applicant-sidebar .nav-link.active svg.icon { color:#4A0B10; }
     .applicant-sidebar button.nav-link { border:0; background:transparent; cursor:pointer; font-family:inherit; }
     .applicant-sidebar .nav-group { display:flex; flex-direction:column; }
     .applicant-sidebar .nav-group-toggle { justify-content:flex-start; }
-    .applicant-sidebar .nav-group-toggle .nav-chevron { width:auto; margin-left:auto; transition:transform .18s; }
+    .applicant-sidebar .nav-group-toggle .nav-chevron { width:auto; flex:0 0 auto; margin-left:auto; color:#fff; font-size:.72rem; transition:transform .18s; }
     .applicant-sidebar .nav-group-toggle[aria-expanded="true"] .nav-chevron { transform:rotate(180deg); }
     .applicant-sidebar .nav-group-toggle.has-count .nav-count { margin-left:auto; }
     .applicant-sidebar .nav-group-toggle.has-count .nav-chevron { margin-left:0; }
     .applicant-sidebar .nav-submenu { display:none; flex-direction:column; gap:3px; padding:4px 0 4px 14px; }
     .applicant-sidebar .nav-group.is-open .nav-submenu { display:flex; }
-    .applicant-sidebar .nav-submenu .nav-link { min-height:34px; padding:7px 10px; font-size:.82rem; }
+    .applicant-sidebar .nav-submenu .nav-link { min-height:40px; padding:9px 10px; font-size:.86rem; }
     .applicant-sidebar .nav-count {
         min-width:18px;
         margin-left:auto;
         padding:2px 5px;
         border-radius:999px;
-        background:#e53935;
+        background:#E53935;
         color:#fff;
         font-size:.68rem;
         font-weight:800;
@@ -227,45 +288,63 @@
     .applicant-sidebar .sidebar-user {
         display:flex;
         align-items:center;
-        gap:10px;
-        padding:12px 14px;
-        border-top:1px solid rgba(255,255,255,.1);
+        gap:11px;
+        padding:13px 14px;
+        border-top:1px solid rgba(255,255,255,.2);
         color:#fff;
     }
     .applicant-sidebar .sidebar-user img {
-        width:38px;
-        height:38px;
+        width:46px;
+        height:46px;
         flex:0 0 auto;
+        border:2px solid #F5B800;
         border-radius:50%;
         object-fit:cover;
+        background:#3d090d;
+    }
+    .applicant-sidebar .sidebar-user .sidebar-user-fallback {
+        display:grid;
+        width:46px;
+        height:46px;
+        flex:0 0 46px;
+        place-items:center;
+        border:2px solid #F5B800;
+        border-radius:50%;
+        background:#3d090d;
+        color:#F5B800;
+        font-size:1.1rem;
     }
     .applicant-sidebar .sidebar-user .meta { min-width:0; color:#fff; }
     .applicant-sidebar .sidebar-user .meta b {
         display:block;
         overflow:hidden;
-        font-size:.82rem;
+        font-size:.9rem;
+        font-weight:700;
         text-overflow:ellipsis;
         white-space:nowrap;
     }
-    .applicant-sidebar .sidebar-user .meta small { color:rgba(255,255,255,.75); font-size:.7rem; }
+    .applicant-sidebar .sidebar-user .meta small { color:rgba(255,255,255,.86); font-size:.75rem; }
     .applicant-sidebar .sidebar-profile-links {
         display:flex;
         flex-direction:column;
-        gap:6px;
-        padding:8px 12px 4px;
-        border-top:1px solid rgba(255,255,255,.1);
+        gap:3px;
+        padding:9px 12px 5px;
+        border-top:1px solid rgba(255,255,255,.18);
     }
     .applicant-sidebar .sidebar-profile-link {
         display:flex;
         align-items:center;
-        gap:8px;
-        padding:8px 10px;
+        gap:10px;
+        padding:9px 10px;
         border-radius:8px;
         color:rgba(255,255,255,.9);
         text-decoration:none;
-        font-size:.82rem;
+        font-size:.88rem;
+        font-weight:500;
         transition:background .18s, color .18s;
     }
+    .applicant-sidebar .sidebar-profile-link svg.icon,
+    .applicant-sidebar .btn-logout svg.icon { width:20px; color:#F5B800; font-size:1rem; text-align:center; }
     .applicant-sidebar .sidebar-profile-link:hover,
     .applicant-sidebar .sidebar-profile-link.active {
         background:rgba(255,255,255,.08);
@@ -273,27 +352,28 @@
     }
     .applicant-sidebar .sidebar-footer {
         flex:0 0 auto;
-        padding:10px 12px;
-        border-top:1px solid rgba(255,255,255,.12);
+        padding:7px 12px 18px;
+        border-top:1px solid rgba(255,255,255,.18);
     }
     .applicant-sidebar .sidebar-footer form { margin:0; }
     .applicant-sidebar .btn-logout {
         display:flex;
         align-items:center;
-        justify-content:center;
-        gap:8px;
+        justify-content:flex-start;
+        gap:10px;
         width:100%;
-        min-height:38px;
-        padding:8px 12px;
-        border:1px solid rgba(255,255,255,.38);
+        min-height:42px;
+        padding:8px 10px;
+        border:0;
         border-radius:8px;
         background:transparent;
         color:#fff;
         font:inherit;
-        font-size:.82rem;
+        font-size:.88rem;
+        font-weight:500;
         cursor:pointer;
     }
-    .applicant-sidebar .btn-logout:hover { background:rgba(255,255,255,.1); }
+    .applicant-sidebar .btn-logout:hover { background:rgba(255,255,255,.08); }
     .application-status-toasts {
         position:fixed;
         top:50%;
@@ -372,6 +452,20 @@
         .applicant-sidebar:not(.open) { transform:translateX(-100%); }
         .applicant-sidebar.open { transform:translateX(0); }
         .applicant-sidebar .sidebar-close { display:inline-flex; }
+        .applicant-sidebar .sidebar-brand { gap:9px; min-height:96px; padding:12px 10px; }
+        .applicant-sidebar .sidebar-brand > img {
+            width:56px !important;
+            min-width:56px;
+            max-width:56px;
+            height:56px !important;
+            min-height:56px;
+            max-height:56px;
+            flex-basis:56px;
+        }
+        .applicant-sidebar .sidebar-brand span { font-size:1.28rem; }
+        .applicant-sidebar .sidebar-brand .sidebar-brand-subtitle { font-size:.86rem; }
+        .applicant-sidebar .sidebar-brand small { font-size:.58rem; }
+        .applicant-sidebar .sidebar-close { width:32px; height:32px; flex-basis:32px; }
         .sidebar-backdrop:not([hidden]) {
             position:fixed;
             inset:0;
@@ -386,8 +480,12 @@
 
 <aside class="sidebar applicant-sidebar" id="sidebar">
     <div class="sidebar-brand">
-        <img src="{{ asset('images/welcome_logo.jpg') }}" alt="{{ __('PESO LAL-LO Logo') }}">
-        <div><span>{{ __('SPES Portal') }}<small>PESO LAL-LO</small></span></div>
+        <img src="{{ asset('images/lal-lo_logo.png') }}" alt="{{ __('Lal-lo municipal seal') }}">
+        <div class="sidebar-brand-copy">
+            <span>SPES</span>
+            <span class="sidebar-brand-subtitle">PESO LAL-LO</span>
+            <small>{{ __('Special Program for Employment of Students') }}</small>
+        </div>
         <button class="sidebar-close" type="button" data-sidebar-close aria-label="Close applicant navigation">
             <x-icon class="fa-solid fa-chevron-left" aria-hidden="true" />
         </button>
@@ -487,7 +585,11 @@
         </div>
     </nav>
     <div class="sidebar-user">
-        <img src="{{ $applicant->profile_photo_url ?? asset('images/avatar.png') }}" alt="{{ $applicant->name }}">
+        @if($applicant->profile_photo_url)
+            <img src="{{ $applicant->profile_photo_url }}" alt="{{ $applicant->name }}">
+        @else
+            <span class="sidebar-user-fallback" aria-hidden="true"><x-icon class="fa-solid fa-user" /></span>
+        @endif
         <div class="meta">
             <b>{{ $applicant->name }}</b>
             <small>{{ __('Student Applicant') }}</small>
@@ -501,7 +603,7 @@
             <x-icon class="fa-solid fa-gear" /> {{ __('Settings') }}
         </a>
     </div>
-    <div class="sidebar-footer" style="padding:10px 12px;">
+    <div class="sidebar-footer">
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="btn-logout"><x-icon class="fa-solid fa-right-from-bracket" /> {{ __('Log Out') }}</button>

@@ -64,6 +64,21 @@ class UserActivityTest extends TestCase
             ->assertSee('Device: Google Chrome on Windows (Desktop)');
     }
 
+    public function test_admin_dashboard_escapes_applicant_names_in_recent_activity(): void
+    {
+        User::factory()->create([
+            'role' => 'user',
+            'name' => '<script>alert(1)</script>',
+        ]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertDontSee('<script>alert(1)</script>', false)
+            ->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;', false);
+    }
+
     public function test_authenticated_request_and_logout_refresh_last_activity(): void
     {
         $user = User::factory()->create(['last_active_at' => now()->subDays(3)]);
@@ -98,6 +113,16 @@ class UserActivityTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertSee('assets/images/lallo-bridge-sunset.jpg')
+            ->assertSee('class="welcome-name"', false)
+            ->assertSee('id="userMenuToggle"', false)
+            ->assertSee('id="userProfileDropdown"', false)
+            ->assertSee('class="lalo-brand"', false)
+            ->assertSee('assets/images/lallo-bridge-sidebar.jpg')
+            ->assertSee('class="sidebar-brand-copy"', false)
+            ->assertSee('Special Program for Employment of Students')
+            ->assertSee('class="sidebar-user-fallback"', false)
+            ->assertSee('Student Applicant')
             ->assertDontSee('Application Timeline')
             ->assertSee('Application Status')
             ->assertSee('Required Documents')

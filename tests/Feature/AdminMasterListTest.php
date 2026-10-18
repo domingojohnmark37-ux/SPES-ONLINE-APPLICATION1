@@ -186,11 +186,11 @@ class AdminMasterListTest extends TestCase
     public function test_saving_without_a_custom_name_uses_submission_start_year(): void
     {
         Storage::fake('local');
-        Storage::fake('public');
+        Storage::fake('local');
         $admin = User::factory()->create(['role' => 'admin']);
         $applicant = User::factory()->create();
-        Storage::disk('public')->put('applications/birth_certificates/birth-certificate.pdf', 'birth certificate bytes');
-        Storage::disk('public')->put('applications/enrollment/enrollment.pdf', 'enrollment certificate bytes');
+        Storage::disk('local')->put('applications/birth_certificates/birth-certificate.pdf', 'birth certificate bytes');
+        Storage::disk('local')->put('applications/enrollment/enrollment.pdf', 'enrollment certificate bytes');
         Storage::disk('local')->put('requirements/consent.pdf', 'parent consent bytes');
         $application = Application::factory()->for($applicant)->create([
             'status' => 'approved',

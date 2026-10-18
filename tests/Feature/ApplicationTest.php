@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Jobs\NotifyApplicantsJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -20,7 +21,7 @@ class ApplicationTest extends TestCase
     /** @test */
     public function user_can_submit_application()
     {
-        Storage::fake('public');
+        Storage::fake('local');
         Queue::fake();
         $user = User::factory()->create();
         $this->actingAs($user);
@@ -38,7 +39,7 @@ class ApplicationTest extends TestCase
         $application = Application::where('user_id', $user->id)->firstOrFail();
         $this->assertSame('2nd year', $application->grade_year_level);
         $this->assertStringStartsWith('applications/birth_certificates/', $application->birth_certificate);
-        Storage::disk('public')->assertExists($application->birth_certificate);
+        Storage::disk('local')->assertExists($application->birth_certificate);
         $this->assertSame('birth-certificate.pdf', $application->document_original_names['birth_certificate']);
         $this->assertSame('certificate-of-enrollment.pdf', $application->document_original_names['certificate_enrollment']);
         Queue::assertPushed(NotifyApplicantsJob::class, fn (NotifyApplicantsJob $job): bool =>
@@ -151,14 +152,14 @@ class ApplicationTest extends TestCase
 
     public function test_reapplication_keeps_submitted_documents_unless_replaced(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
         $birthCertificate = 'applications/birth_certificates/birth-certificate-old.pdf';
         $enrollmentCertificate = 'applications/enrollment/enrollment-old.pdf';
         $gradeCertificate = 'applications/grades/grades.pdf';
-        Storage::disk('public')->put($birthCertificate, 'original birth certificate');
-        Storage::disk('public')->put($enrollmentCertificate, 'original enrollment certificate');
-        Storage::disk('public')->put($gradeCertificate, 'original grades');
+        Storage::disk('local')->put($birthCertificate, 'original birth certificate');
+        Storage::disk('local')->put($enrollmentCertificate, 'original enrollment certificate');
+        Storage::disk('local')->put($gradeCertificate, 'original grades');
         $application = Application::factory()->for($user)->create([
             'status' => 'denied',
             'birth_certificate' => $birthCertificate,
@@ -201,19 +202,19 @@ class ApplicationTest extends TestCase
         $this->assertSame($gradeCertificate, $application->certificate_grade);
         $this->assertSame('Existing Mother Name', $application->mother_name);
         $this->assertSame('birth-certificate-old.pdf', $application->document_original_names['birth_certificate']);
-        Storage::disk('public')->assertExists($birthCertificate);
-        Storage::disk('public')->assertExists($enrollmentCertificate);
-        Storage::disk('public')->assertExists($gradeCertificate);
+        Storage::disk('local')->assertExists($birthCertificate);
+        Storage::disk('local')->assertExists($enrollmentCertificate);
+        Storage::disk('local')->assertExists($gradeCertificate);
     }
 
     public function test_applicant_can_replace_a_previously_submitted_document_when_reapplying(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
         $birthCertificate = 'applications/birth_certificates/birth-certificate-old.pdf';
         $enrollmentCertificate = 'applications/enrollment/enrollment-old.pdf';
-        Storage::disk('public')->put($birthCertificate, 'original birth certificate');
-        Storage::disk('public')->put($enrollmentCertificate, 'original enrollment certificate');
+        Storage::disk('local')->put($birthCertificate, 'original birth certificate');
+        Storage::disk('local')->put($enrollmentCertificate, 'original enrollment certificate');
         $application = Application::factory()->for($user)->create([
             'status' => 'denied',
             'birth_certificate' => $birthCertificate,
@@ -235,15 +236,15 @@ class ApplicationTest extends TestCase
         $this->assertSame('pending', $application->status);
         $this->assertNotSame($birthCertificate, $application->birth_certificate);
         $this->assertSame('birth-certificate-replacement.pdf', $application->document_original_names['birth_certificate']);
-        Storage::disk('public')->assertMissing($birthCertificate);
-        Storage::disk('public')->assertExists($application->birth_certificate);
-        Storage::disk('public')->assertExists($enrollmentCertificate);
+        Storage::disk('local')->assertMissing($birthCertificate);
+        Storage::disk('local')->assertExists($application->birth_certificate);
+        Storage::disk('local')->assertExists($enrollmentCertificate);
         $this->assertSame($enrollmentCertificate, $application->certificate_enrollment);
     }
 
     public function test_reapplication_still_requires_documents_that_are_not_on_file(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
         Application::factory()->for($user)->create([
             'status' => 'denied',
@@ -394,12 +395,12 @@ class ApplicationTest extends TestCase
     /** @test */
     public function user_document_preview_uses_birth_certificate_name()
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
         $path = 'applications/birth_certificates/sample.pdf';
         $enrollmentPath = 'applications/enrollment/enrollment.pdf';
-        Storage::disk('public')->put($path, 'sample pdf');
-        Storage::disk('public')->put($enrollmentPath, 'sample enrollment pdf');
+        Storage::disk('local')->put($path, 'sample pdf');
+        Storage::disk('local')->put($enrollmentPath, 'sample enrollment pdf');
 
         $application = Application::factory()->for($user)->create([
             'birth_certificate' => $path,
@@ -447,9 +448,9 @@ class ApplicationTest extends TestCase
     /** @test */
     public function admin_sees_uploaded_birth_certificate_on_application_detail()
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $path = 'applications/birth_certificates/sample.pdf';
-        Storage::disk('public')->put($path, "%PDF-1.4\nBirth Certificate");
+        Storage::disk('local')->put($path, "%PDF-1.4\nBirth Certificate");
         $admin = User::factory()->create(['role' => 'admin']);
         $application = Application::factory()->create([
             'birth_certificate' => $path,
@@ -470,7 +471,56 @@ class ApplicationTest extends TestCase
             ->assertSee('birth-certificate.pdf');
         $this->get(route('applications.document.stream', ['application' => $application, 'document' => 'birth_certificate']))
             ->assertOk()
-            ->assertHeader('content-disposition', 'inline; filename=birth-certificate.pdf');
+            ->assertHeader('content-disposition', 'inline; filename=birth-certificate.pdf')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function test_application_documents_are_private_and_accessible_only_to_the_owner_or_admin(): void
+    {
+        Storage::fake('local');
+        $owner = User::factory()->create();
+        $otherApplicant = User::factory()->create();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $path = 'applications/birth_certificates/private-document.pdf';
+        Storage::disk('local')->put($path, 'private document bytes');
+        $application = Application::factory()->for($owner)->create([
+            'birth_certificate' => $path,
+            'document_original_names' => ['birth_certificate' => 'private-document.pdf'],
+        ]);
+        $url = route('applications.document.stream', [
+            'application' => $application,
+            'document' => 'birth_certificate',
+        ]);
+
+        $this->get($url)->assertRedirect(route('login'));
+        $this->actingAs($otherApplicant)->get($url)->assertForbidden();
+        $this->actingAs($owner)
+            ->get($url)
+            ->assertOk()
+            ->assertHeader('content-disposition', 'inline; filename=private-document.pdf')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Cache-Control', 'no-store, private');
+        $this->actingAs($admin)
+            ->get($url)
+            ->assertOk()
+            ->assertHeader('content-disposition', 'inline; filename=private-document.pdf')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Cache-Control', 'no-store, private');
+    }
+
+    public function test_public_application_documents_can_be_moved_to_private_storage_idempotently(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $path = 'applications/birth_certificates/existing-document.pdf';
+        Storage::disk('public')->put($path, 'existing document bytes');
+
+        $this->assertSame(0, Artisan::call('spes:move-documents-to-private'));
+        $this->assertSame(0, Artisan::call('spes:move-documents-to-private'));
+
+        Storage::disk('local')->assertExists($path);
+        Storage::disk('public')->assertMissing($path);
+        $this->assertSame('existing document bytes', Storage::disk('local')->get($path));
     }
 
     /** @test */

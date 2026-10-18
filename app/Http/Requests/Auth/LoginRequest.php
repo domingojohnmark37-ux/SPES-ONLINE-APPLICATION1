@@ -13,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    private const DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=65536,t=4,p=1$TWhtOFZER3kuLm1xWnB3OA$DRmUvVd4eC35F7IUixyd2elTreQRrKxWb/1RLwueZJI';
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -51,8 +53,14 @@ class LoginRequest extends FormRequest
             })
             ->first();
 
-        if (! $user || ! Hash::check($this->string('password')->toString(), $user->password)) {
+        $password = $this->string('password')->toString();
+        if (! $user) {
+            Hash::check($password, self::DUMMY_PASSWORD_HASH);
+        }
+
+        if (! $user || ! Hash::check($password, $user->password)) {
             RateLimiter::hit($this->throttleKey());
+            RateLimiter::hit($this->ipThrottleKey());
             $auditLogger->recordFailedLoginAttempt($user);
 
             throw ValidationException::withMessages([
@@ -72,13 +80,19 @@ class LoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        $throttleKey = $this->throttleKey();
+        $ipThrottleKey = $this->ipThrottleKey();
+        $ipMaxAttempts = max(1, (int) config('auth.login_ip_max_attempts', 20));
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+        } elseif (RateLimiter::tooManyAttempts($ipThrottleKey, $ipMaxAttempts)) {
+            $seconds = RateLimiter::availableIn($ipThrottleKey);
+        } else {
             return;
         }
 
         event(new Lockout($this));
-
-        $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
             'email' => trans('auth.throttle', [
@@ -94,5 +108,10 @@ class LoginRequest extends FormRequest
     public function throttleKey(): string
     {
         return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+    }
+
+    public function ipThrottleKey(): string
+    {
+        return 'login|'.$this->ip();
     }
 }
