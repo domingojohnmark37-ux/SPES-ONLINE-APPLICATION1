@@ -306,7 +306,7 @@
                         <label>{{ __('Grade/Year Level') }} <span class="req">*</span></label>
                         <select name="grade_year_level" required>
                             <option value="">-- {{ __('Select') }} --</option>
-                            @foreach(['Grade 7','Grade 8','Grade 9','Grade 10','Grade 11','Grade 12','1st year','2nd year','4th year','5th year'] as $level)
+                            @foreach(['Grade 7','Grade 8','Grade 9','Grade 10','Grade 11','Grade 12','1st year','2nd year','3rd year','4th year','5th year'] as $level)
                                 <option value="{{ $level }}" {{ $getDefault('grade_year_level')===$level ? 'selected' : '' }}>{{ __($level) }}</option>
                             @endforeach
                         </select>

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 class ApplicantSettingsTest extends TestCase
@@ -30,6 +31,53 @@ class ApplicantSettingsTest extends TestCase
             'user_id' => $applicant->id,
             'contact_number' => '+639171111111',
         ]);
+    }
+
+    public function test_applicant_cannot_request_an_email_already_used_by_another_account(): void
+    {
+        $applicant = User::factory()->create(['role' => 'user']);
+        $otherApplicant = User::factory()->create(['role' => 'user']);
+
+        $this->actingAs($applicant)
+            ->post(route('settings.email.request'), [
+                'email' => $otherApplicant->email,
+                'current_password' => 'password',
+            ])
+            ->assertSessionHasErrors('email');
+    }
+
+    public function test_sensitive_actions_are_limited_per_applicant(): void
+    {
+        $applicant = User::factory()->create(['role' => 'user']);
+        RateLimiter::clear('applicant-settings-user:'.$applicant->id);
+        RateLimiter::clear('applicant-settings-ip:127.0.0.1');
+        $this->actingAs($applicant);
+
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $this->put(route('settings.mobile-number.update'), [
+                'mobile_number' => '+639171111111',
+            ])->assertRedirect();
+        }
+
+        $this->put(route('settings.mobile-number.update'), [
+            'mobile_number' => '+639171111111',
+        ])->assertTooManyRequests();
+    }
+
+    public function test_sensitive_actions_allow_different_applicants_on_the_same_ip(): void
+    {
+        RateLimiter::clear('applicant-settings-ip:127.0.0.1');
+
+        for ($attempt = 1; $attempt <= 6; $attempt++) {
+            $applicant = User::factory()->create(['role' => 'user']);
+            RateLimiter::clear('applicant-settings-user:'.$applicant->id);
+
+            $this->actingAs($applicant)
+                ->put(route('settings.mobile-number.update'), [
+                    'mobile_number' => '+639171111111',
+                ])
+                ->assertRedirect();
+        }
     }
 
     public function test_applicant_mobile_number_must_match_philippine_format(): void

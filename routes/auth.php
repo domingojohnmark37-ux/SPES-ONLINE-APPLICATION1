@@ -79,6 +79,7 @@ Route::middleware('guest')->group(function () {
         ->name('password.reset');
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
+        ->middleware('throttle:6,10')
         ->name('password.store');
 
     Route::get('reset-password/verify', [NewPasswordController::class, 'showVerification'])

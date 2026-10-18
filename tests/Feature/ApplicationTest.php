@@ -85,6 +85,24 @@ class ApplicationTest extends TestCase
             ], false);
     }
 
+    public function test_applicant_can_submit_third_year_grade_level(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('applications.store'), $this->validApplicationPayload([
+                'grade_year_level' => '3rd year',
+            ]))
+            ->assertRedirect(route('applications.myApplication'));
+
+        $this->assertDatabaseHas('applications', [
+            'user_id' => $user->id,
+            'grade_year_level' => '3rd year',
+        ]);
+    }
+
     public function test_application_form_uses_birth_certificate_field_name_and_matching_labels(): void
     {
             $this->actingAs(User::factory()->create())

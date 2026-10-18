@@ -13,18 +13,18 @@ class ThrottleApplicantSensitiveActions
     {
         $user = $request->user();
         if ($user?->role === 'user') {
-            $keys = [
-                'applicant-settings-user:'.$user->id,
-                'applicant-settings-ip:'.$request->ip(),
+            $limits = [
+                'applicant-settings-user:'.$user->id => 5,
+                'applicant-settings-ip:'.$request->ip() => 30,
             ];
 
-            foreach ($keys as $key) {
-                if (RateLimiter::tooManyAttempts($key, 5)) {
+            foreach ($limits as $key => $limit) {
+                if (RateLimiter::tooManyAttempts($key, $limit)) {
                     abort(429, 'Too many account changes. Please wait a minute and try again.');
                 }
             }
 
-            foreach ($keys as $key) {
+            foreach ($limits as $key => $limit) {
                 RateLimiter::hit($key, 60);
             }
         }

@@ -334,8 +334,12 @@ Route::middleware([
     Route::get('/settings/accessibility', [\App\Http\Controllers\ApplicantSettingsController::class, 'accessibility'])->name('settings.accessibility');
 
     Route::put('/settings/password', [\App\Http\Controllers\ApplicantSettingsController::class, 'changePassword'])->name('settings.password.update');
-    Route::post('/settings/email/request', [\App\Http\Controllers\ApplicantSettingsController::class, 'requestEmailChange'])->name('settings.email.request');
-    Route::post('/settings/email/verify', [\App\Http\Controllers\ApplicantSettingsController::class, 'verifyEmailChange'])->name('settings.email.verify');
+    Route::post('/settings/email/request', [\App\Http\Controllers\ApplicantSettingsController::class, 'requestEmailChange'])
+        ->middleware('throttle:5,10')
+        ->name('settings.email.request');
+    Route::post('/settings/email/verify', [\App\Http\Controllers\ApplicantSettingsController::class, 'verifyEmailChange'])
+        ->middleware('throttle:10,10')
+        ->name('settings.email.verify');
     Route::put('/settings/mobile-number', [\App\Http\Controllers\ApplicantSettingsController::class, 'updateMobileNumber'])
         ->middleware(\App\Http\Middleware\ThrottleApplicantSensitiveActions::class)
         ->name('settings.mobile-number.update');
@@ -438,6 +442,8 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
         return view('admin.dashboard', compact('stats', 'pendingApplications', 'recentActivities'));
     })->name('dashboard');
 
+    // Must stay above /applications/{application}
+    Route::get('/applications/export', [ExportController::class, 'masterList'])->name('applications.export');
     Route::get('/applications',                         [ApplicationController::class, 'index'])->name('applications.index');
     Route::get('/applications/{application}',          [ApplicationController::class, 'show'])->name('applications.show');
     Route::post('/applications/{application}/approve', [ApplicationController::class, 'approve'])->name('applications.approve');
@@ -494,9 +500,6 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
         ->whereNumber('year')->name('backup.archive.download');
     Route::post('/backup/archives/{year}/restore', [AdminSettingsFeatureController::class, 'restoreAnnualBackup'])
         ->whereNumber('year')->middleware('idempotent')->name('backup.archive.restore');
-    
-    // Export
-    Route::get('/applications/export', [ExportController::class, 'masterList'])->name('applications.export');
     
     // Master List
     Route::get('/master-list', [MasterListController::class, 'index'])->name('masterlist.index');
