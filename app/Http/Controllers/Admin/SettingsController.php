@@ -72,6 +72,11 @@ class SettingsController extends Controller
                     ->withInput();
             }
         }
+        if (($validated['application_start_date'] === null) !== ($validated['application_end_date'] === null)) {
+            return back()
+                ->withErrors(['application_end_date' => 'Set both the start and end date, or leave both empty.'])
+                ->withInput();
+        }
 
         $settings = SystemSetting::current();
         $oldValues = [

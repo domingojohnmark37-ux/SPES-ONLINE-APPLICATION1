@@ -59,12 +59,18 @@ class AppointmentController extends Controller
     {
         $wasPublished = $appointment->is_published;
         $previousTargetApplicantIds = $appointment->targetApplicants()->pluck('users.id')->all();
-        $validated = $this->validateAppointment($request);
+        $validated = $this->validateAppointment($request, $appointment);
         $targetApplicantIds = $validated['target_user_ids'] ?? [];
         unset($validated['target_user_ids']);
         $appointment->update($validated);
         $appointment->targetApplicants()->sync($targetApplicantIds);
-        $recipientsChanged = $previousTargetApplicantIds !== $appointment->targetApplicants()->pluck('users.id')->all();
+        $previous = collect($previousTargetApplicantIds)->map(fn ($id): int => (int) $id)->sort()->values()->all();
+        $current = $appointment->targetApplicants()->pluck('users.id')
+            ->map(fn ($id): int => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+        $recipientsChanged = $previous !== $current;
 
         if (
             $wasPublished
@@ -103,17 +109,23 @@ class AppointmentController extends Controller
                 : 'Appointment unpublished.');
     }
 
-    private function validateAppointment(Request $request): array
+    private function validateAppointment(Request $request, ?Appointment $appointment = null): array
     {
         $request->merge([
             'target_audience' => $request->input('target_audience', 'all_applicants'),
         ]);
 
+        $startsAtRules = ['required', 'date'];
+        if ($appointment === null
+            || $request->input('starts_at') !== $appointment->starts_at?->format('Y-m-d\TH:i')) {
+            $startsAtRules[] = 'after:now';
+        }
+
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'location' => ['nullable', 'string', 'max:255'],
-            'starts_at' => ['required', 'date'],
+            'starts_at' => $startsAtRules,
             'target_audience' => ['required', Rule::in([
                 'all_applicants',
                 'approved_applicants',

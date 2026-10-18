@@ -66,7 +66,9 @@ class NewsController extends Controller
         $validated = $request->validated();
         $news->update($validated);
 
-        if ($news->is_published && $news->wasChanged(['title', 'content'])) {
+        if ($request->boolean('notify_applicants')
+            && $news->is_published
+            && $news->wasChanged(['title', 'content'])) {
             $this->notifyApplicantsAboutAnnouncement($news);
         }
 

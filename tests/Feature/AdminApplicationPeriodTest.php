@@ -80,6 +80,19 @@ class AdminApplicationPeriodTest extends TestCase
         ]);
     }
 
+    public function test_admin_must_set_both_application_dates_or_leave_both_empty(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->put(route('admin.settings.update'), [
+                'application_start_date' => now()->addDay()->format('Y-m-d\TH:i'),
+                'application_end_date' => '',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('application_end_date');
+    }
+
     public function test_admin_can_review_schedule_changes_and_earlier_later_statistics(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

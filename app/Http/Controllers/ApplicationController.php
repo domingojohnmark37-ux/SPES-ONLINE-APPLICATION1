@@ -652,7 +652,7 @@ class ApplicationController extends Controller
     {
         $query = Application::with('user')->latest();
 
-        if ($request->filled('status')) {
+        if (in_array($request->status, ['pending', 'approved', 'denied'], true)) {
             $query->where('status', $request->status);
         }
         if ($request->filled('barangay')) {

@@ -21,7 +21,7 @@ class ApplicationsExport implements FromQuery, WithHeadings, WithMapping
         $query = Application::query()->with('user.profile');
 
         // Apply filters
-        if (!empty($this->filters['status'])) {
+        if (in_array($this->filters['status'] ?? null, ['pending', 'approved', 'denied'], true)) {
             $query->where('status', $this->filters['status']);
         }
 

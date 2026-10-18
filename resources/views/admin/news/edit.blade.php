@@ -70,6 +70,13 @@
                     @enderror
                 </div>
 
+            <div style="margin-bottom: 20px;">
+                <label style="display: flex; align-items: center; gap: 8px; color: var(--text); font-size: .95rem;">
+                    <input type="checkbox" name="notify_applicants" value="1">
+                    Notify applicants again about this change
+                </label>
+            </div>
+
             {{-- Form Actions --}}
             <div style="display: flex; gap: 12px; align-items: center;">
                 <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;">

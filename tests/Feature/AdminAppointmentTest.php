@@ -7,6 +7,7 @@ use App\Models\Application;
 use App\Models\ApplicantSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AdminAppointmentTest extends TestCase
@@ -241,6 +242,66 @@ class AdminAppointmentTest extends TestCase
             ->assertSessionHasErrors('starts_at');
 
         $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_admin_cannot_create_an_appointment_in_the_past(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->post(route('admin.appointments.store'), [
+                'title' => 'Past appointment',
+                'starts_at' => now()->subHour()->format('Y-m-d\TH:i'),
+            ])
+            ->assertSessionHasErrors('starts_at');
+
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_admin_can_keep_an_existing_past_appointment_start_unchanged(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $startsAt = now()->subHour()->startOfMinute();
+        $appointment = Appointment::create([
+            'title' => 'Legacy past appointment',
+            'starts_at' => $startsAt,
+            'target_audience' => 'all_applicants',
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.appointments.update', $appointment), [
+                'title' => 'Updated legacy appointment',
+                'starts_at' => $startsAt->format('Y-m-d\TH:i'),
+                'target_audience' => 'all_applicants',
+            ])
+            ->assertRedirect(route('admin.appointments.index'));
+    }
+
+    public function test_published_appointment_does_not_renotify_when_recipient_order_changes(): void
+    {
+        Queue::fake();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $firstApplicant = User::factory()->create();
+        $secondApplicant = User::factory()->create();
+        $startsAt = now()->addDays(3)->startOfMinute();
+        $appointment = Appointment::create([
+            'title' => 'Group appointment',
+            'starts_at' => $startsAt,
+            'is_published' => true,
+            'target_audience' => 'multiple_applicants',
+        ]);
+        $appointment->targetApplicants()->sync([$secondApplicant->id, $firstApplicant->id]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.appointments.update', $appointment), [
+                'title' => 'Group appointment',
+                'starts_at' => $startsAt->format('Y-m-d\TH:i'),
+                'target_audience' => 'multiple_applicants',
+                'target_user_ids' => [$firstApplicant->id, $secondApplicant->id],
+            ])
+            ->assertRedirect(route('admin.appointments.index'));
+
+        Queue::assertNotPushed(\App\Jobs\NotifyApplicantsJob::class);
     }
 
     public function test_admin_can_create_an_appointment_for_one_specific_applicant(): void
