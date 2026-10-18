@@ -426,7 +426,9 @@ class StatisticsReportService
             $insights[] = ['label' => 'Most applications by barangay', 'value' => $topBarangay['label'].' ('.$topBarangay['count'].')'];
         }
         $topAgeGroup = collect($demographics['age']['items'])
-            ->first(fn (array $item) => $item['label'] !== 'Not provided' && $item['label'] !== 'Outside application age range');
+            ->first(fn (array $item) => $item['label'] !== 'Not provided'
+                && $item['label'] !== 'Outside application age range'
+                && $item['count'] > 0);
         if ($topAgeGroup) {
             $insights[] = ['label' => 'Most common age group', 'value' => $topAgeGroup['label'].' ('.$topAgeGroup['count'].')'];
         }
