@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Application;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable implements MustVerifyEmailContract
 {
@@ -82,7 +83,18 @@ class User extends Authenticatable implements MustVerifyEmailContract
 
     public function getProfilePhotoUrlAttribute(): ?string
     {
-        return $this->profile_photo ? asset('storage/' . $this->profile_photo) : null;
+        if (! $this->profile_photo) {
+            return null;
+        }
+
+        if (! Storage::disk('public')->exists($this->profile_photo)) {
+            return null;
+        }
+
+        $baseUrl = trim(request()->getBaseUrl(), '/');
+        $assetPath = ($baseUrl !== '' ? $baseUrl.'/' : '').'storage/'.$this->profile_photo;
+
+        return asset($assetPath);
     }
 
     /**

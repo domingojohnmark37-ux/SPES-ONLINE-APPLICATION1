@@ -49,12 +49,15 @@ class ProfileController extends Controller
         $originalProfile = $user->profile?->getOriginal() ?? [];
         $applicant = $user->role === 'user' ? $user : null;
         $application = $applicant?->applications()->latest('created_at')->first();
+        $oldProfilePhoto = null;
 
         if ($request->hasFile('profile_photo')) {
-            if ($user->profile_photo) {
-                Storage::disk('public')->delete($user->profile_photo);
+            $oldProfilePhoto = $user->profile_photo;
+            $newProfilePhoto = $request->file('profile_photo')->store('profile-photos', 'public');
+            if (! $newProfilePhoto) {
+                throw new \RuntimeException('The profile photo could not be stored.');
             }
-            $user->profile_photo = $request->file('profile_photo')->store('profile-photos', 'public');
+            $user->profile_photo = $newProfilePhoto;
         }
 
         unset($data['profile_photo']);
@@ -132,6 +135,10 @@ class ProfileController extends Controller
                 );
             }
         });
+
+        if ($oldProfilePhoto) {
+            Storage::disk('public')->delete($oldProfilePhoto);
+        }
 
         $request->session()->put('profile_read_only', true);
 

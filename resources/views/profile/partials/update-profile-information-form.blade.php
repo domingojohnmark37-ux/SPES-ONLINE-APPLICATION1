@@ -428,13 +428,13 @@
                 <x-input-error class="text-xs mt-1" :messages="$errors->get('sex')" />
             </div>
             <label class="upload-circle" style="cursor: pointer;">
-                <div class="upload-placeholder" style="{{ $user->profile_photo ? 'display:none;' : '' }}">
+                <div class="upload-placeholder" style="{{ $user->profile_photo_url ? 'display:none;' : '' }}">
                     <small>{{ __('Upload') }}<br>{{ __('Photo') }}</small>
                 </div>
                 <img id="profilePhotoPreview"
-                     src="{{ $user->profile_photo ? asset('storage/' . $user->profile_photo) : '' }}"
+                     src="{{ $user->profile_photo_url ?? '' }}"
                      alt="{{ __('Profile photo') }}"
-                     style="{{ $user->profile_photo ? '' : 'display:none;' }}"
+                     style="{{ $user->profile_photo_url ? '' : 'display:none;' }}"
                      class="w-full h-full object-cover rounded-full" />
                 <input id="profile_photo" type="file" name="profile_photo" accept="image/*" />
             </label>

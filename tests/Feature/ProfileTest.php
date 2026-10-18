@@ -7,6 +7,7 @@ use App\Models\Application;
 use App\Models\ApplicationAdditionalRequirement;
 use App\Models\SystemSetting;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -43,6 +44,38 @@ class ProfileTest extends TestCase
             ->assertSee('Current parent status', false)
             ->assertDontSee('GSIS beneficiary or relationship')
             ->assertDontSee('name="gsis_beneficiary"', false);
+    }
+
+    public function test_saved_profile_photo_uses_the_public_storage_url(): void
+    {
+        Storage::fake('public');
+        $photoPath = 'profile-photos/applicant.png';
+        Storage::disk('public')->put($photoPath, 'profile photo');
+        $user = User::factory()->create(['profile_photo' => $photoPath]);
+
+        $this->actingAs($user)
+            ->get('/profile')
+            ->assertOk()
+            ->assertSee('src="'.asset('storage/' . $photoPath).'"', false);
+    }
+
+    public function test_uploaded_profile_photo_is_saved_and_has_a_url_after_profile_update(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->patch('/profile', [
+                ...$this->validApplicantProfile($user),
+                'profile_photo' => UploadedFile::fake()->image('applicant.png'),
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/profile');
+
+        $savedUser = $user->fresh();
+
+        Storage::disk('public')->assertExists($savedUser->profile_photo);
+        $this->assertNotNull($savedUser->profile_photo_url);
     }
 
     public function test_applicant_profile_form_cannot_bypass_email_verification(): void
