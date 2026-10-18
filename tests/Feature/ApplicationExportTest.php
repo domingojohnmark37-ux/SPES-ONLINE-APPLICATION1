@@ -3,48 +3,33 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Models\Application;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
 class ApplicationExportTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
-    public function admin_can_export_application_pdf()
+    public function test_admin_can_download_the_application_spreadsheet(): void
     {
+        Excel::fake();
+        $this->travelTo(now()->setDate(2026, 10, 18)->setTime(17, 0, 0));
         $admin = User::factory()->create(['role' => 'admin']);
-        $application = Application::factory()->create([
-            'form_data' => [
-                'surname' => 'Dela Cruz',
-                'first_name' => 'Juan',
-            ],
-        ]);
 
-        $this->actingAs($admin);
+        $this->actingAs($admin)
+            ->get(route('admin.applications.export'))
+            ->assertOk();
 
-        $response = $this->get(route('admin.applications.export', $application));
-
-        $response->assertStatus(200);
-        $response->assertHeader('content-type', 'application/pdf');
-        // PDF payload is binary; ensure it has the PDF header and is non‑empty
-        $content = $response->getContent();
-        $this->assertStringStartsWith('%PDF', $content);
-        $this->assertTrue(strlen($content) > 1000, 'PDF should be at least 1KB');
+        Excel::assertDownloaded('spes-applications-2026-10-18-170000.xlsx');
     }
 
-    /** @test */
-    public function non_admin_cannot_export()
+    public function test_non_admin_gets_forbidden_from_the_application_export(): void
     {
         $user = User::factory()->create(['role' => 'user']);
-        $application = Application::factory()->create();
 
-        $this->actingAs($user);
-
-        // middleware redirects back to dashboard with error message
-        $this->get(route('admin.applications.export', $application))
-             ->assertRedirect('/dashboard')
-             ->assertSessionHas('error');
+        $this->actingAs($user)
+            ->get(route('admin.applications.export'))
+            ->assertForbidden();
     }
 }
