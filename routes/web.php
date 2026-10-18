@@ -351,11 +351,21 @@ Route::middleware([
     Route::get('/updates', fn () => redirect()->route('applicant.notifications.recent'))->name('updates');
 
     // Application
-    Route::get('/apply',           [ApplicationController::class, 'create'])->name('applications.create');
-    Route::post('/apply',          [ApplicationController::class, 'store'])->middleware('idempotent')->name('applications.store');
-    Route::get('/my-application/edit', [ApplicationController::class, 'edit'])->name('applications.edit');
-    Route::put('/my-application',   [ApplicationController::class, 'update'])->name('applications.update');
-    Route::get('/my-application',  [ApplicationController::class, 'myApplication'])->name('applications.myApplication');
+    Route::get('/apply', [ApplicationController::class, 'create'])
+        ->middleware(\App\Http\Middleware\EnsureApplicant::class)
+        ->name('applications.create');
+    Route::post('/apply', [ApplicationController::class, 'store'])
+        ->middleware([\App\Http\Middleware\EnsureApplicant::class, 'idempotent'])
+        ->name('applications.store');
+    Route::get('/my-application/edit', [ApplicationController::class, 'edit'])
+        ->middleware(\App\Http\Middleware\EnsureApplicant::class)
+        ->name('applications.edit');
+    Route::put('/my-application', [ApplicationController::class, 'update'])
+        ->middleware(\App\Http\Middleware\EnsureApplicant::class)
+        ->name('applications.update');
+    Route::get('/my-application', [ApplicationController::class, 'myApplication'])
+        ->middleware(\App\Http\Middleware\EnsureApplicant::class)
+        ->name('applications.myApplication');
 
     // Uploaded document viewer for authenticated users/admins
     Route::get('/applications/{application}/documents/{document}/preview', [ApplicationController::class, 'viewDocument'])

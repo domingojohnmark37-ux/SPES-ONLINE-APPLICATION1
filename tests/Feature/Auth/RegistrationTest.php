@@ -412,6 +412,44 @@ class RegistrationTest extends TestCase
         $this->assertSame('janedoe', auth()->user()->username);
     }
 
+    public function test_reserved_admin_usernames_receive_a_suffix(): void
+    {
+        Mail::fake();
+        $this->mockUncompromisedVerifier(true, 3);
+
+        foreach ([
+            'pesoadmin@example.com' => 'pesoadmin_1',
+            'admin@example.com' => 'admin_1',
+            'administrator@example.com' => 'administrator_1',
+        ] as $email => $expectedUsername) {
+            $this->post('/register', [
+                'email' => $email,
+                'password' => 'Strong passphrase 123!',
+                'password_confirmation' => 'Strong passphrase 123!',
+                'terms_accepted' => '1',
+            ])->assertRedirect(route('registration.verify'));
+
+            $pin = null;
+            Mail::assertSent(RegistrationVerificationCode::class, function (RegistrationVerificationCode $mail) use ($email, &$pin): bool {
+                if (! $mail->hasTo($email)) {
+                    return false;
+                }
+
+                $pin = $mail->pin;
+
+                return true;
+            });
+            $this->post(route('registration.verify.submit'), ['pin' => $pin])
+                ->assertRedirect(route('dashboard'));
+
+            $this->assertDatabaseHas('users', [
+                'email' => $email,
+                'username' => $expectedUsername,
+            ]);
+            $this->post(route('logout'));
+        }
+    }
+
     public function test_registration_accepts_long_passwords_without_a_restrictive_maximum(): void
     {
         Mail::fake();

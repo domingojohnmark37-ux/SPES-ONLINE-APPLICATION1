@@ -82,7 +82,8 @@ class RegistrationVerificationController extends Controller
             $username = $usernameBase;
             $usernameSuffix = 1;
 
-            while (User::where('username', $username)->exists()) {
+            while (in_array($username, ['pesoadmin', 'admin', 'administrator'], true)
+                || User::where('username', $username)->exists()) {
                 $username = $usernameBase.'_'.$usernameSuffix++;
             }
 

@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\ApplicationAdditionalRequirement;
 use App\Models\AuditAction;
+use App\Models\User;
 use App\Services\AuditLogger;
 use App\Models\UserProfile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -146,6 +149,44 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+        if ($user->role === 'admin' && User::where('role', 'admin')->count() <= 1) {
+            return back()->withErrors([
+                'password' => 'The last administrator account cannot be deleted.',
+            ], 'userDeletion');
+        }
+
+        $applications = $user->applications()->get([
+            'id',
+            'birth_certificate',
+            'certificate_enrollment',
+            'certificate_grade',
+            'application_letter',
+            'indigency',
+        ]);
+        $applicationIds = $applications->modelKeys();
+        $localPathsToDelete = $applications->flatMap(fn ($application): array => [
+            $application->birth_certificate,
+            $application->certificate_enrollment,
+            $application->certificate_grade,
+            $application->application_letter,
+            $application->indigency,
+        ])->filter()->values()->all();
+        if ($applicationIds !== []) {
+            $localPathsToDelete = array_merge(
+                $localPathsToDelete,
+                ApplicationAdditionalRequirement::query()
+                    ->whereIn('application_id', $applicationIds)
+                    ->pluck('file_path')
+                    ->all(),
+            );
+        }
+        $filesToDelete = array_map(
+            fn (string $path): array => ['disk' => 'local', 'path' => $path],
+            array_filter($localPathsToDelete),
+        );
+        if ($user->profile_photo) {
+            $filesToDelete[] = ['disk' => 'public', 'path' => $user->profile_photo];
+        }
 
         Auth::logout();
         DB::transaction(function () use ($user, $auditLogger): void {
@@ -161,6 +202,23 @@ class ProfileController extends Controller
             }
             $user->delete();
         });
+
+        foreach ($filesToDelete as $file) {
+            try {
+                if (! Storage::disk($file['disk'])->delete($file['path'])) {
+                    Log::warning('Unable to delete an account file after account deletion.', [
+                        'disk' => $file['disk'],
+                        'path' => $file['path'],
+                    ]);
+                }
+            } catch (\Throwable $exception) {
+                Log::warning('Unable to delete an account file after account deletion.', [
+                    'disk' => $file['disk'],
+                    'path' => $file['path'],
+                    'exception' => class_basename($exception),
+                ]);
+            }
+        }
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

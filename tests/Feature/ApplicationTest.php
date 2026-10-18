@@ -59,6 +59,15 @@ class ApplicationTest extends TestCase
         $this->assertFalse(Schema::hasColumn('applications', 'f2_consent_accepted'));
     }
 
+    public function test_admin_cannot_open_the_applicant_application_form(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->get(route('applications.create'))
+            ->assertForbidden();
+    }
+
     /** @test */
     public function application_form_asks_for_applicant_education_before_parent_status()
     {

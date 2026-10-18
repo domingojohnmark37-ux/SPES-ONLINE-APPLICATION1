@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\AdditionalRequirement;
+use App\Models\Application;
+use App\Models\ApplicationAdditionalRequirement;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -235,6 +239,52 @@ class ProfileTest extends TestCase
         $this->assertNull($user->fresh());
     }
 
+    public function test_account_deletion_removes_profile_and_application_files(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $user = User::factory()->create([
+            'profile_photo' => 'profile-photos/applicant.png',
+        ]);
+        Storage::disk('public')->put($user->profile_photo, 'profile photo');
+
+        $documentPaths = [
+            'birth_certificate' => 'applications/birth_certificates/birth.pdf',
+            'certificate_enrollment' => 'applications/enrollment/enrollment.pdf',
+            'certificate_grade' => 'applications/grades/grades.pdf',
+            'application_letter' => 'applications/letters/letter.pdf',
+            'indigency' => 'applications/indigency/indigency.pdf',
+        ];
+        foreach ($documentPaths as $path) {
+            Storage::disk('local')->put($path, 'application document');
+        }
+        $application = Application::factory()->for($user)->create($documentPaths);
+        $requirement = AdditionalRequirement::create([
+            'name' => 'Account deletion file',
+            'is_required' => true,
+            'is_active' => true,
+            'audience' => 'all_applicants',
+        ]);
+        $submissionPath = "applications/{$application->id}/additional-requirements/submission.pdf";
+        Storage::disk('local')->put($submissionPath, 'additional requirement');
+        ApplicationAdditionalRequirement::create([
+            'application_id' => $application->id,
+            'additional_requirement_id' => $requirement->id,
+            'file_number' => 1,
+            'file_path' => $submissionPath,
+            'original_name' => 'submission.pdf',
+        ]);
+
+        $this->actingAs($user)
+            ->delete('/profile', ['password' => 'password'])
+            ->assertRedirect('/');
+
+        Storage::disk('public')->assertMissing('profile-photos/applicant.png');
+        foreach ([...array_values($documentPaths), $submissionPath] as $path) {
+            Storage::disk('local')->assertMissing($path);
+        }
+    }
+
     public function test_correct_password_must_be_provided_to_delete_account(): void
     {
         $user = User::factory()->create();
@@ -251,6 +301,20 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile');
 
         $this->assertNotNull($user->fresh());
+    }
+
+    public function test_last_admin_cannot_delete_their_account(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->from('/profile')
+            ->delete(route('profile.destroy'), ['password' => 'password'])
+            ->assertRedirect('/profile')
+            ->assertSessionHasErrorsIn('userDeletion', 'password');
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+        $this->assertAuthenticatedAs($admin);
     }
 
     private function validApplicantProfile(User $user, array $overrides = []): array
