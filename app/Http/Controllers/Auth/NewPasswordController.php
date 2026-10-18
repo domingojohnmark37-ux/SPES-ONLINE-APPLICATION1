@@ -56,10 +56,16 @@ class NewPasswordController extends Controller
         ]);
 
         if (! $user) {
-            return back()->withErrors([
-                'email' => 'This password reset request cannot be completed. Check the email address and start again.',
+            $request->session()->put([
+                'password_reset_otp_sent' => true,
+                'password_reset_decoy' => true,
             ]);
+
+            return redirect()->route('password.verify')
+                ->with('status', 'A 6-digit confirmation code has been sent to your email. The code expires in 10 minutes.');
         }
+
+        $request->session()->forget('password_reset_decoy');
 
         if (! $this->verificationMailerIsSafe()) {
             return back()->withErrors([
@@ -93,11 +99,20 @@ class NewPasswordController extends Controller
     public function showVerification(Request $request): View|RedirectResponse
     {
         $pending = $this->pendingReset($request);
+        if (! $pending && (bool) $request->session()->get('password_reset_decoy')) {
+            return view('auth.verify-password-reset', [
+                'email' => $request->session()->get('password_reset_email'),
+                'resendAvailableAt' => now()->addSeconds(60)->timestamp,
+                'resendsRemaining' => 3,
+            ]);
+        }
+
         if (! $pending || ! (bool) $request->session()->get('password_reset_otp_sent')) {
             $request->session()->forget([
                 'password_reset_flow_token',
                 'password_reset_email',
                 'password_reset_otp_sent',
+                'password_reset_decoy',
             ]);
 
             return redirect()->route('password.request')
@@ -116,6 +131,12 @@ class NewPasswordController extends Controller
         $request->validate([
             'pin' => ['required', 'regex:/^\d{6}$/D'],
         ]);
+
+        if ((bool) $request->session()->get('password_reset_decoy')) {
+            return back()->withErrors([
+                'pin' => 'The confirmation code is invalid, expired, or has reached its attempt limit.',
+            ]);
+        }
 
         $token = $request->session()->get('password_reset_flow_token');
         $pin = (string) $request->input('pin');
@@ -164,11 +185,18 @@ class NewPasswordController extends Controller
         });
 
         if ($result === 'verified' && $user) {
+            if (config('session.driver') === 'database') {
+                DB::table(config('session.table', 'sessions'))
+                    ->where('user_id', $user->id)
+                    ->delete();
+            }
+
             event(new PasswordReset($user));
             $request->session()->forget([
                 'password_reset_flow_token',
                 'password_reset_email',
                 'password_reset_otp_sent',
+                'password_reset_decoy',
             ]);
 
             return redirect()->route('login')
@@ -180,6 +208,7 @@ class NewPasswordController extends Controller
                 'password_reset_flow_token',
                 'password_reset_email',
                 'password_reset_otp_sent',
+                'password_reset_decoy',
             ]);
 
             return redirect()->route('password.request')
@@ -193,6 +222,10 @@ class NewPasswordController extends Controller
 
     public function resend(Request $request): RedirectResponse
     {
+        if ((bool) $request->session()->get('password_reset_decoy')) {
+            return back()->with('status', 'A new confirmation code has been sent to your email.');
+        }
+
         $token = $request->session()->get('password_reset_flow_token');
         if (! $this->verificationMailerIsSafe()) {
             return back()->withErrors([
@@ -235,6 +268,7 @@ class NewPasswordController extends Controller
                 'password_reset_flow_token',
                 'password_reset_email',
                 'password_reset_otp_sent',
+                'password_reset_decoy',
             ]);
 
             return redirect()->route('password.request')

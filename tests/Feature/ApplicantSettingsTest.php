@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
@@ -78,6 +80,31 @@ class ApplicantSettingsTest extends TestCase
                 ])
                 ->assertRedirect();
         }
+    }
+
+    public function test_changing_password_ends_other_database_sessions(): void
+    {
+        config(['session.driver' => 'database']);
+        $applicant = User::factory()->create(['role' => 'user']);
+        DB::table('sessions')->insert([
+            'id' => 'other-settings-session',
+            'user_id' => $applicant->id,
+            'payload' => '',
+            'last_activity' => now()->timestamp,
+        ]);
+        $verifier = \Mockery::mock(UncompromisedVerifier::class);
+        $verifier->shouldReceive('verify')->once()->andReturn(true);
+        $this->app->instance(UncompromisedVerifier::class, $verifier);
+
+        $this->actingAs($applicant)
+            ->put(route('settings.password.update'), [
+                'current_password' => 'password',
+                'password' => 'New secure passphrase 29!',
+                'password_confirmation' => 'New secure passphrase 29!',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('sessions', ['id' => 'other-settings-session']);
     }
 
     public function test_applicant_mobile_number_must_match_philippine_format(): void

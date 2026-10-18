@@ -35,6 +35,13 @@ class PasswordController extends Controller
             $auditLogger->recordPasswordChanged($user);
         });
 
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $user->id)
+                ->where('id', '!=', $request->session()->getId())
+                ->delete();
+        }
+
         return back()->with('status', 'password-updated');
     }
 }

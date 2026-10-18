@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -51,5 +52,31 @@ class PasswordUpdateTest extends TestCase
         $response
             ->assertSessionHasErrorsIn('updatePassword', 'current_password')
             ->assertRedirect('/profile');
+    }
+
+    public function test_password_update_ends_other_database_sessions(): void
+    {
+        config(['session.driver' => 'database']);
+        $user = User::factory()->create();
+        DB::table('sessions')->insert([
+            'id' => 'other-password-session',
+            'user_id' => $user->id,
+            'payload' => '',
+            'last_activity' => now()->timestamp,
+        ]);
+        $verifier = \Mockery::mock(UncompromisedVerifier::class);
+        $verifier->shouldReceive('verify')->once()->andReturn(true);
+        $this->app->instance(UncompromisedVerifier::class, $verifier);
+
+        $this->actingAs($user)
+            ->from('/profile')
+            ->put('/password', [
+                'current_password' => 'password',
+                'password' => 'New secure passphrase 29!',
+                'password_confirmation' => 'New secure passphrase 29!',
+            ])
+            ->assertRedirect('/profile');
+
+        $this->assertDatabaseMissing('sessions', ['id' => 'other-password-session']);
     }
 }

@@ -54,6 +54,25 @@ class RegisteredUserController extends Controller
             ->where('expires_at', '>', now())
             ->first();
 
+        if ($pending
+            && ($pending->pin_hash === null
+                || $pending->pin_expires_at === null
+                || $pending->pin_expires_at->isPast()
+                || $pending->failed_attempts >= 5)
+            && ($pending->last_sent_at === null || $pending->last_sent_at->addSeconds(60)->isPast())
+            && $this->verificationMailerIsSafe()) {
+            $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $pending->password_hash = Hash::make($validated['password']);
+            $pending->pin_hash = Hash::make($pin);
+            $pending->pin_expires_at = now()->addMinutes(10);
+            $pending->failed_attempts = 0;
+            $pending->resend_count = 0;
+            $pending->last_sent_at = now();
+            $pending->save();
+
+            Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
+        }
+
         if (! $pending) {
             if (! $this->verificationMailerIsSafe()) {
                 if ($request->expectsJson()) {
@@ -80,7 +99,12 @@ class RegisteredUserController extends Controller
                 'last_sent_at' => now(),
             ]);
 
-            Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
+            try {
+                Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
+            } catch (\Throwable $exception) {
+                $pending->delete();
+                throw $exception;
+            }
         }
 
         $request->session()->put([

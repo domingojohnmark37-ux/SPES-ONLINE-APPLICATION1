@@ -345,4 +345,41 @@ class ApplicantNotificationEmailTest extends TestCase
             'attempts' => 1,
         ]);
     }
+
+    public function test_sync_notification_job_does_not_throw_for_a_failed_mail_delivery(): void
+    {
+        $applicant = User::factory()->create(['role' => 'user']);
+        ApplicantSetting::create([
+            'user_id' => $applicant->id,
+            'email_notifications' => true,
+            'system_notifications' => false,
+            'application_updates' => true,
+        ]);
+        $channelManager = Mockery::mock(ChannelManager::class);
+        $channelManager->shouldReceive('sendNow')
+            ->once()
+            ->andReturnUsing(function ($notifiable, $notification, array $channels): void {
+                if ($channels === ['mail']) {
+                    throw new RuntimeException('Mail delivery failed.');
+                }
+            });
+        app()->instance(ChannelManager::class, $channelManager);
+
+        NotifyApplicantsJob::dispatchSync(
+            'users',
+            'application:sync-failure:123',
+            'notify_documents',
+            'Application update',
+            'Your application has been updated.',
+            userIds: [$applicant->id],
+        );
+
+        $this->assertDatabaseHas('applicant_notification_deliveries', [
+            'user_id' => $applicant->id,
+            'event_hash' => hash('sha256', 'application:sync-failure:123'),
+            'channel' => 'mail',
+            'status' => 'failed',
+            'last_error' => 'RuntimeException',
+        ]);
+    }
 }

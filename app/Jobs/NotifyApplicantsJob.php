@@ -57,6 +57,19 @@ class NotifyApplicantsJob implements ShouldQueue
             new ApplicantPortalUpdate($this->type, $this->title, $this->body, $this->data),
             $this->eventKey,
         );
+
+        if ($this->job !== null
+            && ! ($this->job instanceof \Illuminate\Queue\Jobs\SyncJob)
+            && \App\Models\ApplicantNotificationDelivery::query()
+                ->where('event_hash', hash('sha256', $this->eventKey))
+                ->where('status', 'failed')
+                ->where(function ($query): void {
+                    $query->whereNull('last_error')
+                        ->orWhere('last_error', '!=', 'InvalidRecipient');
+                })
+                ->exists()) {
+            throw new \RuntimeException('Some applicant notifications failed and will be retried.');
+        }
     }
 
     public function failed(?Throwable $exception): void

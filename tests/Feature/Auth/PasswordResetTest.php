@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -99,6 +100,61 @@ class PasswordResetTest extends TestCase
             ->assertSessionHasErrors('pin');
 
         $this->assertTrue(Hash::check('password', $user->refresh()->password));
+    }
+
+    public function test_unknown_email_uses_the_same_password_reset_verification_flow(): void
+    {
+        Mail::fake();
+        $this->allowUncompromisedPasswords();
+        $email = 'unknown@example.com';
+
+        $this->post('/forgot-password', ['email' => $email])
+            ->assertRedirect(route('password.reset'));
+
+        $this->post(route('password.store'), $this->newPasswordPayload())
+            ->assertRedirect(route('password.verify'))
+            ->assertSessionHas('status', 'A 6-digit confirmation code has been sent to your email. The code expires in 10 minutes.');
+
+        $this->get(route('password.verify'))
+            ->assertOk()
+            ->assertSee($email)
+            ->assertSee('Verify code and change password');
+
+        $this->post(route('password.verify.submit'), ['pin' => '123456'])
+            ->assertSessionHasErrors('pin');
+
+        $this->post(route('password.verify.resend'))
+            ->assertSessionHas('status', 'A new confirmation code has been sent to your email.');
+
+        Mail::assertNothingOutgoing();
+        $this->assertDatabaseCount('pending_password_resets', 0);
+    }
+
+    public function test_password_reset_ends_all_database_sessions(): void
+    {
+        config(['session.driver' => 'database']);
+        Mail::fake();
+        $this->allowUncompromisedPasswords();
+        $user = User::factory()->create();
+        DB::table('sessions')->insert([
+            'id' => 'other-reset-session',
+            'user_id' => $user->id,
+            'payload' => '',
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this->startResetFor($user);
+        $this->post(route('password.store'), $this->newPasswordPayload())
+            ->assertRedirect(route('password.verify'));
+
+        Mail::assertSent(PasswordResetVerificationCode::class, function (PasswordResetVerificationCode $mail) use ($user): bool {
+            $this->post(route('password.verify.submit'), ['pin' => $mail->pin])
+                ->assertRedirect(route('login'));
+
+            return true;
+        });
+
+        $this->assertDatabaseMissing('sessions', ['id' => 'other-reset-session']);
     }
 
     private function startResetFor(User $user): void

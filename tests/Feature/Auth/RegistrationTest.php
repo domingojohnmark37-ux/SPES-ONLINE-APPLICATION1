@@ -228,6 +228,73 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
+    public function test_expired_registration_pin_is_reissued_when_the_applicant_resubmits(): void
+    {
+        Mail::fake();
+        $this->mockUncompromisedVerifier(true, 2);
+        $this->beginRegistration();
+        $pending = PendingRegistration::firstOrFail();
+        $pending->update([
+            'pin_expires_at' => now()->subMinute(),
+            'last_sent_at' => now()->subSeconds(61),
+        ]);
+
+        $this->post('/register', [
+            'email' => $pending->email,
+            'password' => 'Strong passphrase 123!',
+            'password_confirmation' => 'Strong passphrase 123!',
+            'terms_accepted' => '1',
+        ])->assertRedirect(route('registration.verify'));
+
+        Mail::assertSent(RegistrationVerificationCode::class, 2);
+        $this->assertSame(0, $pending->fresh()->failed_attempts);
+        $this->assertSame(0, $pending->fresh()->resend_count);
+        $this->assertTrue($pending->fresh()->pin_expires_at->isFuture());
+    }
+
+    public function test_registration_locked_after_five_wrong_pins_is_reissued_on_resubmission(): void
+    {
+        Mail::fake();
+        $this->mockUncompromisedVerifier(true, 2);
+        $this->beginRegistration();
+        $pending = PendingRegistration::firstOrFail();
+        $pending->update([
+            'pin_hash' => null,
+            'failed_attempts' => 5,
+            'resend_count' => 3,
+            'last_sent_at' => now()->subSeconds(61),
+        ]);
+
+        $this->post('/register', [
+            'email' => $pending->email,
+            'password' => 'Strong passphrase 123!',
+            'password_confirmation' => 'Strong passphrase 123!',
+            'terms_accepted' => '1',
+        ])->assertRedirect(route('registration.verify'));
+
+        Mail::assertSent(RegistrationVerificationCode::class, 2);
+        $this->assertSame(0, $pending->fresh()->failed_attempts);
+        $this->assertSame(0, $pending->fresh()->resend_count);
+        $this->assertNotNull($pending->fresh()->pin_hash);
+    }
+
+    public function test_valid_pending_registration_does_not_send_another_email_on_resubmission(): void
+    {
+        Mail::fake();
+        $this->mockUncompromisedVerifier(true, 2);
+        $this->beginRegistration();
+        $pending = PendingRegistration::firstOrFail();
+
+        $this->post('/register', [
+            'email' => $pending->email,
+            'password' => 'Strong passphrase 123!',
+            'password_confirmation' => 'Strong passphrase 123!',
+            'terms_accepted' => '1',
+        ])->assertRedirect(route('registration.verify'));
+
+        Mail::assertSent(RegistrationVerificationCode::class, 1);
+    }
+
     public function test_resending_a_pin_invalidates_the_previous_pin(): void
     {
         Mail::fake();
@@ -404,10 +471,10 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseCount('pending_registrations', 0);
     }
 
-    private function mockUncompromisedVerifier(bool $isUncompromised): void
+    private function mockUncompromisedVerifier(bool $isUncompromised, int $times = 1): void
     {
         $verifier = \Mockery::mock(UncompromisedVerifier::class);
-        $verifier->shouldReceive('verify')->once()->andReturn($isUncompromised);
+        $verifier->shouldReceive('verify')->times($times)->andReturn($isUncompromised);
         $this->app->instance(UncompromisedVerifier::class, $verifier);
     }
 }

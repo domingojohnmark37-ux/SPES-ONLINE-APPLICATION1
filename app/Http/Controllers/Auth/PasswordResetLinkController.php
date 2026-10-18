@@ -29,6 +29,7 @@ class PasswordResetLinkController extends Controller
             'password_reset_flow_token',
             'password_reset_email',
             'password_reset_otp_sent',
+            'password_reset_decoy',
         ]);
         $request->session()->regenerate();
         $request->session()->put([
