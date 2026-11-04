@@ -12,6 +12,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -24,53 +25,73 @@ class ProcessAdminBackupOperation implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $tries = 3;
-
-    public array $backoff = [30, 120, 300];
+    public int $tries = 1;
 
     public int $timeout = 900;
 
-    public function __construct(public string $operationId)
-    {
-    }
+    public function __construct(public string $operationId) {}
 
     public function handle(AdminBackupService $backupService, AuditLogger $auditLogger): void
     {
         $operation = AdminBackupOperation::query()->findOrFail($this->operationId);
-        if ($operation->status === 'done') {
+        if ($operation->status === 'completed' || $operation->status === 'failed') {
             return;
         }
 
         $operation->update([
-            'status' => 'running',
+            'status' => 'processing',
+            'started_at' => now(),
+            'completed_at' => null,
             'failure_message' => null,
         ]);
+        $startedAt = microtime(true);
 
         try {
             if ($operation->action === 'create') {
                 $result = $this->createBackup($operation, $backupService);
             } elseif ($operation->action === 'restore') {
-                $result = $this->restoreBackup($operation, $backupService);
+                $lock = Cache::lock('admin-backup-recovery', 1200);
+                if (! $lock->get()) {
+                    throw new RuntimeException('Another recovery operation is already in progress.');
+                }
+                try {
+                    $result = $this->restoreBackup($operation, $backupService);
+                } finally {
+                    $lock->release();
+                }
             } else {
                 throw new RuntimeException('The backup operation action is invalid.');
             }
 
             $operation->update([
-                'status' => 'done',
+                'status' => 'completed',
                 'result' => $result,
+                'file_size_bytes' => is_string($operation->archive_path)
+                    ? (Storage::disk('local')->exists($operation->archive_path)
+                        ? Storage::disk('local')->size($operation->archive_path)
+                        : null)
+                    : null,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'completed_at' => now(),
+                'verified_at' => now(),
                 'failure_message' => null,
             ]);
             $this->recordAudit($operation, $result, $auditLogger);
         } catch (Throwable $exception) {
-            $operation->update(['status' => 'queued']);
-            Log::warning('Admin backup operation attempt failed.', [
+            $operation->update([
+                'status' => 'failed',
+                'completed_at' => now(),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'failure_message' => __('The backup operation failed. Check the application log or contact the system administrator.'),
+            ]);
+            Log::error('Admin backup operation failed.', [
                 'operation_id' => $operation->id,
                 'admin_id' => $operation->admin_id,
-                'attempt' => $this->attempts(),
                 'exception' => $exception,
             ]);
+            $this->recordFailureAudit($operation);
 
-            throw $exception;
+            return;
         }
     }
 
@@ -91,13 +112,7 @@ class ProcessAdminBackupOperation implements ShouldQueue
             'failure_message' => __('The backup operation failed. Check the application log or contact the system administrator.'),
         ]);
 
-        if (
-            $operation->action === 'restore'
-            && $operation->archive_type !== 'annual'
-            && $operation->archive_path !== null
-        ) {
-            Storage::disk('local')->delete($operation->archive_path);
-        } elseif ($operation->action === 'create') {
+        if ($operation->action === 'create') {
             Storage::disk('local')->delete("backups/operations/{$operation->id}.zip");
         }
 
@@ -106,10 +121,50 @@ class ProcessAdminBackupOperation implements ShouldQueue
             'admin_id' => $operation->admin_id,
             'exception' => $exception,
         ]);
+        $this->recordFailureAudit($operation);
+    }
+
+    private function recordFailureAudit(AdminBackupOperation $operation): void
+    {
+        try {
+            $admin = $operation->admin_id === null ? null : User::query()->find($operation->admin_id);
+            app(AuditLogger::class)->record(
+                AuditAction::DATABASE_BACKUP_FAILED,
+                'System Backup',
+                $admin,
+                null,
+                null,
+                [
+                    'description' => __('A :action backup operation failed.', ['action' => $operation->action]),
+                    'operation_id' => $operation->id,
+                ],
+            );
+        } catch (Throwable $auditException) {
+            Log::critical('A failed backup operation could not be recorded in the audit log.', [
+                'operation_id' => $operation->id,
+                'exception' => $auditException,
+            ]);
+        }
     }
 
     private function createBackup(AdminBackupOperation $operation, AdminBackupService $backupService): array
     {
+        if ($operation->archive_type === 'daily') {
+            $archive = $backupService->createDailyArchive();
+            if ($archive === null) {
+                throw new RuntimeException('A verified daily backup already exists for this date.');
+            }
+            $operation->update([
+                'archive_path' => $archive['path'],
+                'status' => 'verifying',
+            ]);
+
+            return [
+                'archive_path' => $archive['path'],
+                'filename' => basename($archive['path']),
+            ];
+        }
+
         $temporaryPath = $backupService->create('manual', null, $operation->admin_id);
         $archivePath = "backups/operations/{$operation->id}.zip";
         $stream = fopen($temporaryPath, 'rb');
@@ -128,6 +183,7 @@ class ProcessAdminBackupOperation implements ShouldQueue
         }
 
         $operation->update(['archive_path' => $archivePath]);
+        $operation->update(['status' => 'verifying']);
 
         return [
             'archive_path' => $archivePath,
@@ -146,9 +202,6 @@ class ProcessAdminBackupOperation implements ShouldQueue
             $operation->archive_type,
             $operation->archive_year,
         );
-        if ($operation->archive_type !== 'annual') {
-            Storage::disk('local')->delete($operation->archive_path);
-        }
         $source = $operation->archive_type === 'annual'
             ? __('Annual backup :year', ['year' => $operation->archive_year])
             : __('Uploaded backup');
@@ -169,15 +222,7 @@ class ProcessAdminBackupOperation implements ShouldQueue
         array $result,
         AuditLogger $auditLogger,
     ): void {
-        $admin = User::query()->find($operation->admin_id);
-        if ($admin === null) {
-            Log::critical('Backup operation completed, but its administrator could not be loaded for audit.', [
-                'operation_id' => $operation->id,
-                'admin_id' => $operation->admin_id,
-            ]);
-
-            return;
-        }
+        $admin = $operation->admin_id === null ? null : User::query()->find($operation->admin_id);
 
         try {
             if ($operation->action === 'create') {
@@ -210,7 +255,7 @@ class ProcessAdminBackupOperation implements ShouldQueue
         } catch (Throwable $exception) {
             Log::critical('Backup data completed, but its audit entry could not be recorded.', [
                 'operation_id' => $operation->id,
-                'admin_id' => $admin->id,
+                'admin_id' => $admin?->id,
                 'exception' => $exception,
             ]);
         }

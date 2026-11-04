@@ -1,7 +1,9 @@
 <?php
 
-use App\Models\AuditAction;
+use App\Jobs\ProcessAdminBackupOperation;
+use App\Models\AdminBackupOperation;
 use App\Models\Appointment;
+use App\Models\AuditAction;
 use App\Models\PendingRegistration;
 use App\Notifications\ApplicantPortalUpdate;
 use App\Services\AdminBackupService;
@@ -9,9 +11,12 @@ use App\Services\ApplicantNotificationService;
 use App\Services\AuditLogger;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -26,6 +31,7 @@ Artisan::command('spes:move-documents-to-private', function (): void {
     foreach ($public->allFiles('applications') as $path) {
         if ($private->exists($path)) {
             $skipped++;
+
             continue;
         }
 
@@ -168,6 +174,65 @@ Artisan::command('backup:annual', function (AdminBackupService $backupService): 
     }
 })->purpose('Create the yearly SPES system backup archive');
 
+Artisan::command('backup:daily', function (AdminBackupService $backupService): void {
+    $lock = Cache::lock('admin-backup-daily-scheduler', 300);
+    if (! $lock->get()) {
+        $this->info('A daily backup scheduling operation is already in progress.');
+
+        return;
+    }
+
+    try {
+        $date = now(config('app.timezone'))->format('Ymd');
+        $marker = 'scheduled-daily-'.$date;
+        if ($backupService->verifiedDailyArchiveExists()) {
+            $this->info('A daily backup already exists for today.');
+
+            return;
+        }
+        $alreadyQueued = AdminBackupOperation::query()
+            ->where('action', 'create')
+            ->where('archive_type', 'daily')
+            ->where('original_filename', $marker)
+            ->whereIn('status', ['queued', 'processing', 'verifying'])
+            ->exists();
+        if ($alreadyQueued) {
+            $this->info('A daily backup is already queued or running.');
+
+            return;
+        }
+
+        $operation = DB::transaction(function () use ($marker): AdminBackupOperation {
+            $operation = AdminBackupOperation::query()->create([
+                'id' => (string) Str::uuid(),
+                'admin_id' => null,
+                'action' => 'create',
+                'status' => 'queued',
+                'archive_type' => 'daily',
+                'original_filename' => $marker,
+            ]);
+            ProcessAdminBackupOperation::dispatch($operation->id)->afterCommit();
+
+            return $operation;
+        });
+        $this->info("Daily backup operation {$operation->id} queued.");
+    } finally {
+        $lock->release();
+    }
+})->purpose('Queue a full daily SPES database and document backup');
+
+Artisan::command('backup:cleanup', function (AdminBackupService $backupService): void {
+    $result = $backupService->cleanupExpiredBackups();
+    $this->info("Examined {$result['examined']} verified daily backups; deleted {$result['deleted']} expired backups.");
+})->purpose('Remove expired daily backups while protecting required recovery points');
+
+Artisan::command('backup:check-interrupted', function (AdminBackupService $backupService): void {
+    $count = $backupService->failInterruptedOperations();
+    if ($count > 0) {
+        $this->warn("Marked {$count} interrupted backup/recovery operation(s) as failed. Inspect database state before any manual restore retry.");
+    }
+})->purpose('Mark abandoned backup operations as failed without blindly retrying them');
+
 Artisan::command('backup:restore-annual {year}', function (string $year, AdminBackupService $backupService, AuditLogger $auditLogger): void {
     if (! preg_match('/^\d{4}$/D', $year)) {
         $this->error('Provide a four-digit backup year.');
@@ -210,4 +275,21 @@ Schedule::command('backup:annual')
     ->yearlyOn(12, 31, '23:59')
     ->timezone(config('app.timezone'))
     ->name('spes-annual-backup')
+    ->withoutOverlapping();
+
+Schedule::command('backup:daily')
+    ->dailyAt(config('backup.schedule_time', '02:00'))
+    ->timezone(config('app.timezone'))
+    ->name('spes-daily-backup')
+    ->withoutOverlapping();
+
+Schedule::command('backup:cleanup')
+    ->dailyAt('03:00')
+    ->timezone(config('app.timezone'))
+    ->name('spes-backup-retention-cleanup')
+    ->withoutOverlapping();
+
+Schedule::command('backup:check-interrupted')
+    ->everyFiveMinutes()
+    ->name('spes-backup-check-interrupted')
     ->withoutOverlapping();

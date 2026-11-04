@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditAction;
+use App\Jobs\ProcessAdminBackupOperation;
 use App\Models\AdminBackupOperation;
+use App\Models\AuditAction;
 use App\Models\PersonalizedSecurityVerification;
 use App\Models\SystemSetting;
-use App\Jobs\ProcessAdminBackupOperation;
 use App\Services\AdminBackupService;
 use App\Services\ApplicantAuditQuery;
 use App\Services\AuditLogger;
@@ -44,6 +44,17 @@ class AdminSettingsFeatureController extends Controller
         $adminAuditLogs = $auditQuery->userAuditQuery($filters, 'admin')
             ->get();
         $annualBackups = $backupService->annualArchives();
+        $dailyBackups = $backupService->retentionPreview();
+        $backupStorage = $backupService->backupStorageSummary();
+        $failedBackupCount = AdminBackupOperation::query()
+            ->where('status', 'failed')
+            ->where('updated_at', '>=', now()->subDays(7))
+            ->count();
+        $recentBackupFailures = AdminBackupOperation::query()
+            ->where('status', 'failed')
+            ->latest('updated_at')
+            ->limit(5)
+            ->get();
         $backupOperationId = $request->session()->get('backup_operation_id');
         $backupOperation = is_string($backupOperationId)
             ? AdminBackupOperation::query()
@@ -61,6 +72,10 @@ class AdminSettingsFeatureController extends Controller
             'filters',
             'adminAuditLogs',
             'annualBackups',
+            'dailyBackups',
+            'backupStorage',
+            'failedBackupCount',
+            'recentBackupFailures',
             'backupOperation',
             'personalSecurityVerification',
         ));
@@ -276,12 +291,18 @@ class AdminSettingsFeatureController extends Controller
             'action' => $operation->action,
             'message' => match ($operation->status) {
                 'queued' => __('Waiting for a background worker.'),
-                'running' => __('The background operation is running.'),
-                'done' => $operation->result['message'] ?? __('Backup is ready to download.'),
+                'processing' => __('The background operation is processing.'),
+                'verifying' => __('The operation is verifying the backup.'),
+                'completed' => ($operation->result['expired'] ?? false)
+                    ? __('This backup has expired under the configured retention policy.')
+                    : ($operation->result['message'] ?? __('Backup is ready to download.')),
                 'failed' => $operation->failure_message,
                 default => __('The operation status is unavailable.'),
             },
-            'download_url' => $operation->status === 'done' && $operation->action === 'create'
+            'download_url' => $operation->status === 'completed'
+                && $operation->action === 'create'
+                && is_string($operation->archive_path)
+                && Storage::disk('local')->exists($operation->archive_path)
                 ? route('admin.backup.operations.download', $operation)
                 : null,
         ]);
@@ -291,7 +312,7 @@ class AdminSettingsFeatureController extends Controller
     {
         abort_unless(
             (int) $operation->admin_id === (int) $request->user()->id
-            && $operation->status === 'done'
+            && $operation->status === 'completed'
             && $operation->action === 'create'
             && is_string($operation->archive_path)
             && Storage::disk('local')->exists($operation->archive_path),
@@ -341,7 +362,7 @@ class AdminSettingsFeatureController extends Controller
                     'status' => 'queued',
                     'archive_path' => $archivePath,
                     'original_filename' => $request->file('backup')?->getClientOriginalName(),
-                    'archive_type' => $archiveType,
+                    'archive_type' => $archiveType ?? ($action === 'create' ? 'manual' : null),
                     'archive_year' => $archiveYear,
                 ]);
                 ProcessAdminBackupOperation::dispatch($operation->id)->afterCommit();

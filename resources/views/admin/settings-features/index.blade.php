@@ -307,15 +307,63 @@
                     <span data-backup-operation-message>
                         @if($backupOperation->status === 'failed')
                             {{ $backupOperation->failure_message }}
-                        @elseif($backupOperation->status === 'done')
-                            {{ $backupOperation->result['message'] ?? __('Backup is ready to download.') }}
+                        @elseif($backupOperation->status === 'completed')
+                            {{ ($backupOperation->result['expired'] ?? false) ? __('This backup has expired under the configured retention policy.') : ($backupOperation->result['message'] ?? __('Backup is ready to download.')) }}
                         @else
-                            {{ $backupOperation->status === 'running' ? __('The background operation is running.') : __('Waiting for a background worker.') }}
+                            {{ match ($backupOperation->status) {
+                                'processing' => __('The background operation is processing.'),
+                                'verifying' => __('The operation is verifying the backup.'),
+                                default => __('Waiting for a background worker.'),
+                            } }}
                         @endif
                     </span>
-                    @if($backupOperation->status === 'done' && $backupOperation->action === 'create')
+                    @if($backupOperation->status === 'completed' && $backupOperation->action === 'create' && $backupOperation->archive_path)
                         <a data-backup-download href="{{ route('admin.backup.operations.download', $backupOperation) }}">{{ __('Download backup') }}</a>
                     @endif
+                </div>
+            @endif
+            <h3 style="margin-bottom:8px;">{{ __('Backup storage and retention') }}</h3>
+            <p style="line-height:1.6;margin-bottom:8px;">{{ __('Private backup storage used: :size', ['size' => number_format($backupStorage['bytes'] / 1048576, 2).' MB']) }}</p>
+            @if($backupStorage['free_bytes'] !== null)
+                <p style="line-height:1.6;margin-bottom:8px;">{{ __('Available space on the backup volume: :size', ['size' => number_format($backupStorage['free_bytes'] / 1073741824, 2).' GB']) }}</p>
+                @if($backupStorage['free_bytes'] < $backupStorage['minimum_free_bytes'])
+                    <div class="alert alert-danger" role="alert">{{ __('Available disk space is below the configured backup safety threshold. New backups will be stopped.') }}</div>
+                @endif
+            @else
+                <p style="line-height:1.6;margin-bottom:8px;">{{ __('Available server disk space cannot be measured by this storage driver.') }}</p>
+            @endif
+            @if($failedBackupCount > 0)
+                <div class="alert {{ $failedBackupCount >= 3 ? 'alert-danger' : 'alert-warning' }}" role="alert" style="margin:12px 0;">
+                    {{ trans_choice(':count backup operation failed in the last 7 days.|:count backup operations failed in the last 7 days.', $failedBackupCount, ['count' => $failedBackupCount]) }}
+                    {{ __('Check the application log and confirm the database state before retrying any recovery operation.') }}
+                </div>
+                <ul style="margin:0 0 16px 20px;color:var(--text-muted);">
+                    @foreach($recentBackupFailures as $failedOperation)
+                        <li>{{ ucfirst($failedOperation->action) }} · {{ $failedOperation->updated_at->translatedFormat('M j, Y g:i A') }} · {{ $failedOperation->failure_message }}</li>
+                    @endforeach
+                </ul>
+            @endif
+            <p style="line-height:1.6;margin-bottom:18px;">{{ __('Full daily backups are retained for :daily days, plus the newest backup from each of the most recent :weekly weeks and :monthly months. The newest verified backup and any backup in use by a recovery job are protected. Annual safety archives are not automatically deleted.', [
+                'daily' => config('backup.retention.daily'),
+                'weekly' => config('backup.retention.weekly'),
+                'monthly' => config('backup.retention.monthly'),
+            ]) }}</p>
+            @if($dailyBackups !== [])
+                <div class="settings-table-wrap" style="margin-bottom:20px;">
+                    <table class="settings-table">
+                        <thead><tr><th>{{ __('Backup') }}</th><th>{{ __('Size') }}</th><th>{{ __('Duration') }}</th><th>{{ __('Verification') }}</th><th>{{ __('Retention') }}</th></tr></thead>
+                        <tbody>
+                        @foreach($dailyBackups as $dailyBackup)
+                            <tr>
+                                <td>{{ ucfirst($dailyBackup['type']) }} · {{ \Illuminate\Support\Carbon::parse($dailyBackup['created_at'])->translatedFormat('M j, Y g:i A') }}</td>
+                                <td>{{ number_format($dailyBackup['size'] / 1048576, 2) }} MB</td>
+                                <td>{{ $dailyBackup['duration_ms'] ? number_format($dailyBackup['duration_ms'] / 1000, 1).' s' : '—' }}</td>
+                                <td>{{ $dailyBackup['verified_at'] ? __('Verified') : __('Unverified') }}</td>
+                                <td>{{ $dailyBackup['will_expire'] ? __('Will expire at next cleanup') : __('Protected') }}</td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
                 </div>
             @endif
             <h3 style="margin-bottom:8px;">{{ __('Download a Backup') }}</h3>
@@ -399,7 +447,7 @@
         document.documentElement.lang = this.value === 'fil' ? 'fil' : 'en';
     });
 </script>
-@if($backupOperation && in_array($backupOperation->status, ['queued', 'running'], true))
+@if($backupOperation && in_array($backupOperation->status, ['queued', 'processing', 'verifying'], true))
     <script>
         (() => {
             const panel = document.getElementById('backup-operation-status');
@@ -425,7 +473,7 @@
                         message.after(document.createTextNode(' '), link);
                     }
 
-                    if (['done', 'failed'].includes(operation.status)) return;
+                    if (['completed', 'failed'].includes(operation.status)) return;
                 } catch (error) {
                     message.textContent = @js(__('Unable to check backup status. Retrying shortly.'));
                 }

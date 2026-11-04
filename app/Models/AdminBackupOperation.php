@@ -21,13 +21,23 @@ class AdminBackupOperation extends Model
         'archive_year',
         'result',
         'failure_message',
+        'file_size_bytes',
+        'duration_ms',
+        'started_at',
+        'completed_at',
+        'verified_at',
     ];
 
     protected function casts(): array
     {
         return [
             'archive_year' => 'integer',
+            'file_size_bytes' => 'integer',
+            'duration_ms' => 'integer',
             'result' => 'array',
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'verified_at' => 'datetime',
         ];
     }
 }

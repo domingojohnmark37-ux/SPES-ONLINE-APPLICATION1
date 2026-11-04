@@ -54,6 +54,8 @@ final class AuditAction
 
     public const DATABASE_BACKUP_DOWNLOADED = 'Database Backup Downloaded';
 
+    public const DATABASE_BACKUP_FAILED = 'Database Backup Failed';
+
     public const APPLICANT_DELETED = 'Applicant Deleted';
 
     public const APPLICANT_REPORT_GENERATED = 'Applicant Report Generated';
@@ -84,6 +86,7 @@ final class AuditAction
         self::DATABASE_BACKUP_GENERATED,
         self::DATABASE_BACKUP_RESTORED,
         self::DATABASE_BACKUP_DOWNLOADED,
+        self::DATABASE_BACKUP_FAILED,
         self::APPLICANT_DELETED,
         self::APPLICANT_REPORT_GENERATED,
     ];

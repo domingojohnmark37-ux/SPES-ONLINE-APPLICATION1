@@ -2,23 +2,25 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessAdminBackupOperation;
+use App\Models\AdminBackupOperation;
 use App\Models\AuditAction;
 use App\Models\AuditLog;
-use App\Models\AdminBackupOperation;
 use App\Models\SystemSetting;
 use App\Models\User;
-use App\Jobs\ProcessAdminBackupOperation;
 use App\Services\AdminBackupService;
 use App\Services\AuditLogger;
 use App\Support\AdminDateFormatter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\UncompromisedVerifier;
 use Tests\TestCase;
 use ZipArchive;
@@ -373,7 +375,7 @@ class AdminSettingsFeaturesTest extends TestCase
         );
 
         $this->assertSame('Annual Backup Applicant', User::findOrFail($applicantId)->name);
-        $this->assertSame('done', $operation->fresh()->status);
+        $this->assertSame('completed', $operation->fresh()->status);
         Storage::disk('local')->assertExists($archive['path']);
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $admin->id,
@@ -639,7 +641,7 @@ class AdminSettingsFeaturesTest extends TestCase
             );
 
             $this->assertSame('Restored Through Form', User::findOrFail($applicantId)->name);
-            $this->assertSame('done', $operation->fresh()->status);
+            $this->assertSame('completed', $operation->fresh()->status);
             $this->assertDatabaseHas('audit_logs', [
                 'user_id' => $admin->id,
                 'action' => AuditAction::DATABASE_BACKUP_RESTORED,
@@ -671,10 +673,10 @@ class AdminSettingsFeaturesTest extends TestCase
             app(AuditLogger::class),
         );
 
-        $this->assertSame('done', $operation->fresh()->status);
+        $this->assertSame('completed', $operation->fresh()->status);
         $this->get(route('admin.backup.operations.status', $operation))
             ->assertOk()
-            ->assertJsonPath('status', 'done')
+            ->assertJsonPath('status', 'completed')
             ->assertJsonPath('action', 'create')
             ->assertJsonPath('download_url', route('admin.backup.operations.download', $operation));
 
@@ -696,6 +698,116 @@ class AdminSettingsFeaturesTest extends TestCase
             'generated_by' => $admin->id,
             'archive_type' => 'manual',
             'archive_year' => null,
+        ]);
+    }
+
+    public function test_backup_retention_deletes_expired_archives_and_keeps_the_newest_verified_backup(): void
+    {
+        Storage::fake('local');
+        config()->set('backup.retention.daily', 1);
+        config()->set('backup.retention.weekly', 0);
+        config()->set('backup.retention.monthly', 0);
+        $expiredPath = 'backups/daily/expired.zip';
+        $newestPath = 'backups/daily/newest.zip';
+        Storage::disk('local')->put($expiredPath, 'expired');
+        Storage::disk('local')->put($newestPath, 'newest');
+
+        DB::table('backup_archive_credentials')->insert([
+            [
+                'id' => (string) Str::uuid(),
+                'credential_hash' => str_repeat('a', 64),
+                'archive_type' => 'daily',
+                'archive_path' => $expiredPath,
+                'created_at' => now()->subDays(3),
+                'updated_at' => now()->subDays(3),
+                'verified_at' => now()->subDays(3),
+            ],
+            [
+                'id' => (string) Str::uuid(),
+                'credential_hash' => str_repeat('b', 64),
+                'archive_type' => 'daily',
+                'archive_path' => $newestPath,
+                'created_at' => now(),
+                'updated_at' => now(),
+                'verified_at' => now(),
+            ],
+        ]);
+
+        $preview = app(AdminBackupService::class)->retentionPreview();
+        $this->assertTrue(collect($preview)->firstWhere('path', $expiredPath)['will_expire']);
+        $this->assertFalse(collect($preview)->firstWhere('path', $newestPath)['will_expire']);
+
+        $result = app(AdminBackupService::class)->cleanupExpiredBackups();
+
+        $this->assertSame(1, $result['deleted']);
+        Storage::disk('local')->assertMissing($expiredPath);
+        Storage::disk('local')->assertExists($newestPath);
+        $this->assertDatabaseHas('backup_cleanup_runs', ['examined' => 2, 'deleted' => 1]);
+    }
+
+    public function test_daily_backup_command_queues_one_full_backup_operation(): void
+    {
+        Queue::fake();
+
+        Artisan::call('backup:daily');
+
+        $operation = AdminBackupOperation::query()->sole();
+        $this->assertSame('daily', $operation->archive_type);
+        $this->assertNull($operation->admin_id);
+        $this->assertSame('queued', $operation->status);
+        Queue::assertPushed(ProcessAdminBackupOperation::class, fn (ProcessAdminBackupOperation $job): bool => $job->operationId === $operation->id);
+
+        Artisan::call('backup:daily');
+
+        $this->assertSame(1, AdminBackupOperation::query()->count());
+    }
+
+    public function test_overlapping_recovery_is_rejected_and_audited_without_retrying(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $operation = AdminBackupOperation::query()->create([
+            'id' => (string) Str::uuid(),
+            'admin_id' => $admin->id,
+            'action' => 'restore',
+            'status' => 'queued',
+            'archive_path' => 'backups/operations/uploads/missing.zip',
+        ]);
+        $lock = Cache::lock('admin-backup-recovery', 1200);
+        $this->assertTrue($lock->get());
+
+        try {
+            $job = new ProcessAdminBackupOperation($operation->id);
+            $this->assertSame(1, $job->tries);
+            $job->handle(app(AdminBackupService::class), app(AuditLogger::class));
+        } finally {
+            $lock->release();
+        }
+
+        $this->assertSame('failed', $operation->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $admin->id,
+            'action' => AuditAction::DATABASE_BACKUP_FAILED,
+        ]);
+    }
+
+    public function test_interrupted_recovery_is_marked_failed_and_not_requeued(): void
+    {
+        $operation = AdminBackupOperation::query()->create([
+            'id' => (string) Str::uuid(),
+            'admin_id' => null,
+            'action' => 'restore',
+            'status' => 'processing',
+            'started_at' => now()->subMinutes(20),
+        ]);
+
+        $this->assertSame(1, app(AdminBackupService::class)->failInterruptedOperations());
+
+        $operation->refresh();
+        $this->assertSame('failed', $operation->status);
+        $this->assertNotNull($operation->completed_at);
+        $this->assertStringContainsString('Do not retry a restore', $operation->failure_message);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::DATABASE_BACKUP_FAILED,
         ]);
     }
 

@@ -2,7 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\AuditAction;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -28,11 +32,16 @@ class AdminBackupService
         if (! class_exists(ZipArchive::class)) {
             throw new RuntimeException('The PHP ZIP extension is required to create backups.');
         }
-        if (! in_array($archiveType, ['manual', 'annual'], true)) {
+        if (! in_array($archiveType, ['manual', 'annual', 'daily'], true)) {
             throw new RuntimeException('The backup archive type is invalid.');
         }
+        $startedAt = microtime(true);
         if (! Schema::hasTable('backup_archive_credentials')) {
             throw new RuntimeException('Run the database migrations before creating a protected backup.');
+        }
+        $storage = $this->backupStorageSummary();
+        if ($storage['free_bytes'] !== null && $storage['free_bytes'] < $storage['minimum_free_bytes']) {
+            throw new RuntimeException('Backup creation was stopped because available disk space is below the configured safety threshold.');
         }
 
         $archiveId = (string) Str::uuid();
@@ -64,6 +73,13 @@ class AdminBackupService
             if (! $zip->addFile($dataPath, 'database/data.json')) {
                 $zip->close();
                 throw new RuntimeException('Unable to add the database data snapshot to the backup.');
+            }
+            if (
+                ! $zip->setCompressionName('database/backup.sql', ZipArchive::CM_DEFLATE, 6)
+                || ! $zip->setCompressionName('database/data.json', ZipArchive::CM_DEFLATE, 6)
+            ) {
+                $zip->close();
+                throw new RuntimeException('Unable to configure database backup compression.');
             }
 
             if (! $zip->addFromString(
@@ -97,7 +113,28 @@ class AdminBackupService
                 throw new RuntimeException('Unable to finalize the backup archive.');
             }
 
+            $zip = new ZipArchive;
+            if ($zip->open($archivePath) !== true) {
+                throw new RuntimeException('Unable to reopen the completed backup for verification.');
+            }
+            try {
+                $verifiedManifest = $this->validateArchive($zip);
+                if ($verifiedManifest['credential']['id'] !== $archiveId) {
+                    throw new RuntimeException('The backup credential changed during verification.');
+                }
+            } finally {
+                $zip->close();
+            }
+
             $this->registerCredential($manifest, $archiveType, $year, $generatedBy);
+            DB::table('backup_archive_credentials')
+                ->where('id', $archiveId)
+                ->update([
+                    'file_size_bytes' => filesize($archivePath) ?: null,
+                    'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                    'verified_at' => now(),
+                    'updated_at' => now(),
+                ]);
 
             return $archivePath;
         } catch (\Throwable $exception) {
@@ -123,6 +160,14 @@ class AdminBackupService
         $createdFiles = [];
         try {
             $manifest = $this->validateArchive($zip);
+            $pdoDriver = DB::connection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+            $backupDriver = $manifest['database_driver'] ?? null;
+            $compatibleDriver = $pdoDriver === 'mysql'
+                ? in_array($backupDriver, ['mysql', 'mariadb'], true)
+                : $backupDriver === $pdoDriver;
+            if (! $compatibleDriver) {
+                throw new RuntimeException('The backup database engine is incompatible with the configured application database.');
+            }
             if (
                 ($expectedType !== null && ($manifest['archive_type'] ?? null) !== $expectedType)
                 || ($expectedYear !== null && ($manifest['archive_year'] ?? null) !== $expectedYear)
@@ -193,6 +238,8 @@ class AdminBackupService
             ->where('id', $manifest['credential']['id'])
             ->update([
                 'archive_path' => $archivePath,
+                'file_size_bytes' => $disk->size($archivePath),
+                'verified_at' => now(),
                 'updated_at' => now(),
             ]);
 
@@ -215,6 +262,87 @@ class AdminBackupService
         return $archives;
     }
 
+    public function createDailyArchive(): ?array
+    {
+        $lock = Cache::lock('admin-backup-daily-create', 1800);
+        if (! $lock->get()) {
+            throw new RuntimeException('A daily backup is already being created.');
+        }
+        $filename = 'spes-daily-backup-'.now(config('app.timezone'))->format('Ymd').'.zip';
+        $archivePath = 'backups/daily/'.$filename;
+        $disk = Storage::disk('local');
+
+        try {
+            if ($disk->exists($archivePath)) {
+                $this->verifyArchiveFile($disk->path($archivePath), 'daily');
+
+                return null;
+            }
+
+            $temporaryArchive = $this->create('daily');
+            $stream = fopen($temporaryArchive, 'rb');
+            if ($stream === false) {
+                @unlink($temporaryArchive);
+                throw new RuntimeException('Unable to open the daily backup for archival.');
+            }
+
+            try {
+                if (! $disk->writeStream($archivePath, $stream)) {
+                    $disk->delete($archivePath);
+                    throw new RuntimeException('Unable to save the daily backup to private archive storage.');
+                }
+            } finally {
+                fclose($stream);
+                @unlink($temporaryArchive);
+            }
+
+            $manifest = $this->readArchiveManifest($disk->path($archivePath));
+            DB::table('backup_archive_credentials')
+                ->where('id', $manifest['credential']['id'])
+                ->update([
+                    'archive_path' => $archivePath,
+                    'file_size_bytes' => $disk->size($archivePath),
+                    'updated_at' => now(),
+                ]);
+
+            return [
+                'path' => $archivePath,
+                'size' => $disk->size($archivePath),
+                'created_at' => now(),
+            ];
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function verifiedDailyArchiveExists(): bool
+    {
+        $path = 'backups/daily/spes-daily-backup-'.now(config('app.timezone'))->format('Ymd').'.zip';
+        $disk = Storage::disk('local');
+        if (! $disk->exists($path)) {
+            return false;
+        }
+        $this->verifyArchiveFile($disk->path($path), 'daily');
+
+        return true;
+    }
+
+    private function verifyArchiveFile(string $archivePath, string $expectedType): void
+    {
+        $zip = new ZipArchive;
+        if ($zip->open($archivePath) !== true) {
+            throw new RuntimeException('The existing backup file cannot be opened for verification.');
+        }
+        try {
+            $manifest = $this->validateArchive($zip);
+            if (($manifest['archive_type'] ?? null) !== $expectedType) {
+                throw new RuntimeException('The existing backup file has an unexpected archive type.');
+            }
+        } finally {
+            $zip->close();
+        }
+    }
+
     public function annualArchive(int $year): ?array
     {
         $path = "backups/annual/spes-annual-backup-{$year}.zip";
@@ -231,6 +359,262 @@ class AdminBackupService
         ];
     }
 
+    public function retentionPreview(): array
+    {
+        $daily = DB::table('backup_archive_credentials')
+            ->select('id', 'archive_path', 'created_at', 'duration_ms', 'verified_at')
+            ->where('archive_type', 'daily')
+            ->whereNotNull('archive_path')
+            ->whereNotNull('verified_at')
+            ->get();
+        $manual = DB::table('admin_backup_operations')
+            ->select('id', 'archive_path', 'created_at', 'duration_ms', 'verified_at')
+            ->whereIn('action', ['create', 'restore'])
+            ->where('status', 'completed')
+            ->whereNotNull('archive_path')
+            ->whereNotNull('verified_at')
+            ->where(function ($query): void {
+                $query->where('archive_path', 'like', 'backups/operations/%')
+                    ->orWhere('archive_path', 'like', 'backups/operations/uploads/%');
+            })
+            ->get();
+        $archives = [];
+        foreach ($daily->concat($manual)->unique('archive_path') as $archive) {
+            if (! Storage::disk('local')->exists($archive->archive_path)) {
+                continue;
+            }
+            $archives[] = [
+                'path' => $archive->archive_path,
+                'created_at' => $archive->created_at,
+                'size' => Storage::disk('local')->size($archive->archive_path),
+                'duration_ms' => $archive->duration_ms,
+                'verified_at' => $archive->verified_at,
+                'type' => str_starts_with($archive->archive_path, 'backups/daily/')
+                    ? 'daily'
+                    : (str_contains($archive->archive_path, '/uploads/') ? 'restore upload' : 'manual'),
+            ];
+        }
+
+        $keep = $this->retainedDailyArchiveIds($daily->concat($manual));
+        foreach ($archives as &$archive) {
+            $archive['will_expire'] = ! isset($keep[$archive['path']]);
+        }
+        unset($archive);
+
+        return $archives;
+    }
+
+    public function backupStorageSummary(): array
+    {
+        $disk = Storage::disk('local');
+        $bytes = 0;
+        foreach ($disk->allFiles('backups') as $path) {
+            $bytes += $disk->size($path);
+        }
+
+        $root = $disk->path('');
+        $freeBytes = function_exists('disk_free_space') ? @disk_free_space($root) : false;
+
+        return [
+            'bytes' => $bytes,
+            'free_bytes' => is_int($freeBytes) || is_float($freeBytes) ? (int) $freeBytes : null,
+            'minimum_free_bytes' => (int) config('backup.minimum_free_bytes', 1_073_741_824),
+        ];
+    }
+
+    public function cleanupExpiredBackups(): array
+    {
+        $lock = Cache::lock('admin-backup-retention-cleanup', 1800);
+        if (! $lock->get()) {
+            return ['examined' => 0, 'deleted' => 0, 'results' => ['skipped' => 'A cleanup operation is already running.']];
+        }
+
+        try {
+            $daily = DB::table('backup_archive_credentials')
+                ->where('archive_type', 'daily')
+                ->whereNotNull('archive_path')
+                ->whereNotNull('verified_at')
+                ->get();
+            $manual = DB::table('admin_backup_operations')
+                ->whereIn('action', ['create', 'restore'])
+                ->where('status', 'completed')
+                ->whereNotNull('archive_path')
+                ->whereNotNull('verified_at')
+                ->where(function ($query): void {
+                    $query->where('archive_path', 'like', 'backups/operations/%')
+                        ->orWhere('archive_path', 'like', 'backups/operations/uploads/%');
+                })
+                ->get();
+            $archives = $daily->concat($manual)->unique('archive_path')->sortByDesc('created_at')->values();
+            $keep = $this->retainedDailyArchiveIds($archives);
+            $results = [];
+            $deleted = 0;
+            $disk = Storage::disk('local');
+
+            foreach ($archives as $archive) {
+                $path = $archive->archive_path;
+                if (isset($keep[$path])) {
+                    continue;
+                }
+                $inUse = DB::table('admin_backup_operations')
+                    ->whereIn('status', ['queued', 'running', 'processing', 'verifying'])
+                    ->where('archive_path', $path)
+                    ->exists();
+                if ($inUse) {
+                    $results[] = ['path' => $path, 'result' => 'protected_in_use'];
+
+                    continue;
+                }
+                if ($disk->exists($path)) {
+                    if (! $disk->delete($path)) {
+                        $results[] = ['path' => $path, 'result' => 'delete_failed'];
+
+                        continue;
+                    }
+                }
+                if (str_starts_with($path, 'backups/daily/')) {
+                    DB::table('backup_archive_credentials')
+                        ->where('id', $archive->id)
+                        ->update(['archive_path' => null, 'updated_at' => now()]);
+                } else {
+                    $result = json_decode((string) $archive->result, true) ?: [];
+                    $result['expired'] = true;
+                    DB::table('admin_backup_operations')
+                        ->where('id', $archive->id)
+                        ->update([
+                            'archive_path' => null,
+                            'result' => json_encode($result, JSON_THROW_ON_ERROR),
+                            'updated_at' => now(),
+                        ]);
+                }
+                $results[] = ['path' => $path, 'result' => 'deleted'];
+                $deleted++;
+            }
+
+            $failedUploads = DB::table('admin_backup_operations')
+                ->where('action', 'restore')
+                ->where('status', 'failed')
+                ->whereNotNull('archive_path')
+                ->where('archive_path', 'like', 'backups/operations/uploads/%')
+                ->where('completed_at', '<', now()->subDays(max(1, (int) config('backup.retention.daily', 7))))
+                ->get();
+            foreach ($failedUploads as $operation) {
+                $path = $operation->archive_path;
+                if ($disk->exists($path) && ! $disk->delete($path)) {
+                    $results[] = ['path' => $path, 'result' => 'delete_failed'];
+
+                    continue;
+                }
+                DB::table('admin_backup_operations')
+                    ->where('id', $operation->id)
+                    ->update(['archive_path' => null, 'updated_at' => now()]);
+                $results[] = ['path' => $path, 'result' => 'failed_upload_expired'];
+                $deleted++;
+            }
+
+            DB::table('backup_cleanup_runs')->insert([
+                'examined' => count($archives) + count($failedUploads),
+                'deleted' => $deleted,
+                'results' => json_encode($results, JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+            ]);
+
+            return ['examined' => count($archives), 'deleted' => $deleted, 'results' => $results];
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function failInterruptedOperations(): int
+    {
+        $cutoff = now()->subSeconds(960);
+        $operations = DB::table('admin_backup_operations')
+            ->whereIn('status', ['processing', 'verifying'])
+            ->where(function ($query) use ($cutoff): void {
+                $query->where('started_at', '<', $cutoff)
+                    ->orWhere(function ($query) use ($cutoff): void {
+                        $query->whereNull('started_at')->where('created_at', '<', $cutoff);
+                    });
+            })
+            ->get();
+
+        foreach ($operations as $operation) {
+            DB::table('admin_backup_operations')
+                ->where('id', $operation->id)
+                ->whereIn('status', ['processing', 'verifying'])
+                ->update([
+                    'status' => 'failed',
+                    'completed_at' => now(),
+                    'failure_message' => __('The worker stopped before the operation completed. Do not retry a restore until its database state has been checked.'),
+                    'updated_at' => now(),
+                ]);
+            Log::error('An interrupted admin backup operation was marked failed and requires inspection.', [
+                'operation_id' => $operation->id,
+                'action' => $operation->action,
+            ]);
+            try {
+                app(AuditLogger::class)->record(
+                    AuditAction::DATABASE_BACKUP_FAILED,
+                    'System Backup',
+                    null,
+                    null,
+                    null,
+                    [
+                        'description' => 'An interrupted backup or recovery operation was marked failed; database state requires inspection.',
+                        'operation_id' => $operation->id,
+                    ],
+                );
+            } catch (\Throwable $exception) {
+                Log::critical('An interrupted backup operation could not be recorded in the audit log.', [
+                    'operation_id' => $operation->id,
+                    'exception' => $exception,
+                ]);
+            }
+        }
+
+        return count($operations);
+    }
+
+    private function retainedDailyArchiveIds(iterable $archives): array
+    {
+        $archives = collect($archives)
+            ->filter(fn ($archive): bool => $archive->verified_at !== null)
+            ->sortByDesc('created_at')
+            ->values();
+        $keep = [];
+        $dailyDays = max(1, (int) config('backup.retention.daily', 7));
+        $weeklyCount = max(0, (int) config('backup.retention.weekly', 4));
+        $monthlyCount = max(0, (int) config('backup.retention.monthly', 12));
+        $cutoff = now()->subDays($dailyDays)->startOfDay();
+        $weekly = [];
+        $monthly = [];
+
+        foreach ($archives as $archive) {
+            $createdAt = Carbon::parse($archive->created_at);
+            $path = $archive->archive_path;
+            if ($createdAt->greaterThanOrEqualTo($cutoff)) {
+                $keep[$path] = true;
+            }
+            $week = $createdAt->format('o-W');
+            if (! isset($weekly[$week]) && count($weekly) < $weeklyCount) {
+                $weekly[$week] = true;
+                $keep[$path] = true;
+            }
+            $month = $createdAt->format('Y-m');
+            if (! isset($monthly[$month]) && count($monthly) < $monthlyCount) {
+                $monthly[$month] = true;
+                $keep[$path] = true;
+            }
+        }
+
+        $newestVerified = $archives->first();
+        if ($newestVerified !== null) {
+            $keep[$newestVerified->archive_path] = true;
+        }
+
+        return $keep;
+    }
+
     private function writeDatabaseDump(string $path): void
     {
         $pdo = DB::connection()->getPdo();
@@ -242,12 +626,12 @@ class AdminBackupService
         }
 
         try {
-            fwrite($handle, "-- SPES database backup\n");
+            $this->writeAll($handle, "-- SPES database backup\n");
             if ($driver === 'mysql') {
-                fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n");
+                $this->writeAll($handle, "SET FOREIGN_KEY_CHECKS=0;\n");
                 $tables = $pdo->query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
             } elseif ($driver === 'sqlite') {
-                fwrite($handle, "PRAGMA foreign_keys=OFF;\n");
+                $this->writeAll($handle, "PRAGMA foreign_keys=OFF;\n");
                 $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
             } else {
                 throw new RuntimeException("Database backup does not support [{$driver}].");
@@ -271,17 +655,17 @@ class AdminBackupService
                     throw new RuntimeException("Unable to read the schema for table [{$tableName}].");
                 }
 
-                fwrite($handle, "\nDROP TABLE IF EXISTS {$identifier};\n{$createSql};\n");
+                $this->writeAll($handle, "\nDROP TABLE IF EXISTS {$identifier};\n{$createSql};\n");
                 $rows = $pdo->query("SELECT * FROM {$identifier}");
 
                 while (($row = $rows->fetch(PDO::FETCH_ASSOC)) !== false) {
                     $columns = array_map(fn (string $column): string => $this->quoteIdentifier($column), array_keys($row));
                     $values = array_map(fn ($value): string => $this->quoteValue($pdo, $value), array_values($row));
-                    fwrite($handle, 'INSERT INTO '.$identifier.' ('.implode(', ', $columns).') VALUES ('.implode(', ', $values).");\n");
+                    $this->writeAll($handle, 'INSERT INTO '.$identifier.' ('.implode(', ', $columns).') VALUES ('.implode(', ', $values).");\n");
                 }
             }
 
-            fwrite($handle, $driver === 'mysql' ? "\nSET FOREIGN_KEY_CHECKS=1;\n" : "\nPRAGMA foreign_keys=ON;\n");
+            $this->writeAll($handle, $driver === 'mysql' ? "\nSET FOREIGN_KEY_CHECKS=1;\n" : "\nPRAGMA foreign_keys=ON;\n");
         } finally {
             fclose($handle);
         }
@@ -351,31 +735,44 @@ class AdminBackupService
         }
 
         try {
-            fwrite($handle, '{"format":"spes-db-rows-v1","tables":{');
+            $this->writeAll($handle, '{"format":"spes-db-rows-v1","tables":{');
             foreach ($tables as $tableIndex => $tableName) {
                 if ($tableIndex > 0) {
-                    fwrite($handle, ',');
+                    $this->writeAll($handle, ',');
                 }
-                fwrite($handle, json_encode($tableName, JSON_THROW_ON_ERROR).':[');
+                $this->writeAll($handle, json_encode($tableName, JSON_THROW_ON_ERROR).':[');
 
                 $rows = $pdo->query('SELECT * FROM '.$this->quoteIdentifier($tableName));
                 $rowIndex = 0;
                 while (($row = $rows->fetch(PDO::FETCH_ASSOC)) !== false) {
                     if ($rowIndex++ > 0) {
-                        fwrite($handle, ',');
+                        $this->writeAll($handle, ',');
                     }
                     $encodedRow = [];
                     foreach ($row as $column => $value) {
                         $encodedRow[$column] = $this->encodeSnapshotValue($value);
                     }
-                    fwrite($handle, json_encode($encodedRow, JSON_THROW_ON_ERROR));
+                    $this->writeAll($handle, json_encode($encodedRow, JSON_THROW_ON_ERROR));
                 }
 
-                fwrite($handle, ']');
+                $this->writeAll($handle, ']');
             }
-            fwrite($handle, '}}');
+            $this->writeAll($handle, '}}');
         } finally {
             fclose($handle);
+        }
+    }
+
+    private function writeAll(mixed $handle, string $contents): void
+    {
+        $length = strlen($contents);
+        $written = 0;
+        while ($written < $length) {
+            $count = fwrite($handle, substr($contents, $written));
+            if ($count === false || $count === 0) {
+                throw new RuntimeException('The backup could not be written completely; check available disk space and permissions.');
+            }
+            $written += $count;
         }
     }
 
@@ -449,7 +846,8 @@ class AdminBackupService
         $manifest = [
             'format' => self::FORMAT_VERSION,
             'created_at' => now()->toIso8601String(),
-            'database_driver' => DB::connection()->getDriverName(),
+            'database_driver' => DB::connection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME),
+            'database_version' => $this->databaseServerVersion(),
             'archive_type' => $archiveType,
             'archive_year' => $year,
             'hashes' => $hashes,
@@ -460,6 +858,13 @@ class AdminBackupService
         ];
 
         return $manifest;
+    }
+
+    private function databaseServerVersion(): string
+    {
+        $pdo = DB::connection()->getPdo();
+
+        return (string) $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
     }
 
     private function signCredential(string $archiveId, string $archiveType, ?int $year, array $hashes): string
@@ -501,9 +906,9 @@ class AdminBackupService
             || ! preg_match('/^[0-9a-f-]{36}$/D', $credential['id'])
             || ! is_string($credential['signature'] ?? null)
             || ! preg_match('/^[a-f0-9]{64}$/D', $credential['signature'])
-            || ! in_array($archiveType, ['manual', 'annual'], true)
+            || ! in_array($archiveType, ['manual', 'annual', 'daily'], true)
             || ($archiveType === 'annual' && (! is_int($year) || $year < 2000 || $year > 9999))
-            || ($archiveType === 'manual' && $year !== null)
+            || (in_array($archiveType, ['manual', 'daily'], true) && $year !== null)
             || ! is_array($hashes)
         ) {
             throw new RuntimeException('The backup credential is invalid or missing.');
