@@ -47,6 +47,10 @@ A comprehensive Laravel-based document management and approval system for educat
 
 ## Installation
 
+### Docker deployment
+
+The Docker deployment runs Laravel's scheduler automatically alongside the application services.
+
 ### 1. Clone & Setup
 
 ```bash

@@ -15,6 +15,7 @@ use App\Models\ApplicantSetting;
 use App\Models\PersonalizedSecurityVerification;
 use App\Models\PendingEmailChange;
 use App\Services\AuditLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -107,20 +108,38 @@ class ApplicantSettingsController extends Controller
         return back()->with('settings_success', 'Your password has been changed.');
     }
 
-    public function requestEmailChange(RequestEmailChangeRequest $request): RedirectResponse
+    public function requestEmailChange(RequestEmailChangeRequest $request): RedirectResponse|JsonResponse
     {
         $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $pending = PendingEmailChange::updateOrCreate(
-            ['user_id' => $request->user()->id],
-            [
-                'email' => $request->validated('email'),
-                'pin_hash' => Hash::make($pin),
-                'pin_expires_at' => now()->addMinutes(10),
-                'failed_attempts' => 0,
-            ],
-        );
+        try {
+            DB::transaction(function () use ($request, $pin): void {
+                $pending = PendingEmailChange::updateOrCreate(
+                    ['user_id' => $request->user()->id],
+                    [
+                        'email' => $request->validated('email'),
+                        'pin_hash' => Hash::make($pin),
+                        'pin_expires_at' => now()->addMinutes(10),
+                        'failed_attempts' => 0,
+                    ],
+                );
 
-        Mail::to($pending->email)->send(new ApplicantEmailChangeCode($pin));
+                Mail::to($pending->email)->send(new ApplicantEmailChangeCode($pin));
+            });
+        } catch (\Throwable $e) {
+            report($e);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'errors' => [
+                        'email' => ['We could not send the verification email. Please try again later.'],
+                    ],
+                ], 422);
+            }
+
+            return back()->withErrors([
+                'email' => 'We could not send the verification email. Please try again later.',
+            ]);
+        }
 
         return back()->with('settings_success', 'A 6-digit code has been sent to the new email address.');
     }

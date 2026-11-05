@@ -8,6 +8,7 @@ use App\Models\PendingRegistration;
 use App\Models\AuditAction;
 use App\Models\User;
 use App\Services\AuditLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -145,7 +146,7 @@ class RegistrationVerificationController extends Controller
         ]);
     }
 
-    public function resend(Request $request): RedirectResponse
+    public function resend(Request $request): RedirectResponse|JsonResponse
     {
         if (! $this->verificationMailerIsSafe()) {
             return back()->withErrors([
@@ -156,33 +157,51 @@ class RegistrationVerificationController extends Controller
         $token = $request->session()->get('pending_registration_token');
         $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        [$result, $pending] = DB::transaction(function () use ($token, $pin): array {
-            $pending = PendingRegistration::where('token', $token)
-                ->lockForUpdate()
-                ->first();
+        try {
+            [$result, $pending] = DB::transaction(function () use ($token, $pin): array {
+                $pending = PendingRegistration::where('token', $token)
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $pending || $pending->expires_at->isPast()) {
-                return ['unavailable', null];
+                if (! $pending || $pending->expires_at->isPast()) {
+                    return ['unavailable', null];
+                }
+
+                if ($pending->resend_count >= 3) {
+                    return ['limit', $pending];
+                }
+
+                $resendAvailableAt = $pending->last_sent_at?->addSeconds(60);
+                if ($resendAvailableAt && $resendAvailableAt->isFuture()) {
+                    return ['cooldown', $pending];
+                }
+
+                $pending->pin_hash = Hash::make($pin);
+                $pending->pin_expires_at = now()->addMinutes(10);
+                $pending->failed_attempts = 0;
+                $pending->resend_count++;
+                $pending->last_sent_at = now();
+                $pending->save();
+
+                Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
+
+                return ['resent', $pending];
+            });
+        } catch (\Throwable $e) {
+            report($e);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'errors' => [
+                        'email' => ['We could not send the verification email. Please try again later.'],
+                    ],
+                ], 422);
             }
 
-            if ($pending->resend_count >= 3) {
-                return ['limit', $pending];
-            }
-
-            $resendAvailableAt = $pending->last_sent_at?->addSeconds(60);
-            if ($resendAvailableAt && $resendAvailableAt->isFuture()) {
-                return ['cooldown', $pending];
-            }
-
-            $pending->pin_hash = Hash::make($pin);
-            $pending->pin_expires_at = now()->addMinutes(10);
-            $pending->failed_attempts = 0;
-            $pending->resend_count++;
-            $pending->last_sent_at = now();
-            $pending->save();
-
-            return ['resent', $pending];
-        });
+            return back()->withErrors([
+                'email' => 'We could not send the verification email. Please try again later.',
+            ]);
+        }
 
         if ($result === 'unavailable') {
             $request->session()->forget([
@@ -205,8 +224,6 @@ class RegistrationVerificationController extends Controller
                 'pin' => 'Please wait 60 seconds before requesting another code.',
             ]);
         }
-
-        Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
 
         return back()->with('status', 'If the email is eligible, a new verification code has been sent.');
     }

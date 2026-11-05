@@ -9,11 +9,19 @@ use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['mail.default' => 'array']);
+    }
 
     public function test_forgot_password_screen_can_be_rendered(): void
     {
@@ -55,6 +63,55 @@ class PasswordResetTest extends TestCase
             ->assertOk()
             ->assertSee($user->email)
             ->assertSee('Verify code and change password');
+    }
+
+    public function test_password_reset_mail_failure_returns_validation_error_and_cleans_up_flow(): void
+    {
+        $this->allowUncompromisedPasswords();
+        $user = User::factory()->create();
+        $this->startResetFor($user);
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException('SMTP down'));
+
+        $this->postJson(route('password.store'), $this->newPasswordPayload())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email')
+            ->assertJsonPath('errors.email.0', 'We could not send the verification email. Please try again later.');
+
+        $this->assertDatabaseCount('pending_password_resets', 0);
+        $this->assertFalse(session()->has('password_reset_flow_token'));
+        $this->assertFalse(session()->has('password_reset_email'));
+        $this->assertFalse(session()->has('password_reset_otp_sent'));
+    }
+
+    public function test_password_reset_resend_mail_failure_keeps_previous_code_and_resend_count(): void
+    {
+        $user = User::factory()->create();
+        $pending = PendingPasswordReset::create([
+            'token' => (string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $user->id,
+            'password_hash' => Hash::make('New secure passphrase 29!'),
+            'pin_hash' => Hash::make('123456'),
+            'pin_expires_at' => now()->addMinutes(10),
+            'last_sent_at' => now()->subSeconds(61),
+            'failed_attempts' => 2,
+            'resend_count' => 1,
+            'expires_at' => now()->addMinutes(30),
+        ]);
+        $this->withSession([
+            'password_reset_flow_token' => $pending->token,
+            'password_reset_email' => $user->email,
+            'password_reset_otp_sent' => true,
+        ]);
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException('SMTP down'));
+
+        $this->postJson(route('password.verify.resend'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $pending->refresh();
+        $this->assertSame(1, $pending->resend_count);
+        $this->assertSame(2, $pending->failed_attempts);
+        $this->assertTrue(Hash::check('123456', $pending->pin_hash));
     }
 
     public function test_password_changes_only_after_valid_email_otp(): void

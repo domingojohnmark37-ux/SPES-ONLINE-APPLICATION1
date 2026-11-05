@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\AdminPasswordPolicy;
 use App\Services\AuditLogger;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +40,7 @@ class NewPasswordController extends Controller
     public function store(
         Request $request,
         AdminPasswordPolicy $adminPasswordPolicy,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         $email = $request->session()->get('password_reset_email');
         $flowToken = $request->session()->get('password_reset_flow_token');
         if (! is_string($email) || ! is_string($flowToken)) {
@@ -68,22 +69,45 @@ class NewPasswordController extends Controller
         }
 
         $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        DB::transaction(function () use ($user, $flowToken, $request, $pin): void {
-            PendingPasswordReset::query()->where('user_id', $user->id)->delete();
-            PendingPasswordReset::create([
-                'token' => $flowToken,
-                'user_id' => $user->id,
-                'password_hash' => Hash::make($request->string('password')->toString()),
-                'pin_hash' => Hash::make($pin),
-                'pin_expires_at' => now()->addMinutes(10),
-                'last_sent_at' => now(),
-                'failed_attempts' => 0,
-                'resend_count' => 0,
-                'expires_at' => now()->addMinutes(30),
-            ]);
-        });
+        try {
+            DB::transaction(function () use ($user, $flowToken, $request, $pin): void {
+                PendingPasswordReset::query()->where('user_id', $user->id)->delete();
+                PendingPasswordReset::create([
+                    'token' => $flowToken,
+                    'user_id' => $user->id,
+                    'password_hash' => Hash::make($request->string('password')->toString()),
+                    'pin_hash' => Hash::make($pin),
+                    'pin_expires_at' => now()->addMinutes(10),
+                    'last_sent_at' => now(),
+                    'failed_attempts' => 0,
+                    'resend_count' => 0,
+                    'expires_at' => now()->addMinutes(30),
+                ]);
 
-        Mail::to($user->email)->send(new PasswordResetVerificationCode($pin));
+                Mail::to($user->email)->send(new PasswordResetVerificationCode($pin));
+            });
+        } catch (\Throwable $e) {
+            report($e);
+            PendingPasswordReset::query()->where('token', $flowToken)->delete();
+            $request->session()->forget([
+                'password_reset_flow_token',
+                'password_reset_email',
+                'password_reset_otp_sent',
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'errors' => [
+                        'email' => ['We could not send the verification email. Please try again later.'],
+                    ],
+                ], 422);
+            }
+
+            return back()->withErrors([
+                'email' => 'We could not send the verification email. Please try again later.',
+            ]);
+        }
+
         $request->session()->put('password_reset_otp_sent', true);
 
         return redirect()->route('password.verify')
@@ -191,7 +215,7 @@ class NewPasswordController extends Controller
         ]);
     }
 
-    public function resend(Request $request): RedirectResponse
+    public function resend(Request $request): RedirectResponse|JsonResponse
     {
         $token = $request->session()->get('password_reset_flow_token');
         if (! $this->verificationMailerIsSafe()) {
@@ -201,34 +225,52 @@ class NewPasswordController extends Controller
         }
 
         $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        [$result, $pending] = DB::transaction(function () use ($token, $pin): array {
-            $pending = PendingPasswordReset::query()
-                ->where('token', $token)
-                ->lockForUpdate()
-                ->first();
+        try {
+            [$result, $pending] = DB::transaction(function () use ($token, $pin): array {
+                $pending = PendingPasswordReset::query()
+                    ->where('token', $token)
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $pending || $pending->expires_at->isPast()) {
-                return ['unavailable', null];
+                if (! $pending || $pending->expires_at->isPast()) {
+                    return ['unavailable', null];
+                }
+
+                if ($pending->resend_count >= 3) {
+                    return ['limit', $pending];
+                }
+
+                $resendAvailableAt = $pending->last_sent_at?->addSeconds(60);
+                if ($resendAvailableAt && $resendAvailableAt->isFuture()) {
+                    return ['cooldown', $pending];
+                }
+
+                $pending->pin_hash = Hash::make($pin);
+                $pending->pin_expires_at = now()->addMinutes(10);
+                $pending->last_sent_at = now();
+                $pending->failed_attempts = 0;
+                $pending->resend_count++;
+                $pending->save();
+
+                Mail::to($pending->user->email)->send(new PasswordResetVerificationCode($pin));
+
+                return ['resent', $pending];
+            });
+        } catch (\Throwable $e) {
+            report($e);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'errors' => [
+                        'email' => ['We could not send the verification email. Please try again later.'],
+                    ],
+                ], 422);
             }
 
-            if ($pending->resend_count >= 3) {
-                return ['limit', $pending];
-            }
-
-            $resendAvailableAt = $pending->last_sent_at?->addSeconds(60);
-            if ($resendAvailableAt && $resendAvailableAt->isFuture()) {
-                return ['cooldown', $pending];
-            }
-
-            $pending->pin_hash = Hash::make($pin);
-            $pending->pin_expires_at = now()->addMinutes(10);
-            $pending->last_sent_at = now();
-            $pending->failed_attempts = 0;
-            $pending->resend_count++;
-            $pending->save();
-
-            return ['resent', $pending];
-        });
+            return back()->withErrors([
+                'email' => 'We could not send the verification email. Please try again later.',
+            ]);
+        }
 
         if ($result === 'unavailable') {
             $request->session()->forget([
@@ -252,8 +294,6 @@ class NewPasswordController extends Controller
                 'pin' => 'Please wait 60 seconds before requesting another code.',
             ]);
         }
-
-        Mail::to($pending->user->email)->send(new PasswordResetVerificationCode($pin));
 
         return back()->with('status', 'A new confirmation code has been sent to your email.');
     }

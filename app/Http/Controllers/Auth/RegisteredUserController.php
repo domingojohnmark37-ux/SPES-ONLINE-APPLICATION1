@@ -70,17 +70,41 @@ class RegisteredUserController extends Controller
             }
 
             $pin = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            $pending = PendingRegistration::create([
-                'token' => (string) Str::uuid(),
-                'email' => $validated['email'],
-                'password_hash' => Hash::make($validated['password']),
-                'pin_hash' => Hash::make($pin),
-                'pin_expires_at' => now()->addMinutes(10),
-                'expires_at' => now()->addDay(),
-                'last_sent_at' => now(),
-            ]);
+            try {
+                $pending = DB::transaction(function () use ($validated, $pin): PendingRegistration {
+                    $pending = PendingRegistration::create([
+                        'token' => (string) Str::uuid(),
+                        'email' => $validated['email'],
+                        'password_hash' => Hash::make($validated['password']),
+                        'pin_hash' => Hash::make($pin),
+                        'pin_expires_at' => now()->addMinutes(10),
+                        'expires_at' => now()->addDay(),
+                        'last_sent_at' => now(),
+                    ]);
 
-            Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
+                    Mail::to($pending->email)->send(new RegistrationVerificationCode($pin));
+
+                    return $pending;
+                });
+            } catch (\Throwable $e) {
+                report($e);
+                $request->session()->forget([
+                    'pending_registration_token',
+                    'pending_registration_email',
+                ]);
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'errors' => [
+                            'email' => ['We could not send the verification email. Please try again later.'],
+                        ],
+                    ], 422);
+                }
+
+                return back()
+                    ->withInput($request->except(['password', 'password_confirmation']))
+                    ->withErrors(['email' => 'We could not send the verification email. Please try again later.']);
+            }
         }
 
         $request->session()->put([

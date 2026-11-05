@@ -17,7 +17,17 @@ chmod -R ug+rwX storage bootstrap/cache
 envsubst '${PORT}' < /etc/nginx/http.d/default.conf.template > /etc/nginx/http.d/default.conf
 
 php artisan storage:link --force
-php artisan migrate --force
+migration_attempt=1
+until php artisan migrate --force; do
+    if [ "$migration_attempt" -ge 10 ]; then
+        echo "Database migrations failed after 10 attempts." >&2
+        exit 1
+    fi
+
+    echo "Database is not ready for migrations (attempt $migration_attempt/10); retrying in 5 seconds." >&2
+    migration_attempt=$((migration_attempt + 1))
+    sleep 5
+done
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache

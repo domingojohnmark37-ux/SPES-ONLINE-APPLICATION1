@@ -9,6 +9,7 @@ use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -66,6 +67,56 @@ class RegistrationTest extends TestCase
             'email' => 'jane.doe@example.com',
         ]);
         $this->assertDatabaseCount('users', 0);
+    }
+
+    public function test_registration_mail_failure_returns_validation_error_and_removes_pending_record(): void
+    {
+        $this->mockUncompromisedVerifier(true);
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException('SMTP down'));
+
+        $this->postJson('/register', [
+            'email' => 'jane.doe@example.com',
+            'password' => 'Strong passphrase 123!',
+            'password_confirmation' => 'Strong passphrase 123!',
+            'terms_accepted' => '1',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email')
+            ->assertJsonPath('errors.email.0', 'We could not send the verification email. Please try again later.');
+
+        $this->assertDatabaseCount('pending_registrations', 0);
+        $this->assertFalse(session()->has('pending_registration_token'));
+        $this->assertFalse(session()->has('pending_registration_email'));
+    }
+
+    public function test_registration_resend_mail_failure_does_not_consume_resend_attempt(): void
+    {
+        $pinHash = Hash::make('123456');
+        $pending = PendingRegistration::create([
+            'token' => (string) \Illuminate\Support\Str::uuid(),
+            'email' => 'jane.doe@example.com',
+            'password_hash' => Hash::make('Strong passphrase 123!'),
+            'pin_hash' => $pinHash,
+            'pin_expires_at' => now()->addMinutes(10),
+            'expires_at' => now()->addDay(),
+            'failed_attempts' => 2,
+            'resend_count' => 1,
+            'last_sent_at' => now()->subSeconds(61),
+        ]);
+        $this->withSession([
+            'pending_registration_token' => $pending->token,
+            'pending_registration_email' => $pending->email,
+        ]);
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException('SMTP down'));
+
+        $this->postJson(route('registration.verify.resend'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $pending->refresh();
+        $this->assertSame(1, $pending->resend_count);
+        $this->assertSame(2, $pending->failed_attempts);
+        $this->assertSame($pinHash, $pending->pin_hash);
     }
 
     public function test_registration_requires_terms_acceptance(): void
