@@ -20,13 +20,13 @@ class ApplicantAuditTest extends TestCase
 
     public function test_only_administrators_can_view_applicant_audit(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->get(route('admin.applicant-audit.index'))
             ->assertForbidden();
 
-        $this->actingAs(User::factory()->create(['role' => 'admin']))
+        $this->actingAs(User::factory()->admin()->create())
             ->get(route('admin.applicant-audit.index'))
             ->assertOk()
             ->assertDontSee('Applicant Audit Logs')
@@ -36,8 +36,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_audit_contains_applicant_activity_and_admin_audit_stays_separate(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
 
         app(AuditLogger::class)->record(
             AuditAction::ADMIN_PREFERENCES_UPDATED,
@@ -68,9 +68,9 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_activity_feed_can_be_filtered_by_applicant(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
-        $otherApplicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
+        $otherApplicant = User::factory()->create([]);
 
         app(AuditLogger::class)->record(
             AuditAction::LOGIN_SUCCESS,
@@ -95,8 +95,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_activity_feed_shows_all_filtered_events_without_show_more_controls(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
 
         for ($index = 0; $index < 7; $index++) {
             app(AuditLogger::class)->record(
@@ -118,10 +118,10 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_audit_logs_are_available_in_details_not_a_separate_list(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         for ($index = 0; $index < 7; $index++) {
-            $applicant = User::factory()->create(['role' => 'user']);
+            $applicant = User::factory()->create([]);
             app(AuditLogger::class)->record(
                 AuditAction::ACCOUNT_CREATED,
                 'Authentication',
@@ -143,8 +143,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_audit_history_shows_all_matching_events_without_pagination_controls(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
 
         for ($index = 0; $index < 30; $index++) {
             app(AuditLogger::class)->record(
@@ -168,8 +168,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_activity_details_are_shown_inline_in_applicant_audit(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
         $event = app(AuditLogger::class)->record(
             AuditAction::INFORMATION_UPDATED,
             'Applicant Information',
@@ -202,8 +202,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_audit_filters_rows_and_summary_using_database_records(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
         $application = Application::factory()->create([
             'user_id' => $applicant->id,
             'status' => 'approved',
@@ -273,8 +273,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_audit_csv_escapes_formula_values_and_records_export_activity(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user', 'name' => '=2+2']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([ 'name' => '=2+2']);
         $application = Application::factory()->create([
             'user_id' => $applicant->id,
             'status' => 'pending',
@@ -301,8 +301,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_approving_an_application_records_the_real_status_transition(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
         $application = Application::factory()->create([
             'user_id' => $applicant->id,
             'status' => 'pending',
@@ -325,8 +325,8 @@ class ApplicantAuditTest extends TestCase
 
     public function test_rejecting_an_application_records_the_denied_transition_for_the_rejected_badge(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
         $application = Application::factory()->create([
             'user_id' => $applicant->id,
             'status' => 'pending',
@@ -351,8 +351,7 @@ class ApplicantAuditTest extends TestCase
 
     public function test_successful_and_failed_logins_write_security_audit_events(): void
     {
-        $admin = User::factory()->create([
-            'role' => 'admin',
+        $admin = User::factory()->admin()->create([
             'email' => 'audit-admin@example.test',
             'password' => Hash::make('password'),
         ]);
@@ -383,11 +382,10 @@ class ApplicantAuditTest extends TestCase
 
     public function test_applicant_activity_feed_shows_filtered_results_without_list_pagination(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $selectedApplicant = null;
         for ($index = 0; $index < 11; $index++) {
             $applicant = User::factory()->create([
-                'role' => 'user',
                 'name' => 'Audit Applicant '.$index,
             ]);
             app(AuditLogger::class)->record(
@@ -420,7 +418,7 @@ class ApplicantAuditTest extends TestCase
 
     public function test_query_failure_renders_an_error_state_instead_of_zero_summaries(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $query = Mockery::mock(ApplicantAuditQuery::class);
         $query->shouldReceive('filterOptions')->once()->andThrow(new RuntimeException('Database unavailable'));
         $this->app->instance(ApplicantAuditQuery::class, $query);
@@ -434,9 +432,9 @@ class ApplicantAuditTest extends TestCase
 
     public function test_export_applies_search_filter_to_streamed_csv(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         foreach (['Included Applicant', 'Excluded Applicant'] as $name) {
-            $applicant = User::factory()->create(['role' => 'user', 'name' => $name]);
+            $applicant = User::factory()->create([ 'name' => $name]);
             app(AuditLogger::class)->record(
                 AuditAction::ACCOUNT_CREATED,
                 'Authentication',

@@ -23,7 +23,7 @@ class RecordAuditLogout
             'Authentication',
             $event->user,
             $applicant,
-            $applicant?->applications()->latest('created_at')->first(),
+            $applicant?->latestApplication()->first(),
         );
     }
 }

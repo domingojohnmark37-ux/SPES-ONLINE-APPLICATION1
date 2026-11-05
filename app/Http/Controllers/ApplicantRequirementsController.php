@@ -23,7 +23,7 @@ class ApplicantRequirementsController extends Controller
 {
     public function index(ApplicationApprovalCapacity $capacity): View
     {
-        $application = Application::where('user_id', Auth::id())->latest('created_at')->first();
+        $application = Auth::user()->latestApplication()->first();
         $additionalRequirements = AdditionalRequirement::query()
             ->where('is_active', true)
             ->orWhereHas('submissions', fn ($query) => $query->where('application_id', $application?->id ?? 0))
@@ -61,7 +61,7 @@ class ApplicantRequirementsController extends Controller
 
     public function downloadTemplate(AdditionalRequirement $additionalRequirement)
     {
-        $application = Application::where('user_id', Auth::id())->latest('created_at')->first();
+        $application = Auth::user()->latestApplication()->first();
         abort_unless($additionalRequirement->isAvailableTo($application), 403);
         abort_unless($additionalRequirement->is_active && $additionalRequirement->template_path, 404);
         abort_unless(Storage::disk('local')->exists($additionalRequirement->template_path), 404);
@@ -76,7 +76,7 @@ class ApplicantRequirementsController extends Controller
         AdditionalRequirement $additionalRequirement,
         AdditionalRequirementTemplate $template,
     ) {
-        $application = Application::where('user_id', Auth::id())->latest('created_at')->first();
+        $application = Auth::user()->latestApplication()->first();
         abort_unless($additionalRequirement->isAvailableTo($application), 403);
         abort_unless($additionalRequirement->is_active, 404);
         abort_unless($template->additional_requirement_id === $additionalRequirement->id, 404);
@@ -95,7 +95,7 @@ class ApplicantRequirementsController extends Controller
     ): RedirectResponse
     {
         abort_unless($additionalRequirement->is_active, 404);
-        $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
+        $application = Auth::user()->latestApplication()->firstOrFail();
         abort_unless($additionalRequirement->isAvailableTo($application), 403);
         if ($application->status !== 'approved' && $capacity->isFull(SystemSetting::current())) {
             return redirect()->route('applicant.requirements')

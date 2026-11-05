@@ -17,7 +17,7 @@ class ApplicationDetailTest extends TestCase
         $application = Application::factory()->for($applicant)->create([
             'full_name' => 'Jamie Applicant',
         ]);
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('admin.applications.show', $application))
@@ -34,7 +34,7 @@ class ApplicationDetailTest extends TestCase
     {
         $applicant = User::factory()->create();
         $application = Application::factory()->for($applicant)->create();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $response = $this->actingAs($admin)
             ->get(route('admin.applications.show', $application))

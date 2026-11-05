@@ -19,7 +19,7 @@ class AdminApplicationPeriodTest extends TestCase
 
     public function test_admin_sees_application_status_and_quick_open_close_controls(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         SystemSetting::current()->update([
             'application_start_date' => now()->subDay(),
             'application_end_date' => now()->addDay(),
@@ -48,7 +48,7 @@ class AdminApplicationPeriodTest extends TestCase
 
     public function test_admin_can_schedule_the_application_window(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $start = now()->addDays(2)->startOfMinute();
         $end = now()->addDays(9)->startOfMinute();
 
@@ -82,7 +82,7 @@ class AdminApplicationPeriodTest extends TestCase
 
     public function test_admin_can_review_schedule_changes_and_earlier_later_statistics(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $originalStart = now()->addDays(5)->startOfMinute();
         $originalEnd = now()->addDays(15)->startOfMinute();
         SystemSetting::current()->update([
@@ -126,7 +126,7 @@ class AdminApplicationPeriodTest extends TestCase
 
     public function test_saving_an_unchanged_schedule_does_not_create_audit_entries(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $start = now()->addDays(2)->startOfMinute();
         $end = now()->addDays(9)->startOfMinute();
         SystemSetting::current()->update([
@@ -148,7 +148,7 @@ class AdminApplicationPeriodTest extends TestCase
     public function test_changing_the_approval_limit_saves_immediately_and_processes_pending_applicants_in_the_background(): void
     {
         Queue::fake();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $settings = SystemSetting::current();
         $settings->update(['approved_applicant_limit' => 2]);
         $approvedUser = User::factory()->create();
@@ -185,7 +185,7 @@ class AdminApplicationPeriodTest extends TestCase
     public function test_admin_can_update_the_approval_maximum_immediately_without_submitting_schedule_dates(): void
     {
         Queue::fake();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $settings = SystemSetting::current();
         $settings->update(['approved_applicant_limit' => 3]);
         $approvedUser = User::factory()->create();
@@ -219,7 +219,7 @@ class AdminApplicationPeriodTest extends TestCase
     public function test_admin_can_remove_the_approval_maximum_immediately(): void
     {
         Queue::fake();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $settings = SystemSetting::current();
         $settings->update(['approved_applicant_limit' => 5]);
 
@@ -239,7 +239,7 @@ class AdminApplicationPeriodTest extends TestCase
 
     public function test_admin_cannot_save_a_closing_time_before_the_opening_time(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->from(route('admin.settings'))

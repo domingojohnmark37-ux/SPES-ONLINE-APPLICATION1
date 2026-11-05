@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\ApplicantRequirementsController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Admin\AdditionalRequirementController;
 use App\Http\Controllers\Admin\AdminSettingsFeatureController;
 use App\Http\Controllers\Admin\SettingsController;
@@ -35,51 +36,10 @@ Route::middleware([
     \App\Http\Middleware\TrackUserActivity::class,
 ])->group(function () {
 
-    Route::get('/dashboard', function () {
-        if (auth()->user()->role === 'admin') {
-            return redirect()->route('admin.dashboard');
-        }
-        $application = \App\Models\Application::where('user_id', auth()->id())->first();
-        $announcements = \App\Models\News::published()
-            ->whereIn('display_on', ['portal', 'both'])
-            ->take(3)
-            ->get();
-        $user = auth()->user();
-        $appointments = \App\Models\Appointment::where('is_published', true)
-            ->visibleToApplicant($user)
-            ->where('starts_at', '>=', now())
-            ->orderBy('starts_at')
-            ->take(3)
-            ->get();
-        $appointmentNotifications = $user->unreadNotifications()
-            ->get()
-            ->filter(fn ($notification): bool => isset($notification->data['appointment_id']))
-            ->take(3)
-            ->values();
-        $profile = $user->profile;
-        $profileFields = [
-            'first_name', 'last_name', 'sex', 'date_of_birth', 'contact_number',
-            'present_address', 'permanent_address', 'applicant_category',
-        ];
-        $profileCompletion = $profile
-            ? (int) round(collect($profileFields)->filter(fn ($field) => filled($profile->{$field}))->count() / count($profileFields) * 100)
-            : 0;
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-        return view('dashboard', compact(
-            'application',
-            'announcements',
-            'appointments',
-            'appointmentNotifications',
-            'profileCompletion',
-        ));
-    })->name('dashboard');
-
-    Route::get('/user-guide', function () {
-        $application = \App\Models\Application::query()
-            ->where('user_id', auth()->id())
-            ->latest()
-            ->first();
-
+    Route::get('/user-guide', function (\Illuminate\Http\Request $request) {
+        $application = $request->user()->latestApplication()->first();
         return view('applicant.manual', compact('application'));
     })->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.manual');
 
@@ -439,6 +399,7 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
     })->name('dashboard');
 
     Route::get('/applications',                         [ApplicationController::class, 'index'])->name('applications.index');
+    Route::get('/applications/export', [ExportController::class, 'masterList'])->name('applications.export');
     Route::get('/applications/{application}',          [ApplicationController::class, 'show'])->name('applications.show');
     Route::post('/applications/{application}/approve', [ApplicationController::class, 'approve'])->name('applications.approve');
     Route::post('/applications/{application}/deny',    [ApplicationController::class, 'deny'])->name('applications.deny');
@@ -494,9 +455,6 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
         ->whereNumber('year')->name('backup.archive.download');
     Route::post('/backup/archives/{year}/restore', [AdminSettingsFeatureController::class, 'restoreAnnualBackup'])
         ->whereNumber('year')->middleware('idempotent')->name('backup.archive.restore');
-    
-    // Export
-    Route::get('/applications/export', [ExportController::class, 'masterList'])->name('applications.export');
     
     // Master List
     Route::get('/master-list', [MasterListController::class, 'index'])->name('masterlist.index');

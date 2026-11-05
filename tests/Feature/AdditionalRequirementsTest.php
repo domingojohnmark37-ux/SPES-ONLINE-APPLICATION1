@@ -18,7 +18,7 @@ class AdditionalRequirementsTest extends TestCase
 
     public function test_admin_can_add_and_manage_additional_applicant_requirements(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('admin.additional-requirements.index'))
@@ -68,7 +68,7 @@ class AdditionalRequirementsTest extends TestCase
     public function test_requirement_can_have_multiple_downloadable_files_for_applicants(): void
     {
         Storage::fake('local');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.additional-requirements.store'), [
@@ -109,7 +109,7 @@ class AdditionalRequirementsTest extends TestCase
     public function test_admin_can_add_and_remove_individual_files_when_editing_a_requirement(): void
     {
         Storage::fake('local');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $requirement = AdditionalRequirement::create([
             'name' => 'Application packet',
             'is_required' => true,
@@ -148,7 +148,7 @@ class AdditionalRequirementsTest extends TestCase
     public function test_admin_can_publish_a_downloadable_form_with_a_submission_deadline(): void
     {
         Storage::fake('local');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $dueAt = now()->addDays(5)->startOfMinute();
 
         $this->actingAs($admin)
@@ -187,7 +187,7 @@ class AdditionalRequirementsTest extends TestCase
     public function test_admin_can_edit_requirement_content_and_replace_its_downloadable_file(): void
     {
         Storage::fake('local');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $oldTemplatePath = 'requirements/templates/old-form.pdf';
         Storage::disk('local')->put($oldTemplatePath, 'old form contents');
         $requirement = AdditionalRequirement::create([
@@ -299,7 +299,7 @@ class AdditionalRequirementsTest extends TestCase
             'additionalRequirement' => $requirement,
         ]))->assertOk();
 
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $this->actingAs($admin)
             ->get(route('admin.applications.show', $application))
             ->assertOk()

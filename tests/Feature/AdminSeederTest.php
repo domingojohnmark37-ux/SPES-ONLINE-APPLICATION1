@@ -17,7 +17,6 @@ class AdminSeederTest extends TestCase
         $admin = User::factory()->create([
             'email' => 'lgulallo@gmail.com',
             'username' => 'pesoadmin',
-            'role' => 'user',
             'password' => 'OldPassword123!',
         ]);
         config([

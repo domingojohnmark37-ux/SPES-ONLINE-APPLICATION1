@@ -12,7 +12,7 @@ class ApplicantSettingsTest extends TestCase
 
     public function test_applicant_can_update_mobile_number_from_settings(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         $applicant->profile()->create(['contact_number' => '09170000000']);
 
         $this->actingAs($applicant)
@@ -34,7 +34,7 @@ class ApplicantSettingsTest extends TestCase
 
     public function test_applicant_mobile_number_must_match_philippine_format(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->put(route('settings.mobile-number.update'), [
@@ -45,7 +45,7 @@ class ApplicantSettingsTest extends TestCase
 
     public function test_applicant_can_save_appearance_and_language_preferences(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->put(route('settings.preferences.update'), [
@@ -94,7 +94,7 @@ class ApplicantSettingsTest extends TestCase
 
     public function test_applicant_dashboard_uses_the_saved_filipino_locale(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         \App\Models\ApplicantSetting::create([
             'user_id' => $applicant->id,
             'language' => 'fil',
@@ -148,7 +148,7 @@ class ApplicantSettingsTest extends TestCase
 
     public function test_legacy_theme_preference_updates_the_portal_appearance(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->put(route('settings.preferences.update'), [

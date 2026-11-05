@@ -1,6 +1,6 @@
 @php
     $applicant = auth()->user();
-    $application = $applicant->applications()->latest()->first();
+    $application = $applicant->latestApplication()->first();
     $unreadCount = $applicant->unreadNotifications()->count();
     $showApprovalCapacityToast = $applicant->role === 'user'
         && session()->pull('approval_capacity_closed', false);

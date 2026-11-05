@@ -180,6 +180,7 @@
     @php
         $editing = isset($application) && $application;
         $reapplying = $editing && $application->status === 'denied';
+        $canEdit = $canEdit ?? ! $editing;
         $defaults = $defaults ?? [];
         $getDefault = fn ($field, $fallback = '') => old($field, $application->{$field} ?? $defaults[$field] ?? $fallback);
         $documentOriginalNames = $application?->document_original_names ?? [];
@@ -276,9 +277,8 @@
                         @error('birthday')<div class="error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
-                        <label>{{ __('Age') }} <span class="req">*</span></label>
-                        <input type="number" name="age" value="{{ $getDefault('age') }}" min="15" max="30" placeholder="15–30" required id="ageField">
-                        @error('age')<div class="error">{{ $message }}</div>@enderror
+                        <label>{{ __('Age') }}</label>
+                        <input type="number" value="{{ $getDefault('age') }}" min="15" max="30" placeholder="15–30" readonly id="ageField">
                     </div>
                     <div class="form-group">
                         <label>{{ __('Barangay') }} <span class="req">*</span></label>
@@ -306,7 +306,7 @@
                         <label>{{ __('Grade/Year Level') }} <span class="req">*</span></label>
                         <select name="grade_year_level" required>
                             <option value="">-- {{ __('Select') }} --</option>
-                            @foreach(['Grade 7','Grade 8','Grade 9','Grade 10','Grade 11','Grade 12','1st year','2nd year','4th year','5th year'] as $level)
+                            @foreach(\App\Models\Application::GRADE_YEAR_LEVELS as $level)
                                 <option value="{{ $level }}" {{ $getDefault('grade_year_level')===$level ? 'selected' : '' }}>{{ __($level) }}</option>
                             @endforeach
                         </select>
@@ -486,7 +486,7 @@
 
         {{-- Submit --}}
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <button type="submit" class="btn-submit" id="submitBtn">
+            <button type="submit" class="btn-submit" id="submitBtn" @disabled(! $canEdit)>
                 <x-icon class="fa-solid fa-paper-plane" /> {{ __($reapplying ? 'Reapply Application' : ($editing ? 'Update Application' : 'Submit Application')) }}
             </button>
             <a href="{{ route('dashboard') }}" class="btn-back"><x-icon class="fa-solid fa-arrow-left" /> {{ __('Cancel') }}</a>

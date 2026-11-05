@@ -52,18 +52,11 @@ A comprehensive Laravel-based document management and approval system for educat
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd spes_duplicate\ -updates
+cd SPES-ONLINE-APPLICATION1
 
 # Install PHP dependencies
 composer install
 
-# Install Node dependencies
-npm install
-```
-
-### 2. Environment Configuration
-
-```bash
 # Copy environment file
 cp .env.example .env
 
@@ -71,26 +64,18 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Configure your `.env` file with database credentials:
-```
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=spes_db
-DB_USERNAME=root
-DB_PASSWORD=
-```
-
-### 3. Database Setup
+The example environment is configured for local HTTP development and SQLite. If using MySQL, set `DB_CONNECTION=mysql` and configure `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD` in `.env`. Set `ADMIN_PASSWORD` before running the admin seeder.
 
 ```bash
-# Run migrations
+# Create or update the database schema
 php artisan migrate
 
-# Seed initial data (admin user)
+# Create the initial admin account; ADMIN_PASSWORD must be set first
 php artisan db:seed --class=AdminSeeder
 
-# Or seed all data
-php artisan db:seed
+# Install Node dependencies and build frontend assets
+npm install
+npm run build
 ```
 
 ### Email Notifications
@@ -222,13 +207,17 @@ The command is safe to run more than once. Profile photos and other intentionall
 
 Run `php artisan storage:link` only to expose intentionally public files through `public/storage/`.
 
-For container deployments, migrations run at startup by default. Set `RUN_MIGRATIONS=false` to disable automatic migrations and manage them separately. `TRUSTED_PROXIES` defaults to `*` for Render; set it to the trusted proxy IPs when deploying behind a known proxy range. `SESSION_ENCRYPT=true` encrypts session data and will log out existing users once when enabled.
+For container deployments, migrations run at startup by default. `SESSION_ENCRYPT=true` encrypts session data and will log out existing users once when enabled.
+
+### Trusted Proxies
+
+The app does not trust forwarded headers by default. In production, set `TRUSTED_PROXIES` to a comma-separated list of the actual trusted proxy IPs or CIDRs so client IP detection and IP-based rate limits use the right address. Use `*` only when the app is guaranteed to receive traffic exclusively through a trusted load balancer, such as Render's web-service ingress; do not use it when the application can be reached directly by untrusted clients.
 
 ### Render Deployment
 
 This is a PHP/Laravel application. Render does not provide a native PHP runtime, so deploy it as a Docker web service using the repository `Dockerfile` and `render.yaml`. Leave Render's Build Command and Start Command fields empty for a Docker service; the Dockerfile builds the application and its `ENTRYPOINT` starts Nginx, PHP-FPM, and the queue worker.
 
-The container listens on Render's `PORT` environment variable, defaulting to `10000` locally. Applicant documents and profile photos are stored on the local filesystem, so attach persistent storage or configure an S3-compatible disk before accepting production uploads.
+The container listens on Render's `PORT` environment variable, defaulting to `10000` locally. The Render blueprint attaches persistent storage for private applicant documents. Configure the service's environment variables in the Render dashboard.
 
 Use database-backed drivers in Render and ensure the corresponding `cache`, `jobs`, and `sessions` tables are migrated:
 

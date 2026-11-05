@@ -21,8 +21,7 @@ class AdminMailConfigurationTest extends TestCase
             'mail.mailers.smtp.username' => 'peso@example.test',
             'mail.mailers.smtp.password' => 'configured-secret',
         ]);
-        $admin = User::factory()->create([
-            'role' => 'admin',
+        $admin = User::factory()->admin()->create([
             'email' => 'admin@example.test',
         ]);
 
@@ -39,7 +38,7 @@ class AdminMailConfigurationTest extends TestCase
     public function test_applicant_cannot_use_the_admin_email_test(): void
     {
         Mail::fake();
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->post(route('admin.settings.email-test'))
@@ -57,7 +56,7 @@ class AdminMailConfigurationTest extends TestCase
             'mail.mailers.smtp.username' => null,
             'mail.mailers.smtp.password' => null,
         ]);
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->from(route('admin.settings'))

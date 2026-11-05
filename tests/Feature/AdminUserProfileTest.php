@@ -13,7 +13,7 @@ class AdminUserProfileTest extends TestCase
 
     public function test_admin_can_view_user_profile_without_an_application(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $user = User::factory()->create(['name' => 'Jordan Rivera']);
 
         $this->actingAs($admin)
@@ -34,7 +34,7 @@ class AdminUserProfileTest extends TestCase
 
     public function test_admin_profile_does_not_mix_application_answers_with_portal_profile_details(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create(['name' => 'Portal Applicant']);
         Application::factory()->for($applicant)->create([
             'birthday' => '2001-02-03',
@@ -54,7 +54,7 @@ class AdminUserProfileTest extends TestCase
 
     public function test_admin_user_profile_displays_existing_application_history(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $user = User::factory()->create(['name' => 'Sam Applicant', 'last_active_at' => now()]);
         Application::factory()->for($user)->create(['status' => 'approved']);
 
@@ -68,7 +68,7 @@ class AdminUserProfileTest extends TestCase
 
     public function test_grid_and_profile_use_profile_contact_fields_and_the_same_status(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $inactiveUser = User::factory()->create([
             'name' => 'Inactive Applicant',
             'last_active_at' => now()->subYears(2),
@@ -108,7 +108,7 @@ class AdminUserProfileTest extends TestCase
 
     public function test_legacy_applicant_category_is_displayed_without_changing_its_value(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $user = User::factory()->create();
         $user->profile()->create(['applicant_category' => 'OFW']);
 
@@ -183,7 +183,7 @@ class AdminUserProfileTest extends TestCase
             'Guardian' => true,
         ], $savedParentStatuses);
 
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $this->actingAs($admin)
             ->get(route('admin.users.show', $applicant))
             ->assertOk()

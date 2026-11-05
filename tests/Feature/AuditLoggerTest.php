@@ -16,7 +16,7 @@ class AuditLoggerTest extends TestCase
 
     public function test_change_logging_records_only_normalized_changed_fields(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         app(AuditLogger::class)->recordChanges(
             ['barangay' => ' Bical ', 'email' => 'student@example.com', 'password' => 'old-hash'],
@@ -39,7 +39,7 @@ class AuditLoggerTest extends TestCase
 
     public function test_password_change_never_stores_password_values(): void
     {
-        $user = User::factory()->create(['role' => 'user']);
+        $user = User::factory()->create([]);
 
         $log = app(AuditLogger::class)->recordPasswordChanged($user);
 
@@ -51,7 +51,7 @@ class AuditLoggerTest extends TestCase
 
     public function test_audit_records_cannot_be_updated_or_deleted(): void
     {
-        $user = User::factory()->create(['role' => 'user']);
+        $user = User::factory()->create([]);
         $log = app(AuditLogger::class)->record(
             AuditAction::ACCOUNT_CREATED,
             'Authentication',

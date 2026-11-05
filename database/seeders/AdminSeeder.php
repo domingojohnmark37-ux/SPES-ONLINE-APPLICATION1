@@ -18,7 +18,8 @@ class AdminSeeder extends Seeder
         User::where('username', 'pesoadmin')
             ->where('email', '!=', $adminEmail)
             ->when($admin, fn ($query) => $query->whereKeyNot($admin->id))
-            ->update(['role' => 'user']);
+            ->get()
+            ->each(fn (User $user) => $user->forceFill(['role' => 'user'])->save());
 
         if ($admin) {
             $admin->email = $adminEmail;
@@ -36,12 +37,12 @@ class AdminSeeder extends Seeder
             throw new \RuntimeException('Set ADMIN_PASSWORD before creating the admin account.');
         }
 
-        User::create([
+        $admin = new User([
             'name'     => 'PESO Admin',
             'username' => 'pesoadmin',
             'email'    => $adminEmail,
             'password' => Hash::make($adminPassword),
-            'role'     => 'admin',
         ]);
+        $admin->forceFill(['role' => 'admin'])->save();
     }
 }

@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\AdditionalRequirement;
+use App\Models\Application;
+use App\Models\ApplicationAdditionalRequirement;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -233,6 +237,75 @@ class ProfileTest extends TestCase
 
         $this->assertGuest();
         $this->assertNull($user->fresh());
+    }
+
+    public function test_deleting_applicant_account_removes_application_and_additional_requirement_files(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $paths = [
+            'applications/birth_certificates/birth.pdf',
+            'applications/enrollment/enrollment.pdf',
+            'applications/grades/grades.pdf',
+            'applications/letters/letter.pdf',
+            'applications/indigency/indigency.pdf',
+            'requirements/submissions/consent.pdf',
+        ];
+        foreach ($paths as $path) {
+            Storage::disk('local')->put($path, 'private applicant file');
+        }
+
+        $application = Application::factory()->for($user)->create([
+            'birth_certificate' => $paths[0],
+            'certificate_enrollment' => $paths[1],
+            'certificate_grade' => $paths[2],
+            'application_letter' => $paths[3],
+            'indigency' => $paths[4],
+        ]);
+        $requirement = AdditionalRequirement::create(['name' => 'Parent Consent']);
+        ApplicationAdditionalRequirement::create([
+            'application_id' => $application->id,
+            'additional_requirement_id' => $requirement->id,
+            'file_number' => 1,
+            'file_path' => $paths[5],
+            'original_name' => 'consent.pdf',
+        ]);
+
+        $this->actingAs($user)
+            ->delete('/profile', ['password' => 'password'])
+            ->assertRedirect('/');
+
+        foreach ($paths as $path) {
+            Storage::disk('local')->assertMissing($path);
+        }
+        $this->assertNull($user->fresh());
+    }
+
+    public function test_deleting_application_removes_its_files_after_commit(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $applicationPath = 'applications/birth_certificates/application.pdf';
+        $requirementPath = 'requirements/submissions/submission.pdf';
+        Storage::disk('local')->put($applicationPath, 'application document');
+        Storage::disk('local')->put($requirementPath, 'requirement submission');
+
+        $application = Application::factory()->for($user)->create([
+            'birth_certificate' => $applicationPath,
+        ]);
+        $requirement = AdditionalRequirement::create(['name' => 'Application Attachment']);
+        ApplicationAdditionalRequirement::create([
+            'application_id' => $application->id,
+            'additional_requirement_id' => $requirement->id,
+            'file_number' => 1,
+            'file_path' => $requirementPath,
+            'original_name' => 'submission.pdf',
+        ]);
+
+        $application->delete();
+
+        Storage::disk('local')->assertMissing($applicationPath);
+        Storage::disk('local')->assertMissing($requirementPath);
     }
 
     public function test_correct_password_must_be_provided_to_delete_account(): void

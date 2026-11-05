@@ -2,7 +2,11 @@ services:
   - type: web
     name: spes-online-application
     runtime: docker
-    healthCheckPath: /
+    healthCheckPath: /up
+    disk:
+      name: spes-online-application-storage
+      mountPath: /var/www/html/storage/app/private
+      sizeGB: 10
     envVars:
       - key: APP_ENV
         value: production
@@ -14,6 +18,50 @@ services:
         value: stderr
       - key: DB_CONNECTION
         value: mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: TRUSTED_PROXIES
+        value: "*"
+      - key: MAIL_MAILER
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_URL
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_SCHEME
+        sync: false
+      - key: MAIL_TIMEOUT
+        sync: false
+      - key: MAIL_EHLO_DOMAIN
+        sync: false
+      - key: MAIL_SENDMAIL_PATH
+        sync: false
+      - key: MAIL_LOG_CHANNEL
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
       - key: SESSION_DRIVER
         value: database
       - key: SESSION_ENCRYPT

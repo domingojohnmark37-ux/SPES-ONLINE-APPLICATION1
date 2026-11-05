@@ -273,7 +273,7 @@
                                 <a href="{{ route('applications.document.preview', ['application' => $application->id, 'document' => $doc['key']]) }}" target="_blank" rel="noopener" aria-label="{{ __('View') }} {{ __($doc['label']) }}" style="display:inline-flex;align-items:center;gap:6px;justify-content:center;min-width:110px;padding:8px 16px;border:0;border-radius:8px;background:#0d47a1;color:#fff;text-decoration:none;font-size:.72rem;font-weight:600;line-height:1.2;">
                                     {{ __('View') }}
                                 </a>
-                            @else
+                            @elseif($canEdit)
                                 <a href="{{ route('applications.edit') }}" style="display:inline-flex;align-items:center;gap:6px;justify-content:center;min-width:110px;padding:8px 16px;border-radius:8px;background:#1976d2;color:#fff;text-decoration:none;font-size:.72rem;font-weight:600;line-height:1.2;">
                                     {{ __('Upload') }}
                                 </a>

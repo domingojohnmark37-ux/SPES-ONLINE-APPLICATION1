@@ -64,7 +64,7 @@ class AuthenticationTest extends TestCase
 
     public function test_admin_login_does_not_redirect_to_an_intended_applicant_route(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         Queue::fake();
 
         $this->get(route('applications.create'))
@@ -80,7 +80,7 @@ class AuthenticationTest extends TestCase
 
     public function test_admin_can_sign_in_even_if_personal_security_migrations_are_pending(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         Schema::dropIfExists('pending_personal_security_recoveries');
         Schema::dropIfExists('personalized_security_verifications');
         Queue::fake();
@@ -97,7 +97,7 @@ class AuthenticationTest extends TestCase
 
     public function test_admin_login_alert_is_queued_instead_of_sending_mail_during_login(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         Queue::fake();
 
         $this->post('/login', [

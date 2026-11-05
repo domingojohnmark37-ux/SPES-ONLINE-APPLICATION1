@@ -21,7 +21,7 @@ class AdminMasterListTest extends TestCase
 
     public function test_final_list_year_uses_the_configured_submission_start_year(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         Application::factory()->create(['status' => 'approved']);
         SystemSetting::current()->update([
             'application_start_date' => '2027-01-15 08:00:00',
@@ -43,7 +43,7 @@ class AdminMasterListTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $matchingApplicant = Application::factory()->create([
             'status' => 'approved',
             'full_name' => 'Maria Santos',
@@ -91,7 +91,7 @@ class AdminMasterListTest extends TestCase
 
     public function test_admin_final_list_table_uses_the_placement_report_columns(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create();
         $applicant->profile()->create([
             'permanent_address' => '12 Main Street, Lal-lo',
@@ -164,7 +164,7 @@ class AdminMasterListTest extends TestCase
 
     public function test_placement_export_amounts_only_accept_non_negative_integers(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->from(route('admin.masterlist.index'))
@@ -187,7 +187,7 @@ class AdminMasterListTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('local');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create();
         Storage::disk('local')->put('applications/birth_certificates/birth-certificate.pdf', 'birth certificate bytes');
         Storage::disk('local')->put('applications/enrollment/enrollment.pdf', 'enrollment certificate bytes');
@@ -343,7 +343,7 @@ class AdminMasterListTest extends TestCase
 
     public function test_final_list_year_falls_back_to_current_year_without_a_submission_start_date(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $this->travelTo(now()->setDate(2026, 10, 5));
 
         $this->actingAs($admin)

@@ -60,7 +60,7 @@ class ContactPesoTest extends TestCase
 
     public function test_admin_cannot_open_the_applicant_contact_peso_page(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('contact-peso.index'))

@@ -18,7 +18,7 @@ class ApplicationApprovalCapacityTest extends TestCase
 
     public function test_filling_the_approval_limit_closes_submissions_and_notifies_pending_applicants(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $selectedApplicant = User::factory()->create();
         $pendingApplicant = User::factory()->create();
         $selectedApplication = Application::factory()->for($selectedApplicant)->create(['status' => 'pending']);
@@ -66,7 +66,7 @@ class ApplicationApprovalCapacityTest extends TestCase
     public function test_full_capacity_blocks_nonapproved_requirement_uploads_but_not_approved_applicants(): void
     {
         Storage::fake('local');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $approvedApplicant = User::factory()->create();
         $pendingApplicant = User::factory()->create();
         Application::factory()->for($approvedApplicant)->create(['status' => 'approved']);
@@ -111,7 +111,7 @@ class ApplicationApprovalCapacityTest extends TestCase
 
     public function test_admin_can_configure_approval_limit_and_see_live_capacity(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $approved = User::factory()->create();
         Application::factory()->for($approved)->create(['status' => 'approved']);
         $pending = User::factory()->create();

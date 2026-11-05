@@ -18,7 +18,7 @@ class StatisticsReportTest extends TestCase
 
     public function test_admin_statistics_report_uses_application_records_and_renders_empty_state(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('admin.statistics-report'))
@@ -65,7 +65,7 @@ class StatisticsReportTest extends TestCase
 
     public function test_report_filters_recalculate_totals_and_chart_from_matching_applications(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         Application::factory()->create([
             'status' => 'approved',
             'barangay' => 'Bical',
@@ -112,7 +112,7 @@ class StatisticsReportTest extends TestCase
 
     public function test_only_administrators_can_access_statistics_report(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->get(route('admin.statistics-report'))
@@ -121,7 +121,7 @@ class StatisticsReportTest extends TestCase
 
     public function test_configured_application_window_is_retrieved_from_system_settings(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         SystemSetting::create([
             'application_start_date' => '2026-09-30 09:00:00',
             'application_end_date' => '2026-10-15 17:00:00',
@@ -145,7 +145,7 @@ class StatisticsReportTest extends TestCase
 
     public function test_custom_date_range_compares_with_the_equivalent_previous_interval(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         Application::factory()->create([
             'status' => 'denied',
             'created_at' => now()->subDays(3),
@@ -194,7 +194,7 @@ class StatisticsReportTest extends TestCase
     public function test_admin_can_generate_download_and_archive_approved_demographic_report(): void
     {
         Storage::fake('local');
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $birthday = '2006-03-10';
         Application::factory()->create([
             'full_name' => 'John Doe',
@@ -316,7 +316,7 @@ class StatisticsReportTest extends TestCase
         Storage::disk('local')->assertMissing('SPES Demographic Reports Archive/SPES_Demographics_2026-10-01_to_2026-10-31_v1.docx');
         Storage::disk('local')->assertMissing('SPES Demographic Reports Archive/SPES_Demographic_Report_Archive_Index.xlsx');
 
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         $this->actingAs($applicant)
             ->delete(route('admin.demographic-reports.destroy', $secondReport))
             ->assertForbidden();
@@ -332,7 +332,7 @@ class StatisticsReportTest extends TestCase
 
     public function test_demographic_report_generation_requires_valid_dates_and_admin_role(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $this->actingAs($admin)
             ->post(route('admin.demographic-reports.store'), [
                 'start_date' => '2026-11-02',
@@ -341,7 +341,7 @@ class StatisticsReportTest extends TestCase
             ])
             ->assertSessionHasErrors(['end_date']);
 
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         $this->actingAs($applicant)
             ->post(route('admin.demographic-reports.store'), [
                 'start_date' => '2026-10-01',

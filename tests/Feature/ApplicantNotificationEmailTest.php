@@ -24,7 +24,7 @@ class ApplicantNotificationEmailTest extends TestCase
 
     public function test_notification_preferences_enable_mail_to_the_registered_email_address(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         ApplicantSetting::create([
             'user_id' => $applicant->id,
             'email_notifications' => true,
@@ -44,7 +44,7 @@ class ApplicantNotificationEmailTest extends TestCase
 
     public function test_announcement_email_shows_the_admin_title_and_full_content(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         $announcementTitle = 'SPES application schedule';
         $announcementContent = "Applications open on October 15.\nSubmit your documents at the PESO office.";
         $notification = new ApplicantPortalUpdate(
@@ -71,7 +71,7 @@ class ApplicantNotificationEmailTest extends TestCase
 
     public function test_email_notifications_can_be_disabled_without_disabling_system_notifications(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         ApplicantSetting::create([
             'user_id' => $applicant->id,
             'email_notifications' => false,
@@ -90,7 +90,7 @@ class ApplicantNotificationEmailTest extends TestCase
 
     public function test_notification_preferences_save_unchecked_options_as_disabled(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->put(route('settings.notifications.update'), [])
@@ -108,7 +108,7 @@ class ApplicantNotificationEmailTest extends TestCase
     public function test_notification_delivery_is_recorded_and_duplicate_events_are_not_resent(): void
     {
         Mail::fake();
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         ApplicantSetting::create([
             'user_id' => $applicant->id,
             'email_notifications' => true,
@@ -148,7 +148,7 @@ class ApplicantNotificationEmailTest extends TestCase
         Mail::fake();
         $now = now()->startOfHour();
         $this->travelTo($now);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         Application::factory()->for($applicant)->create(['status' => 'approved']);
         ApplicantSetting::create([
             'user_id' => $applicant->id,
@@ -184,8 +184,8 @@ class ApplicantNotificationEmailTest extends TestCase
         Mail::fake();
         $now = now()->setDate(2026, 10, 10)->setTime(9, 0);
         $this->travelTo($now);
-        $applicant = User::factory()->create(['role' => 'user']);
-        $otherApplicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
+        $otherApplicant = User::factory()->create([]);
         Application::factory()->for($applicant)->create(['status' => 'approved']);
         Application::factory()->for($otherApplicant)->create(['status' => 'pending']);
         ApplicantSetting::create([
@@ -264,7 +264,7 @@ class ApplicantNotificationEmailTest extends TestCase
     public function test_failed_mail_delivery_is_logged_and_a_retry_updates_delivery_status(): void
     {
         Log::spy();
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         ApplicantSetting::create([
             'user_id' => $applicant->id,
             'email_notifications' => true,
@@ -314,7 +314,7 @@ class ApplicantNotificationEmailTest extends TestCase
 
     public function test_retried_notification_job_does_not_duplicate_a_successful_delivery(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         Mail::fake();
         $job = new NotifyApplicantsJob(
             'users',

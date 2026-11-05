@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Application;
 use App\Models\User;
 use App\Models\News;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,7 +14,7 @@ class UserActivityTest extends TestCase
 
     public function test_applicant_user_guide_explains_portal_features_and_is_not_available_to_admins(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->get(route('applicant.manual'))
@@ -34,7 +35,7 @@ class UserActivityTest extends TestCase
             ->assertSee('Keep Your Account Safe')
             ->assertSee('data-open-portal-help', false);
 
-        $this->actingAs(User::factory()->create(['role' => 'admin']))
+        $this->actingAs(User::factory()->admin()->create())
             ->get(route('applicant.manual'))
             ->assertForbidden();
     }
@@ -67,10 +68,9 @@ class UserActivityTest extends TestCase
     public function test_admin_dashboard_escapes_applicant_names_in_recent_activity(): void
     {
         User::factory()->create([
-            'role' => 'user',
             'name' => '<script>alert(1)</script>',
         ]);
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
@@ -88,6 +88,19 @@ class UserActivityTest extends TestCase
 
         $this->post(route('logout'))->assertRedirect('/');
         $this->assertTrue($user->fresh()->last_active_at->greaterThan(now()->subMinute()));
+    }
+
+    public function test_applicant_dashboard_loads_the_user_latest_application(): void
+    {
+        $user = User::factory()->create();
+        $application = Application::factory()->for($user)->create();
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Your application is on file. Review your submitted information and documents here.');
+
+        $this->assertTrue($application->is($user->latestApplication()->firstOrFail()));
     }
 
     public function test_activity_status_is_inactive_after_one_year(): void
@@ -204,7 +217,7 @@ class UserActivityTest extends TestCase
     public function test_recent_notifications_has_its_own_page_with_published_admin_announcements(): void
     {
         $user = User::factory()->create();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $this->travelTo(now()->setDate(2026, 8, 23)->setTime(10, 24));
         News::create([
             'title' => 'SPES Orientation Announcement',
@@ -254,7 +267,7 @@ class UserActivityTest extends TestCase
     public function test_recent_notifications_show_unread_items_and_items_from_the_last_24_hours(): void
     {
         $user = User::factory()->create();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $now = now();
         $this->travelTo($now);
 
@@ -311,7 +324,7 @@ class UserActivityTest extends TestCase
     public function test_previous_notifications_archived_filter_shows_read_recent_items_after_24_hours(): void
     {
         $user = User::factory()->create();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $now = now();
         $this->travelTo($now);
 
@@ -488,7 +501,7 @@ class UserActivityTest extends TestCase
     public function test_previous_notifications_has_its_own_filterable_history_page(): void
     {
         $user = User::factory()->create();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $this->travelTo(now()->setDate(2026, 8, 23)->setTime(10, 24));
 
         $user->notify(new \App\Notifications\ApplicantPortalUpdate(
@@ -551,8 +564,8 @@ class UserActivityTest extends TestCase
 
     public function test_application_status_notifications_are_recent_until_read_and_remain_in_history(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
         $application = \App\Models\Application::factory()->create([
             'user_id' => $applicant->id,
             'status' => 'pending',
@@ -641,8 +654,8 @@ class UserActivityTest extends TestCase
 
     public function test_admin_feedback_appears_in_recent_notifications_and_remains_in_previous_history(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([]);
         $application = \App\Models\Application::factory()->create([
             'user_id' => $applicant->id,
             'status' => 'pending',

@@ -142,7 +142,7 @@ class AuditLogger
             'Authentication',
             null,
             $candidate?->role === 'user' ? $candidate : null,
-            $candidate?->role === 'user' ? $candidate->applications()->latest('created_at')->first() : null,
+            $candidate?->role === 'user' ? $candidate->latestApplication()->first() : null,
             [
                 'actor_type' => in_array($candidate?->role, ['admin', 'user'], true)
                     ? ($candidate->role === 'admin' ? 'admin' : 'applicant')

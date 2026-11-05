@@ -112,7 +112,7 @@ class ApplicantAuditController extends Controller
             $users = $auditQuery->actorOptions('user');
             $latestApplication = $applicationId
                 ? $applicant->applications()->whereKey($applicationId)->firstOrFail()
-                : $applicant->applications()->latest('created_at')->first();
+                : $applicant->latestApplication()->first();
             $logs = $auditQuery->filteredLogs($filters)->where('applicant_id', $applicant->id);
 
             if ($applicationId) {

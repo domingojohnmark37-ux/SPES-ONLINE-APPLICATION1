@@ -31,7 +31,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_admin_settings_dropdown_opens_each_feature_page(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('admin.preferences'))
@@ -73,7 +73,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_admin_can_save_appearance_preference_and_apply_it_to_admin_pages(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->from(route('admin.preferences'))
@@ -142,7 +142,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_admin_preference_save_reports_pending_columns_without_throwing_a_server_error(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         Schema::shouldReceive('hasColumns')
             ->once()
             ->with('admin_preferences', ['language', 'sidebar_behavior', 'font_size'])
@@ -162,8 +162,8 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_admin_audit_logs_in_settings_can_be_filtered_by_administrator(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'name' => 'First Admin']);
-        $otherAdmin = User::factory()->create(['role' => 'admin', 'name' => 'Second Admin']);
+        $admin = User::factory()->admin()->create([ 'name' => 'First Admin']);
+        $otherAdmin = User::factory()->admin()->create([ 'name' => 'Second Admin']);
 
         app(AuditLogger::class)->record(AuditAction::LOGIN_SUCCESS, 'Authentication', $admin);
         app(AuditLogger::class)->record(AuditAction::LOGOUT, 'Authentication', $otherAdmin);
@@ -180,7 +180,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_admin_audit_logs_are_scrollable_without_pagination(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         for ($index = 0; $index < 25; $index++) {
             app(AuditLogger::class)->record(
                 AuditAction::LOGIN_SUCCESS,
@@ -206,7 +206,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_security_policy_updates_are_audited_and_applied_to_admin_sessions(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->from(route('admin.security'))
@@ -235,7 +235,7 @@ class AdminSettingsFeaturesTest extends TestCase
         $verifier = \Mockery::mock(UncompromisedVerifier::class);
         $verifier->shouldReceive('verify')->never();
         $this->app->instance(UncompromisedVerifier::class, $verifier);
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         SystemSetting::current()->update(['admin_minimum_password_length' => 16]);
 
         $this->actingAs($admin)
@@ -341,8 +341,8 @@ class AdminSettingsFeaturesTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         Queue::fake();
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user', 'name' => 'Annual Backup Applicant']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([ 'name' => 'Annual Backup Applicant']);
         $year = 2024;
         $archive = app(AdminBackupService::class)->createAnnualArchive($year);
         $applicantId = $applicant->id;
@@ -391,7 +391,7 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
-        $applicant = User::factory()->create(['role' => 'user', 'name' => 'Console Recovered Applicant']);
+        $applicant = User::factory()->create([ 'name' => 'Console Recovered Applicant']);
         $year = 2023;
         app(AdminBackupService::class)->createAnnualArchive($year);
         $applicantId = $applicant->id;
@@ -413,8 +413,8 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
-        $admin = User::factory()->create(['role' => 'admin', 'name' => 'Admin Before Backup']);
-        $applicant = User::factory()->create(['role' => 'user', 'name' => 'Restored Applicant']);
+        $admin = User::factory()->admin()->create([ 'name' => 'Admin Before Backup']);
+        $applicant = User::factory()->create([ 'name' => 'Restored Applicant']);
         $auditEntry = app(AuditLogger::class)->record(
             AuditAction::LOGIN_SUCCESS,
             'Authentication',
@@ -455,7 +455,7 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
-        $applicant = User::factory()->create(['role' => 'user', 'name' => 'Recovered With Credential']);
+        $applicant = User::factory()->create([ 'name' => 'Recovered With Credential']);
         $archivePath = app(AdminBackupService::class)->create();
         $archive = new ZipArchive;
         $this->assertTrue($archive->open($archivePath));
@@ -492,7 +492,7 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         $archivePath = app(AdminBackupService::class)->create();
         DB::table('backup_archive_credentials')->update(['credential_hash' => str_repeat('0', 64)]);
         $applicantId = $applicant->id;
@@ -516,7 +516,7 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
         $archivePath = app(AdminBackupService::class)->create();
         $applicantId = $applicant->id;
         $applicant->delete();
@@ -563,7 +563,7 @@ class AdminSettingsFeaturesTest extends TestCase
     {
         Storage::fake('local');
         Storage::fake('public');
-        $applicant = User::factory()->create(['role' => 'user', 'name' => "O'Connor Applicant"]);
+        $applicant = User::factory()->create([ 'name' => "O'Connor Applicant"]);
         $versionTwoPath = app(AdminBackupService::class)->create();
         $versionOnePath = tempnam(sys_get_temp_dir(), 'spes-legacy-backup-');
         $versionTwo = new ZipArchive;
@@ -596,7 +596,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_admin_restore_requires_password_and_typed_confirmation(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('admin.preferences'))
@@ -614,8 +614,8 @@ class AdminSettingsFeaturesTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         Queue::fake();
-        $admin = User::factory()->create(['role' => 'admin']);
-        $applicant = User::factory()->create(['role' => 'user', 'name' => 'Restored Through Form']);
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create([ 'name' => 'Restored Through Form']);
         $archivePath = app(AdminBackupService::class)->create();
         $applicantId = $applicant->id;
         $applicant->delete();
@@ -657,7 +657,7 @@ class AdminSettingsFeaturesTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         Queue::fake();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.backup.download'), ['_idempotency_token' => str_repeat('c', 40)])
@@ -764,7 +764,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_overlapping_recovery_is_rejected_and_audited_without_retrying(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $operation = AdminBackupOperation::query()->create([
             'id' => (string) Str::uuid(),
             'admin_id' => $admin->id,
@@ -813,7 +813,7 @@ class AdminSettingsFeaturesTest extends TestCase
 
     public function test_applicants_cannot_access_admin_settings_features(): void
     {
-        $applicant = User::factory()->create(['role' => 'user']);
+        $applicant = User::factory()->create([]);
 
         $this->actingAs($applicant)
             ->get(route('admin.preferences'))

@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Application;
+use App\Models\AuditAction;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Jobs\NotifyApplicantsJob;
+use App\Services\AuditLogger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
@@ -12,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class ApplicationTest extends TestCase
@@ -26,7 +30,9 @@ class ApplicationTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user);
 
-        $response = $this->post(route('applications.store'), $this->validApplicationPayload());
+        $response = $this->post(route('applications.store'), $this->validApplicationPayload([
+            'age' => 99,
+        ]));
 
         $response->assertRedirect(route('applications.myApplication'));
         $this->assertDatabaseHas('applications', [
@@ -38,6 +44,7 @@ class ApplicationTest extends TestCase
         ]);
         $application = Application::where('user_id', $user->id)->firstOrFail();
         $this->assertSame('2nd year', $application->grade_year_level);
+        $this->assertSame(20, $application->age);
         $this->assertStringStartsWith('applications/birth_certificates/', $application->birth_certificate);
         Storage::disk('local')->assertExists($application->birth_certificate);
         $this->assertSame('birth-certificate.pdf', $application->document_original_names['birth_certificate']);
@@ -47,6 +54,59 @@ class ApplicationTest extends TestCase
             && $job->userIds === [$user->id]
             && $job->afterCommit
         );
+    }
+
+    public function test_user_cannot_create_a_second_application(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $this->post(route('applications.store'), $this->validApplicationPayload())
+            ->assertRedirect(route('applications.myApplication'));
+        $this->post(route('applications.store'), $this->validApplicationPayload())
+            ->assertRedirect(route('applications.myApplication'))
+            ->assertSessionHas('error', 'You have already submitted an application.');
+
+        $this->assertSame(1, Application::where('user_id', $user->id)->count());
+    }
+
+    public function test_failed_application_store_removes_uploaded_files(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $auditLogger = Mockery::mock(AuditLogger::class);
+        $auditLogger->shouldReceive('record')
+            ->once()
+            ->andThrow(new \RuntimeException('Simulated audit failure'));
+        $this->app->instance(AuditLogger::class, $auditLogger);
+
+        $this->actingAs($user)
+            ->post(route('applications.store'), $this->validApplicationPayload())
+            ->assertServerError();
+
+        $this->assertSame(0, Application::where('user_id', $user->id)->count());
+        $this->assertSame([], Storage::disk('local')->allFiles('applications'));
+    }
+
+    public function test_user_can_submit_application_as_a_third_year_student(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('applications.store'), $this->validApplicationPayload([
+                'grade_year_level' => '3rd year',
+            ]))
+            ->assertRedirect(route('applications.myApplication'));
+
+        $this->assertDatabaseHas('applications', [
+            'user_id' => $user->id,
+            'grade_year_level' => '3rd year',
+            'status' => 'pending',
+        ]);
     }
 
     /** @test */
@@ -65,6 +125,8 @@ class ApplicationTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('applications.create'))
             ->assertOk()
+            ->assertSee('readonly id="ageField"', false)
+            ->assertDontSee('name="age"', false)
             ->assertSeeInOrder([
                 'Your Educational Attainment',
                 'name="education"',
@@ -78,6 +140,7 @@ class ApplicationTest extends TestCase
                 'Grade 12',
                 '1st year',
                 '2nd year',
+                '3rd year',
                 '4th year',
                 '5th year',
                 'Parent Status',
@@ -111,6 +174,67 @@ class ApplicationTest extends TestCase
 
         $response->assertSessionHasErrors(['birth_certificate', 'certificate_enrollment']);
         $this->assertDatabaseMissing('applications', ['user_id' => $user->id]);
+    }
+
+    public function test_application_age_is_computed_from_birthday_and_rejects_out_of_range_birthdays(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('applications.store'), $this->validApplicationPayload([
+                'birthday' => now()->subYears(14)->format('Y-m-d'),
+                'age' => 20,
+            ]))
+            ->assertSessionHasErrors('birthday');
+
+        $this->assertDatabaseMissing('applications', ['user_id' => $user->id]);
+    }
+
+    public function test_application_update_computes_and_audits_age_from_birthday(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $user = User::factory()->create();
+        $application = Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'age' => 16,
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('applications.update'), $this->validApplicationPayload([
+                'birthday' => now()->subYears(20)->format('Y-m-d'),
+                'age' => 16,
+            ]))
+            ->assertRedirect(route('applications.myApplication'));
+
+        $this->assertSame(20, $application->fresh()->age);
+        $this->assertDatabaseHas('audit_logs', [
+            'application_id' => $application->id,
+            'action' => AuditAction::APPLICATION_UPDATED,
+            'field_name' => 'age',
+            'old_value' => '16',
+            'new_value' => '20',
+        ]);
+    }
+
+    public function test_application_update_rejects_an_out_of_range_birthday(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $application = Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'age' => 20,
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('applications.update'), $this->validApplicationPayload([
+                'birthday' => now()->subYears(31)->format('Y-m-d'),
+                'age' => 20,
+            ]))
+            ->assertSessionHasErrors('birthday');
+
+        $this->assertSame(20, $application->fresh()->age);
     }
 
     /** @test */
@@ -148,6 +272,90 @@ class ApplicationTest extends TestCase
         $this->assertSame('pending', $application->status);
         $this->assertNull($application->admin_comment);
         $this->assertSame('Juan Updated', $application->full_name);
+    }
+
+    public function test_pending_application_can_only_be_edited_while_the_application_window_is_open(): void
+    {
+        $user = User::factory()->create();
+        $application = Application::factory()->for($user)->create([
+            'status' => 'pending',
+            'full_name' => 'Original Applicant',
+        ]);
+        $this->actingAs($user);
+
+        $this->get(route('applications.edit'))->assertOk();
+
+        SystemSetting::current()->update([
+            'application_start_date' => now()->subDays(10),
+            'application_end_date' => now()->subDay(),
+            'approved_applicant_limit' => null,
+        ]);
+
+        $this->get(route('applications.edit'))
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('error', 'Applications are currently closed.');
+
+        $this->put(route('applications.update'), $this->validApplicationPayload([
+            'full_name' => 'Changed Applicant',
+        ]))->assertRedirect(route('dashboard'));
+
+        $this->assertSame('Original Applicant', $application->fresh()->full_name);
+        $this->assertSame('pending', $application->fresh()->status);
+    }
+
+    public function test_denied_application_can_be_edited_and_resubmitted_when_capacity_allows(): void
+    {
+        $user = User::factory()->create();
+        $application = Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'full_name' => 'Original Applicant',
+        ]);
+        SystemSetting::current()->update([
+            'application_start_date' => now()->subDays(10),
+            'application_end_date' => now()->subDay(),
+            'approved_applicant_limit' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('applications.edit'))
+            ->assertOk();
+
+        $this->put(route('applications.update'), $this->validApplicationPayload([
+            'full_name' => 'Updated Applicant',
+        ]))->assertRedirect(route('applications.myApplication'));
+
+        $this->assertSame('Updated Applicant', $application->fresh()->full_name);
+        $this->assertSame('pending', $application->fresh()->status);
+    }
+
+    public function test_approved_application_is_read_only(): void
+    {
+        $user = User::factory()->create();
+        $application = Application::factory()->for($user)->create([
+            'status' => 'approved',
+            'full_name' => 'Approved Applicant',
+            'birth_certificate' => null,
+            'certificate_enrollment' => null,
+        ]);
+        $this->actingAs($user);
+
+        $this->get(route('applications.edit'))
+            ->assertRedirect(route('applications.myApplication'))
+            ->assertSessionHas('error', 'Approved applications are read-only and cannot be changed.');
+
+        $this->put(route('applications.update'), $this->validApplicationPayload([
+            'full_name' => 'Changed Applicant',
+        ]))
+            ->assertRedirect(route('applications.myApplication'))
+            ->assertSessionHas('error', 'Approved applications are read-only and cannot be changed.');
+
+        $this->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertDontSee('href="'.route('applications.edit').'"', false);
+
+        $this->assertSame('Approved Applicant', $application->fresh()->full_name);
+        $this->assertSame('approved', $application->fresh()->status);
+        $this->assertNull($application->fresh()->birth_certificate);
     }
 
     public function test_reapplication_keeps_submitted_documents_unless_replaced(): void
@@ -242,6 +450,42 @@ class ApplicationTest extends TestCase
         $this->assertSame($enrollmentCertificate, $application->certificate_enrollment);
     }
 
+    public function test_failed_application_update_removes_new_files_and_preserves_old_files(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $birthCertificate = 'applications/birth_certificates/birth-certificate-old.pdf';
+        $enrollmentCertificate = 'applications/enrollment/enrollment-old.pdf';
+        Storage::disk('local')->put($birthCertificate, 'original birth certificate');
+        Storage::disk('local')->put($enrollmentCertificate, 'original enrollment certificate');
+        $application = Application::factory()->for($user)->create([
+            'status' => 'denied',
+            'birth_certificate' => $birthCertificate,
+            'certificate_enrollment' => $enrollmentCertificate,
+        ]);
+        $auditLogger = Mockery::mock(AuditLogger::class);
+        $auditLogger->shouldReceive('recordChanges')
+            ->once()
+            ->andThrow(new \RuntimeException('Simulated audit failure'));
+        $this->app->instance(AuditLogger::class, $auditLogger);
+
+        $this->actingAs($user)
+            ->put(route('applications.update'), $this->validApplicationPayload([
+                'birth_certificate' => UploadedFile::fake()->create('birth-certificate-replacement.pdf', 100, 'application/pdf'),
+                'certificate_enrollment' => null,
+            ]))
+            ->assertServerError();
+
+        $this->assertSame($birthCertificate, $application->fresh()->birth_certificate);
+        $this->assertSame($enrollmentCertificate, $application->fresh()->certificate_enrollment);
+        Storage::disk('local')->assertExists($birthCertificate);
+        Storage::disk('local')->assertExists($enrollmentCertificate);
+        $this->assertSame([
+            $birthCertificate,
+            $enrollmentCertificate,
+        ], Storage::disk('local')->allFiles('applications'));
+    }
+
     public function test_reapplication_still_requires_documents_that_are_not_on_file(): void
     {
         Storage::fake('local');
@@ -315,7 +559,7 @@ class ApplicationTest extends TestCase
     /** @test */
     public function requirements_page_is_only_available_to_applicants()
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('applicant.requirements'))
@@ -451,7 +695,7 @@ class ApplicationTest extends TestCase
         Storage::fake('local');
         $path = 'applications/birth_certificates/sample.pdf';
         Storage::disk('local')->put($path, "%PDF-1.4\nBirth Certificate");
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $application = Application::factory()->create([
             'birth_certificate' => $path,
             'document_original_names' => ['birth_certificate' => 'birth-certificate.pdf'],
@@ -480,7 +724,7 @@ class ApplicationTest extends TestCase
         Storage::fake('local');
         $owner = User::factory()->create();
         $otherApplicant = User::factory()->create();
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $path = 'applications/birth_certificates/private-document.pdf';
         Storage::disk('local')->put($path, 'private document bytes');
         $application = Application::factory()->for($owner)->create([
@@ -526,7 +770,7 @@ class ApplicationTest extends TestCase
     /** @test */
     public function admin_can_approve_and_deny_application()
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $application = Application::factory()->create();
         $applicant = $application->user;
 

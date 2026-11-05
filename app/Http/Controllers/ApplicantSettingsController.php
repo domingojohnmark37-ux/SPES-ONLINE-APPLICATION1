@@ -175,7 +175,7 @@ class ApplicantSettingsController extends Controller
                 'Applicant Information',
                 $user,
                 $user,
-                $user->applications()->latest('created_at')->first(),
+                $user->latestApplication()->first(),
                 \App\Models\AuditAction::INFORMATION_UPDATED,
                 ['description' => 'Applicant contact information changed'],
             );

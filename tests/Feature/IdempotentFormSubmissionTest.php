@@ -13,7 +13,7 @@ class IdempotentFormSubmissionTest extends TestCase
 
     public function test_replaying_a_create_form_token_does_not_create_a_duplicate_record(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $token = str_repeat('a', 40);
         $payload = [
             '_idempotency_token' => $token,

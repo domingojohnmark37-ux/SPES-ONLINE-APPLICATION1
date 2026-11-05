@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\AuditAction;
+use App\Models\Application;
 use App\Services\AuditLogger;
 use App\Models\UserProfile;
 use Illuminate\Http\RedirectResponse;
@@ -45,7 +46,7 @@ class ProfileController extends Controller
         $originalUser = $user->getOriginal();
         $originalProfile = $user->profile?->getOriginal() ?? [];
         $applicant = $user->role === 'user' ? $user : null;
-        $application = $applicant?->applications()->latest('created_at')->first();
+        $application = $applicant?->latestApplication()->first();
 
         if ($request->hasFile('profile_photo')) {
             if ($user->profile_photo) {
@@ -155,9 +156,30 @@ class ProfileController extends Controller
                     'Applicant Information',
                     $user,
                     $user,
-                    $user->applications()->latest('created_at')->first(),
+                    $user->latestApplication()->first(),
                     ['description' => 'Applicant deleted their account'],
                 );
+
+                $applications = $user->applications()
+                    ->with('additionalRequirementSubmissions:id,application_id,file_path')
+                    ->get([
+                        'id',
+                        'birth_certificate',
+                        'certificate_enrollment',
+                        'certificate_grade',
+                        'application_letter',
+                        'indigency',
+                    ]);
+                $filePaths = $applications->flatMap(fn (Application $application): array => [
+                    $application->birth_certificate,
+                    $application->certificate_enrollment,
+                    $application->certificate_grade,
+                    $application->application_letter,
+                    $application->indigency,
+                    ...$application->additionalRequirementSubmissions->pluck('file_path')->all(),
+                ])->all();
+
+                DB::afterCommit(fn () => Application::deleteLocalFiles($filePaths));
             }
             $user->delete();
         });

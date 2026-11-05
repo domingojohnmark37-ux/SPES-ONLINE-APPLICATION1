@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Application;
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Models\Application;
+use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable implements MustVerifyEmailContract
 {
@@ -25,7 +26,6 @@ class User extends Authenticatable implements MustVerifyEmailContract
         'email',
         'username',
         'password',
-        'role',
         'last_active_at',
         'profile_photo',
         'last_name',
@@ -88,9 +88,14 @@ class User extends Authenticatable implements MustVerifyEmailContract
     /**
      * A user may have many applications.
      */
-    public function applications()
+    public function applications(): HasMany
     {
         return $this->hasMany(Application::class);
+    }
+
+    public function latestApplication(): HasOne
+    {
+        return $this->hasOne(Application::class)->latestOfMany('created_at');
     }
 
     public function profile()

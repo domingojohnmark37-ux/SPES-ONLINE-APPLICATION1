@@ -5,11 +5,29 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Throwable;
 
 class Application extends Model
 {
     use HasFactory;
+
+    public const GRADE_YEAR_LEVELS = [
+        'Grade 7',
+        'Grade 8',
+        'Grade 9',
+        'Grade 10',
+        'Grade 11',
+        'Grade 12',
+        '1st year',
+        '2nd year',
+        '3rd year',
+        '4th year',
+        '5th year',
+    ];
 
     protected $fillable = [
         'ref_id', 'user_id',
@@ -54,6 +72,39 @@ class Application extends Model
                 $application->ref_id = 'SPES-'.strtoupper(Str::random(8));
             }
         });
+
+        static::deleting(function (Application $application): void {
+            $paths = [
+                $application->birth_certificate,
+                $application->certificate_enrollment,
+                $application->certificate_grade,
+                $application->application_letter,
+                $application->indigency,
+                ...$application->additionalRequirementSubmissions()->pluck('file_path')->all(),
+            ];
+
+            DB::afterCommit(fn () => self::deleteLocalFiles($paths, $application->id));
+        });
+    }
+
+    public static function deleteLocalFiles(array $paths, ?int $applicationId = null): void
+    {
+        foreach (array_unique(array_filter($paths, fn ($path): bool => is_string($path) && $path !== '')) as $path) {
+            try {
+                if (! Storage::disk('local')->delete($path)) {
+                    Log::warning('Failed to delete applicant document from local storage.', [
+                        'application_id' => $applicationId,
+                        'path' => $path,
+                    ]);
+                }
+            } catch (Throwable $exception) {
+                Log::warning('Failed to delete applicant document from local storage.', [
+                    'application_id' => $applicationId,
+                    'path' => $path,
+                    'exception' => $exception,
+                ]);
+            }
+        }
     }
 
     public function user()

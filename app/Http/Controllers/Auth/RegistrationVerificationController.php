@@ -91,8 +91,8 @@ class RegistrationVerificationController extends Controller
                 'username' => $username,
                 'email' => $pending->email,
                 'password' => $pending->password_hash,
-                'role' => 'user',
             ]);
+            $user->forceFill(['role' => 'user'])->save();
             $user->markEmailAsVerified();
             $auditLogger->record(
                 AuditAction::ACCOUNT_CREATED,

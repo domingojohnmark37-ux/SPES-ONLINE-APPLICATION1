@@ -10,12 +10,18 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\ApplicationApprovalCapacity;
 use App\Services\AuditLogger;
+use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\HeaderUtils;
+use Throwable;
 
 class ApplicationController extends Controller
 {
@@ -45,7 +51,7 @@ class ApplicationController extends Controller
                 ->with('approval_capacity_closed', app(ApplicationApprovalCapacity::class)->isFull($settings));
         }
 
-        $existing = Application::where('user_id', Auth::id())->latest('created_at')->first();
+        $existing = Auth::user()->latestApplication()->first();
         if ($existing) {
             if ($existing->status === 'denied') {
                 return redirect()->route('applications.edit')
@@ -78,16 +84,15 @@ class ApplicationController extends Controller
 
     public function edit()
     {
-        $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
-        $settings = SystemSetting::current();
-        if ($application->status !== 'approved'
-            && app(ApplicationApprovalCapacity::class)->isFull($settings)) {
-            return redirect()->route('dashboard')
-                ->with('error', 'The SPES approval limit has been reached. Your application cannot be resubmitted this season.')
-                ->with('approval_capacity_closed', true);
+        $application = Auth::user()->latestApplication()->firstOrFail();
+        if ($redirect = $this->applicationEditRestriction($application)) {
+            return $redirect;
         }
 
-        return view('application.applications.create', compact('application'));
+        return view('application.applications.create', [
+            'application' => $application,
+            'canEdit' => true,
+        ]);
     }
 
     /**
@@ -110,7 +115,7 @@ class ApplicationController extends Controller
         }
 
         // Prevent duplicate applications
-        $existing = Application::where('user_id', Auth::id())->latest('created_at')->first();
+        $existing = Auth::user()->latestApplication()->first();
         if ($existing) {
             if ($existing->status === 'denied') {
                 return redirect()->route('applications.edit')
@@ -132,12 +137,11 @@ class ApplicationController extends Controller
             'middle_name' => $middleNameRules,
             'sex' => 'required|in:Male,Female',
             'birthday' => 'required|date|before:today',
-            'age' => 'required|integer|min:15|max:30',
             'barangay' => 'required|string|max:100',
             'civil_status' => 'required|in:Single,Married,Widowed,Separated',
             'parent_status' => 'required|in:Both Parents Living,Solo Parent,Orphan,Guardian',
             'education' => 'required|string|max:100',
-            'grade_year_level' => 'required|in:Grade 7,Grade 8,Grade 9,Grade 10,Grade 11,Grade 12,1st year,2nd year,4th year,5th year',
+            'grade_year_level' => ['required', Rule::in(Application::GRADE_YEAR_LEVELS)],
             'spes_status' => 'required|in:new,baby',
             'mother_name' => 'nullable|string|max:255',
             'mother_occupation' => 'nullable|string|max:255',
@@ -156,6 +160,7 @@ class ApplicationController extends Controller
             'middle_name.not_regex' => 'Please enter your complete middle name. Single initials such as A or A. are not accepted.',
         ]);
 
+        $validated['age'] = $this->ageFromBirthday($validated['birthday']);
         $this->validateFamilyContact($request);
 
         // Handle file uploads
@@ -200,63 +205,93 @@ class ApplicationController extends Controller
         ], fn ($part) => ! empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
 
         $applicant = Auth::user();
-        $createdApplication = DB::transaction(function () use ($validated, $fullName, $birthCertificatePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): Application {
-            $application = Application::create([
-                'user_id' => Auth::id(),
-                'full_name' => $fullName,
-                'surname' => $validated['surname'],
-                'first_name' => $validated['first_name'],
-                'middle_name' => $validated['middle_name'],
-                'sex' => $validated['sex'],
-                'birthday' => $validated['birthday'],
-                'age' => $validated['age'],
-                'barangay' => $validated['barangay'],
-                'civil_status' => $validated['civil_status'],
-                'parent_status' => $validated['parent_status'],
-                'education' => $validated['education'],
-                'grade_year_level' => $validated['grade_year_level'],
-                'spes_status' => $validated['spes_status'],
-                'mother_name' => $validated['mother_name'],
-                'mother_occupation' => $validated['mother_occupation'],
-                'mother_contact_no' => $validated['mother_contact_no'],
-                'father_guardian_name' => $validated['father_guardian_name'],
-                'father_occupation' => $validated['father_occupation'],
-                'father_contact_no' => $validated['father_contact_no'],
-                'messenger' => $validated['messenger'] ?? null,
-                'facebook' => $validated['facebook'] ?? null,
-                'birth_certificate' => $birthCertificatePath,
-                'certificate_enrollment' => $enrollmentPath,
-                'certificate_grade' => $gradePath,
-                'application_letter' => $letterPath,
-                'indigency' => $indigencyPath,
-                'document_original_names' => $documentOriginalNames,
-                'status' => 'pending',
-            ]);
-            $createdApplication = $application;
-
-            $auditLogger->record(
-                AuditAction::APPLICATION_SUBMITTED,
-                'Application',
-                $applicant,
-                $applicant,
-                $application,
-                ['field_name' => 'status', 'old_value' => null, 'new_value' => 'pending'],
-            );
-
-            foreach ([
-                'Birth Certificate' => $birthCertificatePath,
-                'Certificate of Enrollment' => $enrollmentPath,
-                'Certificate of Grades' => $gradePath,
-                'Application Letter' => $letterPath,
-                'Certificate of Indigency' => $indigencyPath,
-            ] as $label => $path) {
-                if ($path) {
-                    $auditLogger->recordDocumentSubmitted($applicant, $application, $label);
+        $newlyStoredPaths = array_filter([
+            $birthCertificatePath,
+            $enrollmentPath,
+            $gradePath,
+            $letterPath,
+            $indigencyPath,
+        ]);
+        try {
+            $createdApplication = DB::transaction(function () use ($validated, $fullName, $birthCertificatePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): ?Application {
+                if (Application::where('user_id', $applicant->id)->exists()) {
+                    return null;
                 }
+
+                $application = Application::create([
+                    'user_id' => $applicant->id,
+                    'full_name' => $fullName,
+                    'surname' => $validated['surname'],
+                    'first_name' => $validated['first_name'],
+                    'middle_name' => $validated['middle_name'],
+                    'sex' => $validated['sex'],
+                    'birthday' => $validated['birthday'],
+                    'age' => $validated['age'],
+                    'barangay' => $validated['barangay'],
+                    'civil_status' => $validated['civil_status'],
+                    'parent_status' => $validated['parent_status'],
+                    'education' => $validated['education'],
+                    'grade_year_level' => $validated['grade_year_level'],
+                    'spes_status' => $validated['spes_status'],
+                    'mother_name' => $validated['mother_name'],
+                    'mother_occupation' => $validated['mother_occupation'],
+                    'mother_contact_no' => $validated['mother_contact_no'],
+                    'father_guardian_name' => $validated['father_guardian_name'],
+                    'father_occupation' => $validated['father_occupation'],
+                    'father_contact_no' => $validated['father_contact_no'],
+                    'messenger' => $validated['messenger'] ?? null,
+                    'facebook' => $validated['facebook'] ?? null,
+                    'birth_certificate' => $birthCertificatePath,
+                    'certificate_enrollment' => $enrollmentPath,
+                    'certificate_grade' => $gradePath,
+                    'application_letter' => $letterPath,
+                    'indigency' => $indigencyPath,
+                    'document_original_names' => $documentOriginalNames,
+                    'status' => 'pending',
+                ]);
+
+                $auditLogger->record(
+                    AuditAction::APPLICATION_SUBMITTED,
+                    'Application',
+                    $applicant,
+                    $applicant,
+                    $application,
+                    ['field_name' => 'status', 'old_value' => null, 'new_value' => 'pending'],
+                );
+
+                foreach ([
+                    'Birth Certificate' => $birthCertificatePath,
+                    'Certificate of Enrollment' => $enrollmentPath,
+                    'Certificate of Grades' => $gradePath,
+                    'Application Letter' => $letterPath,
+                    'Certificate of Indigency' => $indigencyPath,
+                ] as $label => $path) {
+                    if ($path) {
+                        $auditLogger->recordDocumentSubmitted($applicant, $application, $label);
+                    }
+                }
+
+                return $application;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            Application::deleteLocalFiles($newlyStoredPaths);
+            if (Application::where('user_id', $applicant->id)->exists()) {
+                return redirect()->route('applications.myApplication')
+                    ->with('error', 'You have already submitted an application.');
             }
 
-            return $application;
-        });
+            throw $exception;
+        } catch (Throwable $exception) {
+            Application::deleteLocalFiles($newlyStoredPaths);
+            throw $exception;
+        }
+
+        if ($createdApplication === null) {
+            Application::deleteLocalFiles($newlyStoredPaths);
+
+            return redirect()->route('applications.myApplication')
+                ->with('error', 'You have already submitted an application.');
+        }
 
         NotifyApplicantsJob::dispatch(
             'users',
@@ -281,15 +316,11 @@ class ApplicationController extends Controller
         AuditLogger $auditLogger,
     )
     {
-        $hasExplicitMiddleName = $request->exists('middle_name');
-        $application = Application::where('user_id', Auth::id())->latest('created_at')->firstOrFail();
-        $settings = SystemSetting::current();
-        if ($application->status !== 'approved'
-            && app(ApplicationApprovalCapacity::class)->isFull($settings)) {
-            return redirect()->route('dashboard')
-                ->with('error', 'The SPES approval limit has been reached. Your application cannot be resubmitted this season.')
-                ->with('approval_capacity_closed', true);
+        $application = Auth::user()->latestApplication()->firstOrFail();
+        if ($redirect = $this->applicationEditRestriction($application)) {
+            return $redirect;
         }
+        $hasExplicitMiddleName = $request->exists('middle_name');
         $this->normalizeLegacyApplicationData($request);
         $middleNameRules = ['required', 'string', 'min:2', 'max:255', 'not_regex:/^[A-Za-z]\.?$/'];
         if ($hasExplicitMiddleName || $request->input('middle_name') !== 'N/A') {
@@ -311,12 +342,11 @@ class ApplicationController extends Controller
             'middle_name' => $middleNameRules,
             'sex' => 'required|in:Male,Female',
             'birthday' => 'required|date|before:today',
-            'age' => 'required|integer|min:15|max:30',
             'barangay' => 'required|string|max:100',
             'civil_status' => 'required|in:Single,Married,Widowed,Separated',
             'parent_status' => 'required|in:Both Parents Living,Solo Parent,Orphan,Guardian',
             'education' => 'required|string|max:100',
-            'grade_year_level' => 'required|in:Grade 7,Grade 8,Grade 9,Grade 10,Grade 11,Grade 12,1st year,2nd year,4th year,5th year',
+            'grade_year_level' => ['required', Rule::in(Application::GRADE_YEAR_LEVELS)],
             'spes_status' => 'required|in:new,baby',
             'mother_name' => 'nullable|string|max:255',
             'mother_occupation' => 'nullable|string|max:255',
@@ -335,97 +365,111 @@ class ApplicationController extends Controller
             'middle_name.not_regex' => 'Please enter your complete middle name. Single initials such as A or A. are not accepted.',
         ]);
 
+        $validated['age'] = $this->ageFromBirthday($validated['birthday']);
         $this->validateFamilyContact($request);
         $original = $application->getOriginal();
         $applicant = Auth::user();
         $submittedDocuments = [];
         $documentOriginalNames = $application->document_original_names ?? [];
-
-        if ($request->hasFile('birth_certificate')) {
-            if ($application->birth_certificate) {
-                Storage::disk('local')->delete($application->birth_certificate);
-            }
-            $application->birth_certificate = $request->file('birth_certificate')->store('applications/birth_certificates', 'local');
-            $documentOriginalNames['birth_certificate'] = $request->file('birth_certificate')->getClientOriginalName();
-            $submittedDocuments['Birth Certificate'] = true;
-        }
-        foreach (['certificate_enrollment' => 'applications/enrollment', 'certificate_grade' => 'applications/grades'] as $document => $directory) {
-            if ($request->hasFile($document)) {
-                if ($application->{$document}) {
-                    Storage::disk('local')->delete($application->{$document});
-                }
-                $application->{$document} = $request->file($document)->store($directory, 'local');
-                $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
-                if ($document === 'certificate_enrollment') {
-                    $submittedDocuments['Certificate of Enrollment'] = true;
-                } elseif ($document === 'certificate_grade') {
-                    $submittedDocuments['Certificate of Grades'] = true;
-                }
-            }
-        }
-        if ($request->hasFile('application_letter')) {
-            if ($application->application_letter) {
-                Storage::disk('local')->delete($application->application_letter);
-            }
-            $application->application_letter = $request->file('application_letter')->store('applications/letters', 'local');
-            $documentOriginalNames['application_letter'] = $request->file('application_letter')->getClientOriginalName();
-            $submittedDocuments['Application Letter'] = true;
-        }
-        if ($request->hasFile('indigency')) {
-            if ($application->indigency) {
-                Storage::disk('local')->delete($application->indigency);
-            }
-            $application->indigency = $request->file('indigency')->store('applications/indigency', 'local');
-            $documentOriginalNames['indigency'] = $request->file('indigency')->getClientOriginalName();
-            $submittedDocuments['Certificate of Indigency'] = true;
-        }
-
-        $fullName = trim(implode(' ', array_filter([
-            $validated['first_name'],
-            str_replace('N/A', '', $validated['middle_name'] ?? ''),
-            $validated['surname'],
-        ], fn ($part) => ! empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
-
-        $updates = array_merge($validated, [
-            'full_name' => $fullName,
-            'birth_certificate' => $application->birth_certificate,
-            'certificate_enrollment' => $application->certificate_enrollment,
-            'certificate_grade' => $application->certificate_grade,
-            'application_letter' => $application->application_letter,
-            'indigency' => $application->indigency,
-            'document_original_names' => $documentOriginalNames,
-        ]);
-
+        $newlyStoredPaths = [];
+        $oldPathsToDelete = [];
         $wasDenied = $application->status === 'denied';
-        if ($wasDenied) {
-            $updates['status'] = 'pending';
-            $updates['admin_comment'] = null;
-        }
 
-        DB::transaction(function () use ($application, $updates, $original, $applicant, $submittedDocuments, $auditLogger): void {
-            $application->update($updates);
-            $auditedFields = [
-                'full_name', 'surname', 'first_name', 'middle_name', 'sex', 'birthday', 'age',
-                'barangay', 'civil_status', 'parent_status', 'education', 'grade_year_level', 'spes_status',
-                'mother_name', 'mother_occupation', 'mother_contact_no', 'father_guardian_name',
-                'father_occupation', 'father_contact_no', 'messenger', 'facebook', 'status', 'admin_comment',
-            ];
-            $newValues = array_intersect_key($application->getAttributes(), array_flip($auditedFields));
-            $auditLogger->recordChanges(
-                $original,
-                $newValues,
-                'Application Information',
-                $applicant,
-                $applicant,
-                $application,
-                AuditAction::APPLICATION_UPDATED,
-                ['status_action' => AuditAction::APPLICATION_STATUS_CHANGED],
-            );
-
-            foreach (array_keys($submittedDocuments) as $documentLabel) {
-                $auditLogger->recordDocumentSubmitted($applicant, $application, $documentLabel);
+        try {
+            if ($request->hasFile('birth_certificate')) {
+                if ($application->birth_certificate) {
+                    $oldPathsToDelete[] = $application->birth_certificate;
+                }
+                $application->birth_certificate = $request->file('birth_certificate')->store('applications/birth_certificates', 'local');
+                $newlyStoredPaths[] = $application->birth_certificate;
+                $documentOriginalNames['birth_certificate'] = $request->file('birth_certificate')->getClientOriginalName();
+                $submittedDocuments['Birth Certificate'] = true;
             }
-        });
+            foreach (['certificate_enrollment' => 'applications/enrollment', 'certificate_grade' => 'applications/grades'] as $document => $directory) {
+                if ($request->hasFile($document)) {
+                    if ($application->{$document}) {
+                        $oldPathsToDelete[] = $application->{$document};
+                    }
+                    $application->{$document} = $request->file($document)->store($directory, 'local');
+                    $newlyStoredPaths[] = $application->{$document};
+                    $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
+                    if ($document === 'certificate_enrollment') {
+                        $submittedDocuments['Certificate of Enrollment'] = true;
+                    } elseif ($document === 'certificate_grade') {
+                        $submittedDocuments['Certificate of Grades'] = true;
+                    }
+                }
+            }
+            if ($request->hasFile('application_letter')) {
+                if ($application->application_letter) {
+                    $oldPathsToDelete[] = $application->application_letter;
+                }
+                $application->application_letter = $request->file('application_letter')->store('applications/letters', 'local');
+                $newlyStoredPaths[] = $application->application_letter;
+                $documentOriginalNames['application_letter'] = $request->file('application_letter')->getClientOriginalName();
+                $submittedDocuments['Application Letter'] = true;
+            }
+            if ($request->hasFile('indigency')) {
+                if ($application->indigency) {
+                    $oldPathsToDelete[] = $application->indigency;
+                }
+                $application->indigency = $request->file('indigency')->store('applications/indigency', 'local');
+                $newlyStoredPaths[] = $application->indigency;
+                $documentOriginalNames['indigency'] = $request->file('indigency')->getClientOriginalName();
+                $submittedDocuments['Certificate of Indigency'] = true;
+            }
+
+            $fullName = trim(implode(' ', array_filter([
+                $validated['first_name'],
+                str_replace('N/A', '', $validated['middle_name'] ?? ''),
+                $validated['surname'],
+            ], fn ($part) => ! empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
+
+            $updates = array_merge($validated, [
+                'full_name' => $fullName,
+                'birth_certificate' => $application->birth_certificate,
+                'certificate_enrollment' => $application->certificate_enrollment,
+                'certificate_grade' => $application->certificate_grade,
+                'application_letter' => $application->application_letter,
+                'indigency' => $application->indigency,
+                'document_original_names' => $documentOriginalNames,
+            ]);
+
+            if ($wasDenied) {
+                $updates['status'] = 'pending';
+                $updates['admin_comment'] = null;
+            }
+
+            DB::transaction(function () use ($application, $updates, $original, $applicant, $submittedDocuments, $auditLogger, $oldPathsToDelete): void {
+                $application->update($updates);
+                $auditedFields = [
+                    'full_name', 'surname', 'first_name', 'middle_name', 'sex', 'birthday', 'age',
+                    'barangay', 'civil_status', 'parent_status', 'education', 'grade_year_level', 'spes_status',
+                    'mother_name', 'mother_occupation', 'mother_contact_no', 'father_guardian_name',
+                    'father_occupation', 'father_contact_no', 'messenger', 'facebook', 'status', 'admin_comment',
+                ];
+                $newValues = array_intersect_key($application->getAttributes(), array_flip($auditedFields));
+                $auditLogger->recordChanges(
+                    $original,
+                    $newValues,
+                    'Application Information',
+                    $applicant,
+                    $applicant,
+                    $application,
+                    AuditAction::APPLICATION_UPDATED,
+                    ['status_action' => AuditAction::APPLICATION_STATUS_CHANGED],
+                );
+
+                foreach (array_keys($submittedDocuments) as $documentLabel) {
+                    $auditLogger->recordDocumentSubmitted($applicant, $application, $documentLabel);
+                }
+
+                DB::afterCommit(fn () => Application::deleteLocalFiles($oldPathsToDelete, $application->id));
+            });
+        } catch (Throwable $exception) {
+            Application::deleteLocalFiles($newlyStoredPaths, $application->id);
+            throw $exception;
+        }
 
         if ($wasDenied) {
             NotifyApplicantsJob::dispatch(
@@ -526,9 +570,55 @@ class ApplicationController extends Controller
      */
     public function myApplication()
     {
-        $application = Application::where('user_id', Auth::id())->latest('created_at')->first();
+        $application = Auth::user()->latestApplication()->first();
+        $canEdit = $application !== null && $this->canEditApplication($application);
 
-        return view('application.applications.my-application', compact('application'));
+        return view('application.applications.my-application', compact('application', 'canEdit'));
+    }
+
+    private function applicationEditRestriction(Application $application): ?RedirectResponse
+    {
+        if ($this->canEditApplication($application)) {
+            return null;
+        }
+
+        if ($application->status === 'approved') {
+            return redirect()->route('applications.myApplication')
+                ->with('error', 'Approved applications are read-only and cannot be changed.');
+        }
+
+        $settings = SystemSetting::current();
+        $capacityFull = app(ApplicationApprovalCapacity::class)->isFull($settings);
+        $message = $capacityFull
+            ? 'The SPES approval limit has been reached. Your application cannot be resubmitted this season.'
+            : 'Applications are currently closed.';
+
+        return redirect()->route('dashboard')
+            ->with('error', $message)
+            ->with('approval_capacity_closed', $capacityFull);
+    }
+
+    private function ageFromBirthday(string $birthday): int
+    {
+        $age = Carbon::parse($birthday)->age;
+        if ($age < 15 || $age > 30) {
+            throw ValidationException::withMessages([
+                'birthday' => 'Applicants must be between 15 and 30 years old.',
+            ]);
+        }
+
+        return $age;
+    }
+
+    private function canEditApplication(Application $application): bool
+    {
+        $settings = SystemSetting::current();
+
+        return match ($application->status) {
+            'pending' => $settings->isApplicationOpen(),
+            'denied' => ! app(ApplicationApprovalCapacity::class)->isFull($settings),
+            default => false,
+        };
     }
 
     /**
@@ -611,16 +701,24 @@ class ApplicationController extends Controller
      */
     public function index(Request $request, ApplicationApprovalCapacity $capacity)
     {
+        $filters = $request->validate([
+            'status' => ['nullable', 'string'],
+            'barangay' => ['nullable', 'string'],
+            'search' => ['nullable', 'string', 'max:120'],
+        ]);
+
         $query = Application::with('user')->latest();
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if (filled($filters['status'] ?? null)) {
+            $query->where('status', $filters['status']);
         }
-        if ($request->filled('barangay')) {
-            $query->where('barangay', $request->barangay);
+        if (filled($filters['barangay'] ?? null)) {
+            $query->where('barangay', $filters['barangay']);
         }
-        if ($request->filled('search')) {
-            $query->where('full_name', 'like', '%'.$request->search.'%');
+        $search = $request->string('search')->toString();
+        if ($search !== '') {
+            $escapedSearch = addcslashes($search, '\\%_');
+            $query->where('full_name', 'like', '%'.$escapedSearch.'%');
         }
 
         $applications = $query->paginate(15);

@@ -15,7 +15,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_admin_can_create_and_publish_a_shared_appointment(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create();
 
         $this->actingAs($admin)
@@ -76,7 +76,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_email_preference_still_saves_appointment_notification_for_recent_feed_and_dashboard_popup(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create();
         ApplicantSetting::create([
             'user_id' => $applicant->id,
@@ -115,7 +115,7 @@ class AdminAppointmentTest extends TestCase
     public function test_dashboard_shows_a_centered_popup_for_unread_appointment_notifications(): void
     {
         $this->travelTo(now()->setDate(2026, 10, 10)->setTime(9, 0));
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create();
         $appointment = Appointment::create([
             'title' => 'Document verification',
@@ -218,7 +218,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_picker_includes_all_user_role_accounts_but_not_admin_accounts(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicants = User::factory()->count(3)->create();
 
         $response = $this->actingAs($admin)->get(route('admin.appointments.create'))
@@ -232,7 +232,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_admin_must_provide_an_attendance_date_and_time(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.appointments.store'), [
@@ -245,7 +245,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_admin_can_create_an_appointment_for_one_specific_applicant(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create();
 
         $this->actingAs($admin)
@@ -268,7 +268,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_admin_must_select_an_applicant_for_an_individual_appointment(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.appointments.store'), [
@@ -283,7 +283,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_admin_can_target_multiple_selected_applicants(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $firstApplicant = User::factory()->create();
         $secondApplicant = User::factory()->create();
         $otherApplicant = User::factory()->create();
@@ -340,9 +340,9 @@ class AdminAppointmentTest extends TestCase
 
     public function test_multiple_applicant_appointment_requires_at_least_two_valid_applicants(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create();
-        $adminUser = User::factory()->create(['role' => 'admin']);
+        $adminUser = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->post(route('admin.appointments.store'), [
@@ -363,10 +363,9 @@ class AdminAppointmentTest extends TestCase
         $this->assertDatabaseCount('appointments', 0);
     }
 
-    public function test_applicants_only_see_appointments_targeted_to_their_latest_status_or_them_individually(): void
+    public function test_applicants_only_see_appointments_targeted_to_their_application_status_or_them_individually(): void
     {
         $pendingApplicant = User::factory()->create();
-        Application::factory()->for($pendingApplicant)->create(['status' => 'approved']);
         Application::factory()->for($pendingApplicant)->create(['status' => 'pending']);
 
         $approvedApplicant = User::factory()->create();
@@ -442,7 +441,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_publishing_a_status_targeted_appointment_notifies_only_matching_applicants(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $pendingApplicant = User::factory()->create();
         Application::factory()->for($pendingApplicant)->create(['status' => 'pending']);
         $approvedApplicant = User::factory()->create();
@@ -478,7 +477,7 @@ class AdminAppointmentTest extends TestCase
 
     public function test_announcement_sidebar_dropdown_contains_appointments_news_and_schedule(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->admin()->create();
         $this->actingAs($admin);
 
         foreach ([
