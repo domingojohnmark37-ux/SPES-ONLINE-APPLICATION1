@@ -49,6 +49,8 @@ RUN apk add --no-cache \
 
 WORKDIR /var/www/html
 
+ENV PORT=3000
+
 COPY --from=composer /app/vendor ./vendor
 COPY . .
 COPY --from=assets /app/public/build ./public/build
@@ -63,5 +65,5 @@ RUN chmod +x /usr/local/bin/start.sh \
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
-EXPOSE 10000
+EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/start.sh"]

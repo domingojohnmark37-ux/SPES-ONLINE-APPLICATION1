@@ -256,7 +256,7 @@ The app does not trust forwarded headers by default. In production, set `TRUSTED
 
 This is a PHP/Laravel application. Render does not provide a native PHP runtime, so deploy it as a Docker web service using the repository `Dockerfile` and `render.yaml`. Leave Render's Build Command and Start Command fields empty for a Docker service; the Dockerfile builds the application and its `ENTRYPOINT` starts Nginx, PHP-FPM, and the queue worker.
 
-The container listens on Render's `PORT` environment variable, defaulting to `10000` locally. The Render blueprint attaches persistent storage for private applicant documents. Configure the service's environment variables in the Render dashboard.
+The container listens on the deployment platform's `PORT` environment variable, defaulting to `3000`. Nginx binds to all container interfaces on that port so the platform health check can reach it. The Render blueprint attaches persistent storage for private applicant documents. Configure the service's environment variables in the deployment dashboard.
 
 Use database-backed drivers in Render and ensure the corresponding `cache`, `jobs`, and `sessions` tables are migrated:
 

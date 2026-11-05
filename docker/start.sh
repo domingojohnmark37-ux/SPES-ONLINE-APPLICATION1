@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PORT="${PORT:-10000}"
+PORT="${PORT:-3000}"
 export PORT
 
 mkdir -p \
