@@ -2,7 +2,7 @@ services:
   - type: web
     name: spes-online-application
     runtime: docker
-    healthCheckPath: /up
+    healthCheckPath: /healthz
     disk:
       name: spes-online-application-storage
       mountPath: /var/www/html/storage/app/private

@@ -256,7 +256,16 @@ The app does not trust forwarded headers by default. In production, set `TRUSTED
 
 This is a PHP/Laravel application. Render does not provide a native PHP runtime, so deploy it as a Docker web service using the repository `Dockerfile` and `render.yaml`. Leave Render's Build Command and Start Command fields empty for a Docker service; the Dockerfile builds the application and its `ENTRYPOINT` starts Nginx, PHP-FPM, and the queue worker.
 
-The container listens on the deployment platform's `PORT` environment variable, defaulting to `3000`. Nginx binds to all container interfaces on that port so the platform health check can reach it. The Render blueprint attaches persistent storage for private applicant documents. Configure the service's environment variables in the deployment dashboard.
+The container listens on the deployment platform's `PORT` environment variable, defaulting to `3000`. Nginx binds to all container interfaces on that port so the platform health check can reach it. Use `/healthz` for the deployment health check; it returns 200 without accessing the database or session. The public homepage (`/`) queries published news and uses the configured database. The Render blueprint attaches persistent storage for private applicant documents. Configure the service's environment variables in the deployment dashboard.
+
+For EthioDeploy, configure these runtime variables in the service dashboard:
+
+- Required: `APP_KEY` (a generated Laravel key), `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL` (the public HTTPS URL), and `PORT=3000` unless the platform supplies `PORT`.
+- Required database settings: `DB_CONNECTION=mysql`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`. The startup script migrates the database before caching config.
+- Recommended: `LOG_CHANNEL=stderr`, `CACHE_STORE=database`, `SESSION_DRIVER=database`, `SESSION_ENCRYPT=true`, `SESSION_SECURE_COOKIE=true`, and `QUEUE_CONNECTION=database`. The database-backed cache, sessions, and queue require their migrated tables.
+- Email is not needed for `/healthz` or `/`. To send email, set `MAIL_MAILER`, `MAIL_FROM_ADDRESS`, and `MAIL_FROM_NAME`, plus credentials for the selected mailer (SMTP variables for SMTP, `RESEND_API_KEY` for Resend, or `GOOGLE_APPS_SCRIPT_MAIL_URL` and `GOOGLE_APPS_SCRIPT_MAIL_TOKEN` for the Apps Script relay).
+
+The Docker entrypoint receives platform environment variables before it runs migrations and `config:cache`. It creates the required storage/cache directories and grants write access before Laravel starts. If `/healthz` returns 204 while `/` returns 500, inspect application logs on stderr; common homepage causes are missing database credentials, an unavailable database, or migrations not applied to the configured database.
 
 Use database-backed drivers in Render and ensure the corresponding `cache`, `jobs`, and `sessions` tables are migrated:
 

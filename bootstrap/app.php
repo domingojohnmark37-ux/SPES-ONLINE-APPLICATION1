@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request as HttpRequest;
+use Illuminate\Support\Facades\Route;
 use App\Http\Middleware\LogSlowRequests;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -11,8 +12,12 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function (): void {
+            Route::get('/healthz', static fn () => response('OK', 200));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->preventRequestsDuringMaintenance(['/healthz']);
         $middleware->trustProxies(
             at: env('TRUSTED_PROXIES') ?: null,
             headers: HttpRequest::HEADER_X_FORWARDED_FOR
