@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Str;
@@ -88,6 +89,11 @@ class RegisteredUserController extends Controller
                 });
             } catch (\Throwable $e) {
                 report($e);
+                Log::error('Registration verification email delivery failed.', [
+                    'mailer' => config('mail.default'),
+                    'flow' => 'registration',
+                    'exception' => $e::class,
+                ]);
                 $request->session()->forget([
                     'pending_registration_token',
                     'pending_registration_email',
@@ -126,9 +132,6 @@ class RegisteredUserController extends Controller
         }
 
         $mailer = (string) config('mail.default');
-        $fallbackMailers = config("mail.mailers.{$mailer}.mailers", []);
-
-        return ! in_array($mailer, ['log', 'array'], true)
-            && ! in_array('log', $fallbackMailers, true);
+        return ! in_array($mailer, ['log', 'array'], true);
     }
 }

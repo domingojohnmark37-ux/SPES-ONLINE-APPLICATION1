@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\RegistrationVerificationController;
 use App\Mail\RegistrationVerificationCode;
 use App\Models\PendingRegistration;
 use App\Models\User;
@@ -87,6 +90,27 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseCount('pending_registrations', 0);
         $this->assertFalse(session()->has('pending_registration_token'));
         $this->assertFalse(session()->has('pending_registration_email'));
+    }
+
+    public function test_verification_flows_accept_resend_and_reject_log_and_array_in_production(): void
+    {
+        $this->app['env'] = 'production';
+
+        foreach ([
+            new RegisteredUserController(),
+            new RegistrationVerificationController(),
+            new NewPasswordController(),
+        ] as $controller) {
+            $method = new \ReflectionMethod($controller, 'verificationMailerIsSafe');
+
+            config(['mail.default' => 'resend']);
+            $this->assertTrue($method->invoke($controller));
+
+            foreach (['log', 'array'] as $mailer) {
+                config(['mail.default' => $mailer]);
+                $this->assertFalse($method->invoke($controller), "{$mailer} should not send verification mail in production.");
+            }
+        }
     }
 
     public function test_registration_resend_mail_failure_does_not_consume_resend_attempt(): void

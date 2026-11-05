@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
@@ -127,6 +128,11 @@ class ApplicantSettingsController extends Controller
             });
         } catch (\Throwable $e) {
             report($e);
+            Log::error('Applicant email change verification delivery failed.', [
+                'mailer' => config('mail.default'),
+                'flow' => 'email_change',
+                'exception' => $e::class,
+            ]);
 
             if ($request->expectsJson()) {
                 return response()->json([

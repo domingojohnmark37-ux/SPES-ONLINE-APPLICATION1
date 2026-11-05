@@ -84,10 +84,11 @@ npm run build
 
 ### Email Notifications
 
-Applicant email notifications use Laravel's configured SMTP mailer. For Gmail, configure the sender account in `.env`:
+Applicant email notifications support SMTP and Resend. On Render, SMTP requires a paid instance because the free tier blocks outbound SMTP; Resend uses HTTPS and works on the free tier.
 
 ```dotenv
 APP_URL=https://your-official-portal.example
+# Choose smtp or resend
 MAIL_MAILER=smtp
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=587
@@ -95,9 +96,18 @@ MAIL_USERNAME=your-authorized-sender@gmail.com
 MAIL_PASSWORD=your-gmail-app-password
 MAIL_FROM_ADDRESS=your-authorized-sender@gmail.com
 MAIL_FROM_NAME="PESO Lal-lo SPES Portal"
+# For MAIL_MAILER=resend:
+RESEND_API_KEY=your-resend-api-key
 ```
 
-Use a Gmail App Password for an account with 2-Step Verification enabled; never use or commit the account password. Set `APP_URL` to the official HTTPS portal URL before deployment. An administrator can send a real configuration test from **Admin → Settings**; it is delivered to that administrator's registered email address. Run `php artisan schedule:work` or configure Laravel's scheduler to run once per minute so eligible appointment reminders are sent approximately 24 hours before appointments and again on the appointment date.
+`MAIL_FROM_ADDRESS` must be an address on a domain verified in Resend. Until a domain is verified, Resend can deliver only to the Resend account owner's email address, which is suitable for testing but not for real applicants. For Gmail SMTP, use a Gmail App Password with 2-Step Verification enabled; never use or commit the account password. Set `APP_URL` to the official HTTPS portal URL before deployment.
+
+Troubleshooting:
+- "Connection timed out" or "could not be established" means the SMTP port is blocked (Render free tier).
+- "535 Username and Password not accepted" means the Gmail App Password is wrong or 2-Step Verification is off.
+- A from-address rejection means `MAIL_FROM_ADDRESS` must match the authenticated sender or a verified domain.
+
+Run `php artisan mail:test my@email.com` in the deployment shell to test the configured mailer. An administrator can also send a real configuration test from **Admin → Settings**; it is delivered to that administrator's registered email address. Run `php artisan schedule:work` or configure Laravel's scheduler to run once per minute so eligible appointment reminders are sent approximately 24 hours before appointments and again on the appointment date.
 
 ### 4. Storage & Assets
 

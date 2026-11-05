@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
@@ -88,6 +89,11 @@ class NewPasswordController extends Controller
             });
         } catch (\Throwable $e) {
             report($e);
+            Log::error('Password reset verification email delivery failed.', [
+                'mailer' => config('mail.default'),
+                'flow' => 'password_reset',
+                'exception' => $e::class,
+            ]);
             PendingPasswordReset::query()->where('token', $flowToken)->delete();
             $request->session()->forget([
                 'password_reset_flow_token',
@@ -258,6 +264,11 @@ class NewPasswordController extends Controller
             });
         } catch (\Throwable $e) {
             report($e);
+            Log::error('Password reset verification resend failed.', [
+                'mailer' => config('mail.default'),
+                'flow' => 'password_reset',
+                'exception' => $e::class,
+            ]);
 
             if ($request->expectsJson()) {
                 return response()->json([
@@ -318,9 +329,6 @@ class NewPasswordController extends Controller
         }
 
         $mailer = (string) config('mail.default');
-        $fallbackMailers = config("mail.mailers.{$mailer}.mailers", []);
-
-        return ! in_array($mailer, ['log', 'array'], true)
-            && ! in_array('log', $fallbackMailers, true);
+        return ! in_array($mailer, ['log', 'array'], true);
     }
 }

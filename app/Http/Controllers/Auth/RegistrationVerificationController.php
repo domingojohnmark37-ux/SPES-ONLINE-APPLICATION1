@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -189,6 +190,11 @@ class RegistrationVerificationController extends Controller
             });
         } catch (\Throwable $e) {
             report($e);
+            Log::error('Registration verification resend failed.', [
+                'mailer' => config('mail.default'),
+                'flow' => 'registration',
+                'exception' => $e::class,
+            ]);
 
             if ($request->expectsJson()) {
                 return response()->json([
@@ -244,9 +250,6 @@ class RegistrationVerificationController extends Controller
         }
 
         $mailer = (string) config('mail.default');
-        $fallbackMailers = config("mail.mailers.{$mailer}.mailers", []);
-
-        return ! in_array($mailer, ['log', 'array'], true)
-            && ! in_array('log', $fallbackMailers, true);
+        return ! in_array($mailer, ['log', 'array'], true);
     }
 }
