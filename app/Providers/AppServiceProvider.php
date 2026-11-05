@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Mail\Transport\GoogleAppsScriptTransport;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\Lockout;
@@ -32,6 +34,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Mail::extend('google-apps-script', function (array $config = []): GoogleAppsScriptTransport {
+            return new GoogleAppsScriptTransport(
+                (string) config('services.google_apps_script.url', ''),
+                (string) config('services.google_apps_script.token', ''),
+            );
+        });
+
         Blade::directive('adminDate', function (string $expression): string {
             return "<?php echo e(app(\\App\\Support\\AdminDateFormatter::class)->format({$expression})); ?>";
         });

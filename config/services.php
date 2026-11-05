@@ -22,6 +22,11 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'google_apps_script' => [
+        'url' => env('GOOGLE_APPS_SCRIPT_MAIL_URL'),
+        'token' => env('GOOGLE_APPS_SCRIPT_MAIL_TOKEN'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

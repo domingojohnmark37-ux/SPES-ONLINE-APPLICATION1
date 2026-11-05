@@ -84,7 +84,7 @@ npm run build
 
 ### Email Notifications
 
-Applicant email notifications support SMTP and Resend. On Render, SMTP requires a paid instance because the free tier blocks outbound SMTP; Resend uses HTTPS and works on the free tier.
+Applicant email notifications support SMTP, Resend, and a free Google Apps Script relay. On Render, SMTP requires a paid instance because the free tier blocks outbound SMTP. Resend uses HTTPS and the Apps Script relay uses Google's HTTPS web app.
 
 ```dotenv
 APP_URL=https://your-official-portal.example
@@ -98,9 +98,30 @@ MAIL_FROM_ADDRESS=your-authorized-sender@gmail.com
 MAIL_FROM_NAME="PESO Lal-lo SPES Portal"
 # For MAIL_MAILER=resend:
 RESEND_API_KEY=your-resend-api-key
+# For the free Google Apps Script relay:
+MAIL_MAILER=google_apps_script
+GOOGLE_APPS_SCRIPT_MAIL_URL=https://script.google.com/macros/s/your-deployment-id/exec
+GOOGLE_APPS_SCRIPT_MAIL_TOKEN=your-long-random-shared-token
 ```
 
 `MAIL_FROM_ADDRESS` must be an address on a domain verified in Resend. Until a domain is verified, Resend can deliver only to the Resend account owner's email address, which is suitable for testing but not for real applicants. For Gmail SMTP, use a Gmail App Password with 2-Step Verification enabled; never use or commit the account password. Set `APP_URL` to the official HTTPS portal URL before deployment.
+
+### Free email with Google Apps Script
+
+The relay sends through the Gmail account that owns the script, over HTTPS, without an SMTP provider or subscription. Gmail accounts have a limit of 100 recipients per day; Google Workspace accounts have a limit of 1,500 recipients per day. Recipients are counted by Google, not by the portal. The script must be redeployed as a new version after any edit. Keep the shared token secret.
+
+1. Sign in at [script.google.com](https://script.google.com) to the Gmail account that will send the emails, then create a new project.
+2. Paste the contents of [`docs/google-apps-script-mail-relay.gs`](./docs/google-apps-script-mail-relay.gs) into the project.
+3. Open **Project Settings → Script Properties** and add `MAIL_RELAY_TOKEN` with a long random value. Generate one with a password manager or a cryptographically secure generator, for example `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`. Use that same value only in the script property and Render environment.
+4. Choose **Deploy → New deployment**, select **Web app**, set **Execute as** to **Me**, and **Who has access** to **Anyone**. Deploy and authorize the requested permissions, then copy the web app URL.
+5. In **Render → Environment**, set:
+   - `MAIL_MAILER=google_apps_script`
+   - `GOOGLE_APPS_SCRIPT_MAIL_URL` to the copied web app URL
+   - `GOOGLE_APPS_SCRIPT_MAIL_TOKEN` to the exact same secret as the Script Property
+   - `MAIL_FROM_ADDRESS` to the Gmail address that owns the script
+   - `MAIL_FROM_NAME` to the desired sender display name
+6. Redeploy the Render service.
+7. Run `php artisan mail:test someone@example.com` in the Render shell to verify delivery.
 
 Troubleshooting:
 - "Connection timed out" or "could not be established" means the SMTP port is blocked (Render free tier).
@@ -108,6 +129,10 @@ Troubleshooting:
 - A from-address rejection means `MAIL_FROM_ADDRESS` must match the authenticated sender or a verified domain.
 
 Run `php artisan mail:test my@email.com` in the deployment shell to test the configured mailer. An administrator can also send a real configuration test from **Admin → Settings**; it is delivered to that administrator's registered email address. Run `php artisan schedule:work` or configure Laravel's scheduler to run once per minute so eligible appointment reminders are sent approximately 24 hours before appointments and again on the appointment date.
+
+### Creating a temporary test applicant
+
+If email delivery is unavailable and you need to test the applicant portal on Render, run `php artisan spes:create-test-applicant your-email@example.com` in the Render Shell. The command securely prompts for a name and a password twice, creates a verified applicant without sending email, and refuses to change an existing account. Sign in with the email and password you entered. This account bypasses email verification; use it only for testing and remove it when finished.
 
 ### 4. Storage & Assets
 

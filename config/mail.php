@@ -31,7 +31,8 @@ return [
     |
     | Supported: "smtp", "sendmail", "mailgun", "ses", "ses-v2",
     |            "postmark", "resend", "log", "array",
-    |            "failover", "roundrobin"
+    |            "failover", "roundrobin", and the custom
+    |            "google-apps-script" transport.
     |
     */
 
@@ -63,6 +64,10 @@ return [
 
         'resend' => [
             'transport' => 'resend',
+        ],
+
+        'google_apps_script' => [
+            'transport' => 'google-apps-script',
         ],
 
         'sendmail' => [

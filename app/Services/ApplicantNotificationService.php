@@ -10,6 +10,7 @@ use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Throwable;
 
 class ApplicantNotificationService
@@ -143,6 +144,11 @@ class ApplicantNotificationService
                 'channel' => $channel,
                 'exception' => class_basename($exception),
             ]);
+
+            if ($exception instanceof TransportException
+                && str_contains(mb_strtolower($exception->getMessage()), 'quota')) {
+                throw $exception;
+            }
         }
     }
 }

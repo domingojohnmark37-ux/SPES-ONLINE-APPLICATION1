@@ -20,9 +20,12 @@ class MailTest extends Command
         $url = $mailerConfig['url'] ?? null;
         $parsedUrl = is_string($url) ? parse_url($url) : false;
         $urlParts = is_array($parsedUrl) ? $parsedUrl : [];
-        $host = $mailerConfig['host'] ?? ($urlParts['host'] ?? 'not configured');
-        $port = $mailerConfig['port'] ?? ($urlParts['port'] ?? 'not configured');
-        $scheme = $mailerConfig['scheme'] ?? ($urlParts['scheme'] ?? ($mailer === 'resend' ? 'https' : 'not configured'));
+        $isGoogleAppsScript = $mailer === 'google_apps_script';
+        $host = $isGoogleAppsScript ? 'not shown' : ($mailerConfig['host'] ?? ($urlParts['host'] ?? 'not configured'));
+        $port = $isGoogleAppsScript ? '443' : ($mailerConfig['port'] ?? ($urlParts['port'] ?? 'not configured'));
+        $scheme = $isGoogleAppsScript
+            ? 'https'
+            : ($mailerConfig['scheme'] ?? ($urlParts['scheme'] ?? ($mailer === 'resend' ? 'https' : 'not configured')));
 
         try {
             Mail::raw('This is a test email from the SPES Online Application.', function ($message) use ($email): void {
@@ -56,6 +59,11 @@ class MailTest extends Command
                 $message = str_replace($secret, 'REDACTED', $message);
                 $message = str_replace(rawurlencode($secret), 'REDACTED', $message);
             }
+        }
+
+        $scriptUrl = config('services.google_apps_script.url');
+        if (is_string($scriptUrl) && $scriptUrl !== '') {
+            $message = str_replace([$scriptUrl, rawurlencode($scriptUrl)], 'REDACTED', $message);
         }
 
         $url = config("mail.mailers.".config('mail.default').".url");

@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
@@ -92,6 +93,35 @@ class RegistrationTest extends TestCase
         $this->assertFalse(session()->has('pending_registration_email'));
     }
 
+    public function test_registration_google_apps_script_failure_returns_friendly_error_and_removes_pending_record(): void
+    {
+        $this->mockUncompromisedVerifier(true);
+        config([
+            'mail.default' => 'google_apps_script',
+            'services.google_apps_script.url' => 'https://script.google.test/macros/s/test/exec',
+            'services.google_apps_script.token' => 'registration-test-token',
+        ]);
+        Http::fake([
+            'https://script.google.test/macros/s/test/exec' => Http::response([
+                'ok' => false,
+                'error' => 'quota',
+            ], 200),
+        ]);
+
+        $this->from('/register')->post('/register', [
+            'email' => 'jane.doe@example.com',
+            'password' => 'Strong passphrase 123!',
+            'password_confirmation' => 'Strong passphrase 123!',
+            'terms_accepted' => '1',
+        ])
+            ->assertRedirect('/register')
+            ->assertSessionHasErrors([
+                'email' => 'We could not send the verification email. Please try again later.',
+            ]);
+
+        $this->assertDatabaseCount('pending_registrations', 0);
+    }
+
     public function test_verification_flows_accept_resend_and_reject_log_and_array_in_production(): void
     {
         $this->app['env'] = 'production';
@@ -103,8 +133,10 @@ class RegistrationTest extends TestCase
         ] as $controller) {
             $method = new \ReflectionMethod($controller, 'verificationMailerIsSafe');
 
-            config(['mail.default' => 'resend']);
-            $this->assertTrue($method->invoke($controller));
+            foreach (['resend', 'google_apps_script'] as $mailer) {
+                config(['mail.default' => $mailer]);
+                $this->assertTrue($method->invoke($controller), "{$mailer} should be allowed in production.");
+            }
 
             foreach (['log', 'array'] as $mailer) {
                 config(['mail.default' => $mailer]);
