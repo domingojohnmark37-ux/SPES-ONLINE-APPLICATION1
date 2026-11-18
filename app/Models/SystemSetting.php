@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class SystemSetting extends Model
 {
@@ -12,6 +13,10 @@ class SystemSetting extends Model
         'approved_applicant_limit',
         'admin_minimum_password_length',
         'admin_session_timeout_minutes',
+        'backup_enabled',
+        'backup_frequency',
+        'backup_time',
+        'backup_retention_days',
     ];
 
     protected $casts = [
@@ -20,6 +25,8 @@ class SystemSetting extends Model
         'approved_applicant_limit' => 'integer',
         'admin_minimum_password_length' => 'integer',
         'admin_session_timeout_minutes' => 'integer',
+        'backup_enabled' => 'boolean',
+        'backup_retention_days' => 'integer',
     ];
 
     /**
@@ -27,7 +34,33 @@ class SystemSetting extends Model
      */
     public static function current()
     {
-        return self::firstOrCreate([]);
+        $settings = self::firstOrCreate([]);
+        static $hasBackupSettingsColumns;
+        $hasBackupSettingsColumns ??= Schema::hasColumns('system_settings', [
+            'backup_enabled',
+            'backup_frequency',
+            'backup_time',
+            'backup_retention_days',
+        ]);
+        $columns = [
+            'backup_enabled' => true,
+            'backup_frequency' => 'daily',
+            'backup_time' => '02:00',
+            'backup_retention_days' => 7,
+        ];
+        if ($hasBackupSettingsColumns) {
+            $missingDefaults = [];
+            foreach ($columns as $column => $default) {
+                if ($settings->{$column} === null) {
+                    $missingDefaults[$column] = $default;
+                }
+            }
+            if ($missingDefaults !== []) {
+                $settings->forceFill($missingDefaults)->save();
+            }
+        }
+
+        return $settings;
     }
 
     /**

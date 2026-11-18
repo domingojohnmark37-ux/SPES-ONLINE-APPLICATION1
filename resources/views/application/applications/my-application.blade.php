@@ -205,14 +205,44 @@
         <div class="card">
             <div class="apply-cta">
                 <x-icon class="fa-solid fa-file-circle-plus" />
-                <h2 class="text-section">{{ __('No application yet') }}</h2>
-                <p class="text-secondary">{{ __('You have not submitted a SPES application. Start below when you are ready.') }}</p>
+                <h2 class="text-section">{{ __('Apply for SPES') }}</h2>
+                <p class="text-secondary">{{ __('Complete the application form below to submit your SPES application.') }}</p>
                 <a href="{{ route('applications.create') }}" class="btn-apply">
-                    <x-icon class="fa-solid fa-paper-plane" /> {{ __('Apply Now') }}
+                    <x-icon class="fa-solid fa-paper-plane" /> {{ __('Open Application Form') }}
                 </a>
             </div>
         </div>
     @else
+
+    @php
+        $statusLabel = $application->statusLabel();
+        $applicationDocuments = [
+            ['label' => 'Birth Certificate', 'key' => 'birth_certificate'],
+            ['label' => 'Certificate of Enrollment', 'key' => 'certificate_enrollment'],
+            ['label' => 'Certificate of Grades', 'key' => 'certificate_grade'],
+            ['label' => 'Application Letter', 'key' => 'application_letter'],
+            ['label' => 'Certificate of Indigency', 'key' => 'indigency'],
+        ];
+    @endphp
+
+    <div class="card" aria-labelledby="application-status-heading">
+        <div class="card-header">
+            <h2 id="application-status-heading" class="text-section">{{ __('Application Status') }}</h2>
+            <span class="badge {{ $application->statusBadgeClass() }}">{{ $statusLabel }}</span>
+        </div>
+        <div class="card-body">
+            <p>{{ __('Reference ID') }}: <strong>{{ $application->ref_id }}</strong></p>
+            @if($application->status === 'pending')
+                <p style="margin-top:8px;">{{ __('Your application has been received and is awaiting PESO review.') }}</p>
+            @elseif($application->status === 'under_review')
+                <p style="margin-top:8px;">{{ __('PESO is reviewing your application.') }}</p>
+            @elseif($application->status === 'denied' && $canEdit)
+                <a href="{{ route('applications.edit') }}" class="btn-apply" style="margin-top:14px;">
+                    <x-icon class="fa-solid fa-pen-to-square" aria-hidden="true" /> {{ __('Update and resubmit application') }}
+                </a>
+            @endif
+        </div>
+    </div>
 
     @if($application->status === 'approved')
         <section class="approved-next-steps" aria-labelledby="approved-next-steps-heading">
@@ -263,16 +293,16 @@
                 <div class="card-header"><h2 class="text-section">{{ __('Uploaded Documents') }}</h2></div>
                 <div class="card-body">
                     <div class="doc-grid">
-                        @foreach([
-                            ['label'=>'Birth Certificate','key'=>'birth_certificate','color'=>'#1565c0'],
-                            ['label'=>'Certificate of Enrollment','key'=>'certificate_enrollment','color'=>'#2e7d32'],
-                        ] as $doc)
+                        @foreach($applicationDocuments as $doc)
                         <div class="doc-item">
-                            <div class="label">{{ $doc['label'] }}</div>
+                            <div class="label">{{ __($doc['label']) }}</div>
                             @if($application->{$doc['key']})
                                 <a href="{{ route('applications.document.preview', ['application' => $application->id, 'document' => $doc['key']]) }}" target="_blank" rel="noopener" aria-label="{{ __('View') }} {{ __($doc['label']) }}" style="display:inline-flex;align-items:center;gap:6px;justify-content:center;min-width:110px;padding:8px 16px;border:0;border-radius:8px;background:#0d47a1;color:#fff;text-decoration:none;font-size:.72rem;font-weight:600;line-height:1.2;">
                                     {{ __('View') }}
                                 </a>
+                                @if($application->status === 'denied' && $application->admin_comment_document === $doc['key'] && $application->admin_comment)
+                                    <p class="comment-box" style="margin-top:12px;text-align:left;">{{ $application->admin_comment }}</p>
+                                @endif
                             @elseif($canEdit)
                                 <a href="{{ route('applications.edit') }}" style="display:inline-flex;align-items:center;gap:6px;justify-content:center;min-width:110px;padding:8px 16px;border-radius:8px;background:#1976d2;color:#fff;text-decoration:none;font-size:.72rem;font-weight:600;line-height:1.2;">
                                     {{ __('Upload') }}
@@ -294,9 +324,9 @@
                 </div>
             </div>
 
-            @if($application->admin_comment)
+            @if($application->admin_comment && !($application->status === 'denied' && $application->admin_comment_document))
             <div class="card">
-                <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-comment-dots" aria-hidden="true" /> {{ __('Admin Feedback') }}</h2></div>
+                <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-comment-dots" aria-hidden="true" /> {{ $application->status === 'denied' ? __('Reason for Decline') : __('Admin Feedback') }}</h2></div>
                 <div class="card-body">
                     <div class="comment-box">{{ $application->admin_comment }}</div>
                 </div>

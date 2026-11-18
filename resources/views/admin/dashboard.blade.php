@@ -35,6 +35,7 @@
     .dashboard-card .stat-icon.red { background: #ffebee; color: #c62828; }
     .dashboard-card .stat-icon.blue { background: #e3f2fd; color: #1565c0; }
     .dashboard-card .stat-value { font-size: 2.05rem; font-weight: 800; color: var(--primary); }
+    .dashboard-card .stat-value.backup-stat-value { font-size: 1.15rem; overflow-wrap:anywhere; }
     .dashboard-card .stat-note { font-size: .78rem; color: var(--text-muted); margin-top: 6px; }
 
     .dashboard-panel {
@@ -181,6 +182,13 @@
             <div class="stat-note">Registered Users<br><small>Total users</small></div>
         </div>
     </div>
+    <a class="dashboard-card" href="{{ route('admin.preferences') }}#backup" style="color:inherit;text-decoration:none;">
+        <div class="stat-icon teal"><x-icon class="fa-solid fa-database" /></div>
+        <div>
+            <div class="stat-value backup-stat-value">{{ __(ucfirst($backupStatus['status'])) }}</div>
+            <div class="stat-note">{{ __('Automatic Backup') }}<br><small>{{ $backupStatus['next_daily_at'] ? __('Next: :date', ['date' => $backupStatus['next_daily_at']->translatedFormat('M j, g:i A')]) : __('Disabled') }}</small></div>
+        </div>
+    </a>
 </div>
 
 <div class="dashboard-panel">

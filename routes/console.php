@@ -5,6 +5,7 @@ use App\Models\AdminBackupOperation;
 use App\Models\Appointment;
 use App\Models\AuditAction;
 use App\Models\PendingRegistration;
+use App\Models\SystemSetting;
 use App\Notifications\ApplicantPortalUpdate;
 use App\Services\AdminBackupService;
 use App\Services\ApplicantNotificationService;
@@ -148,27 +149,88 @@ Schedule::call(function () {
 })->hourly()->name('clean-expired-pending-registrations')->withoutOverlapping();
 
 Artisan::command('backup:annual', function (AdminBackupService $backupService): void {
-    $year = (int) now(config('app.timezone'))->year;
+    $year = (int) now(config('backup.timezone', 'Asia/Manila'))->year;
+    $existingArchive = $backupService->annualArchive($year);
+    if ($existingArchive !== null) {
+        $backupService->verifyStoredArchive($existingArchive['path'], 'annual', $year);
+        $this->info("The annual backup for {$year} already exists and is verified; no archive was replaced.");
+
+        return;
+    }
+
+    $startedAt = microtime(true);
+    $operation = AdminBackupOperation::query()->create([
+        'id' => (string) Str::uuid(),
+        'admin_id' => null,
+        'action' => 'create',
+        'status' => 'processing',
+        'archive_type' => 'annual',
+        'original_filename' => "scheduled-annual-{$year}",
+        'started_at' => now(),
+    ]);
 
     try {
         $archive = $backupService->createAnnualArchive($year);
         if ($archive === null) {
-            $this->info("The annual backup for {$year} already exists; no archive was replaced.");
-
-            return;
+            $existingArchive = $backupService->annualArchive($year);
+            if ($existingArchive === null) {
+                throw new RuntimeException('The annual backup completed without a readable archive.');
+            }
+            $backupService->verifyStoredArchive($existingArchive['path'], 'annual', $year);
+            $archive = $existingArchive;
         }
 
-        app(AuditLogger::class)->record(
-            AuditAction::DATABASE_BACKUP_GENERATED,
-            'System Backup',
-            null,
-            null,
-            null,
-            ['description' => "Annual backup for {$year} saved to private archive storage"],
-        );
+        $backupService->verifyStoredArchive($archive['path'], 'annual', $year);
+        $operation->update([
+            'status' => 'completed',
+            'archive_path' => $archive['path'],
+            'file_size_bytes' => $archive['size'],
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'completed_at' => now(),
+            'verified_at' => now(),
+            'result' => ['filename' => basename($archive['path'])],
+        ]);
+        try {
+            app(AuditLogger::class)->record(
+                AuditAction::DATABASE_BACKUP_GENERATED,
+                'System Backup',
+                null,
+                null,
+                null,
+                ['description' => "Annual backup for {$year} saved to private archive storage"],
+            );
+        } catch (Throwable $auditException) {
+            Log::critical('Annual backup completed, but its audit entry could not be recorded.', [
+                'operation_id' => $operation->id,
+                'exception' => $auditException,
+            ]);
+        }
 
-        $this->info("Annual backup for {$year} saved to {$archive['path']}.");
+        $this->info("Annual backup for {$year} saved to private archive storage.");
     } catch (Throwable $exception) {
+        $operation->update([
+            'status' => 'failed',
+            'completed_at' => now(),
+            'failure_message' => __('The backup operation could not be completed. Contact the system administrator if the problem continues.'),
+        ]);
+        try {
+            app(AuditLogger::class)->record(
+                AuditAction::DATABASE_BACKUP_FAILED,
+                'System Backup',
+                null,
+                null,
+                null,
+                [
+                    'description' => "Annual backup for {$year} failed.",
+                    'operation_id' => $operation->id,
+                ],
+            );
+        } catch (Throwable $auditException) {
+            Log::critical('Annual backup failure could not be recorded in the administrator audit log.', [
+                'operation_id' => $operation->id,
+                'exception' => $auditException,
+            ]);
+        }
         Log::error('Annual SPES backup failed.', ['year' => $year, 'exception' => $exception]);
         throw $exception;
     }
@@ -183,7 +245,7 @@ Artisan::command('backup:daily', function (AdminBackupService $backupService): v
     }
 
     try {
-        $date = now(config('app.timezone'))->format('Ymd');
+        $date = now(config('backup.timezone', 'Asia/Manila'))->format('Ymd');
         $marker = 'scheduled-daily-'.$date;
         if ($backupService->verifiedDailyArchiveExists()) {
             $this->info('A daily backup already exists for today.');
@@ -221,10 +283,86 @@ Artisan::command('backup:daily', function (AdminBackupService $backupService): v
     }
 })->purpose('Queue a full daily SPES database and document backup');
 
+Artisan::command('backup:run-if-due', function (AdminBackupService $backupService): void {
+    $lock = Cache::lock('admin-backup-schedule-dispatch', 120);
+    if (! $lock->get()) {
+        return;
+    }
+
+    try {
+        $settings = SystemSetting::current();
+        if (! $settings->backup_enabled) {
+            return;
+        }
+
+        $timezone = config('backup.timezone', 'Asia/Manila');
+        $now = now($timezone);
+        $frequency = in_array($settings->backup_frequency, ['daily', 'weekly'], true)
+            ? $settings->backup_frequency
+            : 'daily';
+        [$hour, $minute] = array_map('intval', explode(':', $settings->backup_time ?: '02:00'));
+        if ($frequency === 'weekly') {
+            $periodStart = $now->copy()->startOfWeek(\Carbon\Carbon::MONDAY);
+            $dueAt = $periodStart->copy()->setTime($hour, $minute);
+            $periodKey = $periodStart->format('o-\WW');
+        } else {
+            $dueAt = $now->copy()->setTime($hour, $minute);
+            $periodKey = $now->format('Ymd');
+        }
+        if ($now->lessThan($dueAt)) {
+            return;
+        }
+
+        $marker = "scheduled-{$frequency}-{$periodKey}";
+        $alreadyRecorded = AdminBackupOperation::query()
+            ->where('action', 'create')
+            ->where('archive_type', $frequency)
+            ->where('original_filename', $marker)
+            ->exists();
+        if ($alreadyRecorded) {
+            return;
+        }
+
+        $operation = AdminBackupOperation::query()->create([
+            'id' => (string) Str::uuid(),
+            'admin_id' => null,
+            'action' => 'create',
+            'status' => 'queued',
+            'archive_type' => $frequency,
+            'original_filename' => $marker,
+        ]);
+
+        if (config('backup.execution_mode', 'sync') === 'queue') {
+            try {
+                ProcessAdminBackupOperation::dispatch($operation->id);
+                $this->info(ucfirst($frequency).' backup operation queued.');
+            } catch (Throwable $exception) {
+                (new ProcessAdminBackupOperation($operation->id))->failed($exception);
+                $this->error(ucfirst($frequency).' backup could not be started.');
+            }
+
+            return;
+        }
+
+        (new ProcessAdminBackupOperation($operation->id))->handle(
+            $backupService,
+            app(AuditLogger::class),
+        );
+        $operation->refresh();
+        if ($operation->status === 'completed') {
+            $this->info(ucfirst($frequency).' backup completed and verified.');
+        } else {
+            $this->error(ucfirst($frequency).' backup failed. Review Backup History and the application log.');
+        }
+    } finally {
+        $lock->release();
+    }
+})->purpose('Create a daily or weekly automatic backup when its saved schedule is due');
+
 Artisan::command('backup:cleanup', function (AdminBackupService $backupService): void {
     $result = $backupService->cleanupExpiredBackups();
-    $this->info("Examined {$result['examined']} verified daily backups; deleted {$result['deleted']} expired backups.");
-})->purpose('Remove expired daily backups while protecting required recovery points');
+    $this->info("Examined {$result['examined']} verified backups; deleted {$result['deleted']} expired backups.");
+})->purpose('Remove expired verified backups while protecting required recovery points');
 
 Artisan::command('backup:check-interrupted', function (AdminBackupService $backupService): void {
     $count = $backupService->failInterruptedOperations();
@@ -253,39 +391,109 @@ Artisan::command('backup:restore-annual {year}', function (string $year, AdminBa
         return;
     }
 
-    try {
-        $result = $backupService->restore(Storage::disk('local')->path($archive['path']), 'annual', (int) $year);
-        $auditLogger->record(
-            AuditAction::DATABASE_BACKUP_RESTORED,
-            'System Backup',
-            null,
-            null,
-            null,
-            ['description' => "Annual backup {$year} restored from the console: {$result['rows']} rows and {$result['files']} files added"],
-        );
+    $lock = Cache::lock('admin-backup-recovery', 1200);
+    if (! $lock->get()) {
+        $this->error('Another recovery operation is already in progress.');
 
-        $this->info("Annual backup {$year} merged: {$result['rows']} database rows and {$result['files']} files added.");
+        return;
+    }
+    $operationLock = Cache::lock('admin-backup-operation', 3600);
+    if (! $operationLock->get()) {
+        $lock->release();
+        $this->error('Another backup or recovery operation is already in progress.');
+
+        return;
+    }
+
+    $operation = null;
+    try {
+        $operation = AdminBackupOperation::query()->create([
+            'id' => (string) Str::uuid(),
+            'admin_id' => null,
+            'action' => 'restore',
+            'status' => 'processing',
+            'archive_path' => $archive['path'],
+            'archive_type' => 'annual',
+            'archive_year' => (int) $year,
+            'started_at' => now(),
+        ]);
+        $backupService->validateForRestore(Storage::disk('local')->path($archive['path']), 'annual', (int) $year);
+        $safetyBackup = $backupService->createSafetyArchiveForRestore($operation->id, null, true);
+        $result = $backupService->restore(Storage::disk('local')->path($archive['path']), 'annual', (int) $year);
+        $operation->update([
+            'status' => 'completed',
+            'result' => [
+                'rows' => $result['rows'],
+                'files' => $result['files'],
+                'safety_backup' => $safetyBackup['filename'],
+            ],
+            'completed_at' => now(),
+            'verified_at' => now(),
+            'file_size_bytes' => Storage::disk('local')->size($archive['path']),
+        ]);
+        try {
+            $auditLogger->record(
+                AuditAction::DATABASE_BACKUP_RESTORED,
+                'System Backup',
+                null,
+                null,
+                null,
+                ['description' => "Annual backup {$year} merged from the console: {$result['rows']} rows and {$result['files']} files added; a verified safety backup was created."],
+            );
+        } catch (Throwable $auditException) {
+            Log::critical('Annual restore completed, but its audit entry could not be recorded.', [
+                'operation_id' => $operation->id,
+                'exception' => $auditException,
+            ]);
+        }
+
+        $this->info("Annual backup {$year} merged: {$result['rows']} database rows and {$result['files']} files added. A verified safety backup was kept separately.");
     } catch (Throwable $exception) {
+        if ($operation !== null) {
+            $operation->update([
+                'status' => 'failed',
+                'completed_at' => now(),
+                'failure_message' => __('The backup operation failed. Check the application log or contact the system administrator.'),
+            ]);
+            try {
+                $auditLogger->record(
+                    AuditAction::DATABASE_BACKUP_FAILED,
+                    'System Backup',
+                    null,
+                    null,
+                    null,
+                    ['description' => "Annual backup {$year} merge restore failed.", 'operation_id' => $operation->id],
+                );
+            } catch (Throwable $auditException) {
+                Log::critical('Annual restore failure could not be recorded in the administrator audit log.', [
+                    'operation_id' => $operation->id,
+                    'exception' => $auditException,
+                ]);
+            }
+        }
         Log::error('Console annual SPES backup restore failed.', ['year' => $year, 'exception' => $exception]);
         throw $exception;
+    } finally {
+        $operationLock->release();
+        $lock->release();
     }
 })->purpose('Merge a saved yearly SPES backup from the command line');
 
 Schedule::command('backup:annual')
     ->yearlyOn(12, 31, '23:59')
-    ->timezone(config('app.timezone'))
+    ->timezone(config('backup.timezone', 'Asia/Manila'))
     ->name('spes-annual-backup')
     ->withoutOverlapping();
 
-Schedule::command('backup:daily')
-    ->dailyAt(config('backup.schedule_time', '02:00'))
-    ->timezone(config('app.timezone'))
-    ->name('spes-daily-backup')
+Schedule::command('backup:run-if-due')
+    ->everyMinute()
+    ->timezone(config('backup.timezone', 'Asia/Manila'))
+    ->name('spes-automatic-backup')
     ->withoutOverlapping();
 
 Schedule::command('backup:cleanup')
     ->dailyAt('03:00')
-    ->timezone(config('app.timezone'))
+    ->timezone(config('backup.timezone', 'Asia/Manila'))
     ->name('spes-backup-retention-cleanup')
     ->withoutOverlapping();
 

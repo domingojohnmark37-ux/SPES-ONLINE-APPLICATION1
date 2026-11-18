@@ -72,7 +72,11 @@ class ApplicationApprovalCapacity
             ->get();
 
         foreach ($pending as $application) {
-            $application->update(['status' => 'denied']);
+            $application->update([
+                'status' => 'denied',
+                'admin_comment' => 'Your application was declined because the approved-applicant limit was reached.',
+                'admin_comment_document' => null,
+            ]);
             $auditLogger->record(
                 AuditAction::APPLICATION_REJECTED,
                 'Application',
@@ -83,7 +87,7 @@ class ApplicationApprovalCapacity
                     'field_name' => 'status',
                     'old_value' => 'pending',
                     'new_value' => 'denied',
-                    'description' => 'Automatically denied because the approved-applicant limit was reached.',
+                    'description' => $application->admin_comment,
                 ],
             );
         }

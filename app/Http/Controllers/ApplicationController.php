@@ -29,7 +29,7 @@ class ApplicationController extends Controller
     {
         $this->middleware('auth');
         $this->middleware('admin')->only([
-            'index', 'show', 'approve', 'deny', 'addComment', 'users',
+            'index', 'show', 'markUnderReview', 'approve', 'deny', 'addComment', 'users',
         ]);
     }
 
@@ -437,7 +437,9 @@ class ApplicationController extends Controller
 
             if ($wasDenied) {
                 $updates['status'] = 'pending';
+                $updates['review_started_at'] = null;
                 $updates['admin_comment'] = null;
+                $updates['admin_comment_document'] = null;
             }
 
             DB::transaction(function () use ($application, $updates, $original, $applicant, $submittedDocuments, $auditLogger, $oldPathsToDelete): void {
@@ -447,6 +449,7 @@ class ApplicationController extends Controller
                     'barangay', 'civil_status', 'parent_status', 'education', 'grade_year_level', 'spes_status',
                     'mother_name', 'mother_occupation', 'mother_contact_no', 'father_guardian_name',
                     'father_occupation', 'father_contact_no', 'messenger', 'facebook', 'status', 'admin_comment',
+                    'admin_comment_document',
                 ];
                 $newValues = array_intersect_key($application->getAttributes(), array_flip($auditedFields));
                 $auditLogger->recordChanges(
@@ -571,6 +574,10 @@ class ApplicationController extends Controller
     public function myApplication()
     {
         $application = Auth::user()->latestApplication()->first();
+        if ($application === null) {
+            return $this->create();
+        }
+
         $canEdit = $application !== null && $this->canEditApplication($application);
 
         return view('application.applications.my-application', compact('application', 'canEdit'));
@@ -695,6 +702,45 @@ class ApplicationController extends Controller
     // -------------------------------------------------------
     // ADMIN SIDE
     // -------------------------------------------------------
+
+    public function markUnderReview(Application $application, AuditLogger $auditLogger): RedirectResponse
+    {
+        if ($application->status !== 'pending') {
+            return back()->with('error', __('Only pending applications can be moved to Under Review.'));
+        }
+
+        if ($application->review_started_at === null) {
+            DB::transaction(function () use ($application, $auditLogger): void {
+                $reviewStartedAt = now();
+                $application->update(['review_started_at' => $reviewStartedAt]);
+                $auditLogger->record(
+                    AuditAction::APPLICATION_STATUS_CHANGED,
+                    'Application',
+                    Auth::user(),
+                    $application->user,
+                    $application,
+                    [
+                        'field_name' => 'review_started_at',
+                        'old_value' => null,
+                        'new_value' => $reviewStartedAt->toDateTimeString(),
+                        'description' => 'Application moved to Under Review by PESO.',
+                    ],
+                );
+            });
+
+            NotifyApplicantsJob::dispatch(
+                'users',
+                "application:{$application->id}:under-review:{$application->review_started_at?->getTimestamp()}",
+                'notify_documents',
+                'Application under review',
+                'PESO has started reviewing your SPES application.',
+                ['application_id' => $application->id, 'status' => 'under_review', 'event' => 'application_under_review'],
+                userIds: [$application->user->id],
+            )->afterCommit();
+        }
+
+        return back()->with('success', __('Application for :name is now under review.', ['name' => $application->full_name]));
+    }
 
     /**
      * Admin: list all applications.
@@ -876,14 +922,41 @@ class ApplicationController extends Controller
      * Admin: deny an application.
      */
     public function deny(
+        Request $request,
         Application $application,
         AuditLogger $auditLogger,
     )
     {
+        $validated = $request->validate([
+            'admin_comment' => ['required', 'string', 'max:2000'],
+            'admin_comment_document' => [
+                'nullable',
+                Rule::in([
+                    'birth_certificate',
+                    'certificate_enrollment',
+                    'certificate_grade',
+                    'application_letter',
+                    'indigency',
+                ]),
+            ],
+        ], [
+            'admin_comment.required' => __('Enter a specific reason before declining this application.'),
+        ]);
+        $document = $validated['admin_comment_document'] ?? null;
+        if ($document !== null && (! filled($application->{$document}) || ! Storage::disk('local')->exists($application->{$document}))) {
+            throw ValidationException::withMessages([
+                'admin_comment_document' => __('Choose a document that is uploaded for this application.'),
+            ]);
+        }
+
         if ($application->status !== 'denied') {
-            DB::transaction(function () use ($application, $auditLogger): void {
+            DB::transaction(function () use ($application, $auditLogger, $validated, $document): void {
                 $oldStatus = $application->status;
-                $application->update(['status' => 'denied']);
+                $application->update([
+                    'status' => 'denied',
+                    'admin_comment' => $validated['admin_comment'],
+                    'admin_comment_document' => $document,
+                ]);
                 $auditLogger->record(
                     AuditAction::APPLICATION_REJECTED,
                     'Application',
@@ -894,7 +967,7 @@ class ApplicationController extends Controller
                         'field_name' => 'status',
                         'old_value' => $oldStatus,
                         'new_value' => 'denied',
-                        'description' => $application->admin_comment,
+                        'description' => $validated['admin_comment'],
                     ],
                 );
             });
@@ -909,7 +982,7 @@ class ApplicationController extends Controller
             )->afterCommit();
         }
 
-        return back()->with('success', "Application for {$application->full_name} has been denied.");
+        return back()->with('success', "Application for {$application->full_name} has been declined.");
     }
 
     /**
@@ -929,7 +1002,10 @@ class ApplicationController extends Controller
         if ($commentChanged) {
             DB::transaction(function () use ($application, $request, $auditLogger): void {
                 $oldComment = $application->admin_comment;
-                $application->update(['admin_comment' => $request->admin_comment]);
+                $application->update([
+                    'admin_comment' => $request->admin_comment,
+                    'admin_comment_document' => null,
+                ]);
                 $auditLogger->record(
                     AuditAction::REMARKS_ADDED,
                     'Application',

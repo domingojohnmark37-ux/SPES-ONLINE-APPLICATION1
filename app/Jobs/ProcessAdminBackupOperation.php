@@ -48,14 +48,30 @@ class ProcessAdminBackupOperation implements ShouldQueue
 
         try {
             if ($operation->action === 'create') {
-                $result = $this->createBackup($operation, $backupService);
+                $lock = Cache::lock('admin-backup-operation', 3600);
+                if (! $lock->get()) {
+                    throw new RuntimeException('Another backup creation is already in progress.');
+                }
+                try {
+                    $result = $this->createBackup($operation, $backupService);
+                } finally {
+                    $lock->release();
+                }
             } elseif ($operation->action === 'restore') {
                 $lock = Cache::lock('admin-backup-recovery', 1200);
                 if (! $lock->get()) {
                     throw new RuntimeException('Another recovery operation is already in progress.');
                 }
                 try {
-                    $result = $this->restoreBackup($operation, $backupService);
+                    $operationLock = Cache::lock('admin-backup-operation', 3600);
+                    if (! $operationLock->get()) {
+                        throw new RuntimeException('Another backup or recovery operation is already in progress.');
+                    }
+                    try {
+                        $result = $this->restoreBackup($operation, $backupService);
+                    } finally {
+                        $operationLock->release();
+                    }
                 } finally {
                     $lock->release();
                 }
@@ -82,7 +98,7 @@ class ProcessAdminBackupOperation implements ShouldQueue
                 'status' => 'failed',
                 'completed_at' => now(),
                 'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
-                'failure_message' => __('The backup operation failed. Check the application log or contact the system administrator.'),
+                'failure_message' => __('The backup operation could not be completed. Contact the system administrator if the problem continues.'),
             ]);
             Log::error('Admin backup operation failed.', [
                 'operation_id' => $operation->id,
@@ -109,7 +125,8 @@ class ProcessAdminBackupOperation implements ShouldQueue
 
         $operation->update([
             'status' => 'failed',
-            'failure_message' => __('The backup operation failed. Check the application log or contact the system administrator.'),
+            'completed_at' => now(),
+            'failure_message' => __('The backup operation could not be completed. Contact the system administrator if the problem continues.'),
         ]);
 
         if ($operation->action === 'create') {
@@ -149,10 +166,18 @@ class ProcessAdminBackupOperation implements ShouldQueue
 
     private function createBackup(AdminBackupOperation $operation, AdminBackupService $backupService): array
     {
-        if ($operation->archive_type === 'daily') {
-            $archive = $backupService->createDailyArchive();
+        if (in_array($operation->archive_type, ['daily', 'weekly'], true)) {
+            $periodKey = is_string($operation->original_filename)
+                ? substr($operation->original_filename, strlen('scheduled-'.$operation->archive_type.'-'))
+                : '';
+            if ($periodKey === '' || $periodKey === $operation->original_filename) {
+                $periodKey = $operation->archive_type === 'daily'
+                    ? now(config('backup.timezone', 'Asia/Manila'))->format('Ymd')
+                    : now(config('backup.timezone', 'Asia/Manila'))->format('o-\WW');
+            }
+            $archive = $backupService->createScheduledArchive($operation->archive_type, $periodKey, true);
             if ($archive === null) {
-                throw new RuntimeException('A verified daily backup already exists for this date.');
+                throw new RuntimeException('A verified scheduled backup already exists for this period.');
             }
             $operation->update([
                 'archive_path' => $archive['path'],
@@ -165,7 +190,7 @@ class ProcessAdminBackupOperation implements ShouldQueue
             ];
         }
 
-        $temporaryPath = $backupService->create('manual', null, $operation->admin_id);
+        $temporaryPath = $backupService->createManualArchive($operation->admin_id, true);
         $archivePath = "backups/operations/{$operation->id}.zip";
         $stream = fopen($temporaryPath, 'rb');
         if ($stream === false) {
@@ -180,6 +205,13 @@ class ProcessAdminBackupOperation implements ShouldQueue
         } finally {
             fclose($stream);
             @unlink($temporaryPath);
+        }
+
+        try {
+            $backupService->verifyStoredArchive($archivePath, 'manual');
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($archivePath);
+            throw $exception;
         }
 
         $operation->update(['archive_path' => $archivePath]);
@@ -197,6 +229,12 @@ class ProcessAdminBackupOperation implements ShouldQueue
             throw new RuntimeException('The uploaded backup archive is no longer available.');
         }
 
+        $backupService->validateForRestore(
+            Storage::disk('local')->path($operation->archive_path),
+            $operation->archive_type,
+            $operation->archive_year,
+        );
+        $safetyBackup = $backupService->createSafetyArchiveForRestore($operation->id, $operation->admin_id, true);
         $result = $backupService->restore(
             Storage::disk('local')->path($operation->archive_path),
             $operation->archive_type,
@@ -209,7 +247,8 @@ class ProcessAdminBackupOperation implements ShouldQueue
         return [
             'rows' => $result['rows'],
             'files' => $result['files'],
-            'message' => __('Backup merged successfully: :rows new database rows and :files files added. Existing records and files were kept.', [
+            'safety_backup' => $safetyBackup['filename'],
+            'message' => __('Backup merged successfully: :rows new database rows and :files files added. A verified safety backup was kept separately. Existing records and files were not overwritten.', [
                 'rows' => $result['rows'],
                 'files' => $result['files'],
             ]),
@@ -245,7 +284,7 @@ class ProcessAdminBackupOperation implements ShouldQueue
                 null,
                 null,
                 [
-                    'description' => __(':source merged: :rows database rows and :files files added', [
+                    'description' => __(':source merged: :rows database rows and :files files added. A verified safety backup was created.', [
                         'source' => $result['source'],
                         'rows' => $result['rows'],
                         'files' => $result['files'],

@@ -606,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <div>
                 <div class="stat-num">{{ __($application ? 'Submitted' : 'Not started') }}</div>
                 <div class="stat-label">{{ __('Application') }}</div>
-                <a href="{{ $application ? route('applications.myApplication') : route('applications.create') }}">{{ __($application ? 'View details' : 'Start application') }} →</a>
+                <a href="{{ route('applications.myApplication') }}">{{ __($application ? 'View details' : 'Start application') }} →</a>
             </div>
         </div>
         <div class="stat-card summary-card">
@@ -627,7 +627,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     <div style="flex:1;">
                         <h2 class="text-primary-line">{{ __('Welcome back, :name!', ['name' => explode(' ', Auth::user()->name)[0]]) }}</h2>
                         <p class="text-secondary">{{ __($application ? 'Your application is on file. Review your submitted information and documents here.' : 'Start your SPES application by completing your personal information and required documents.') }}</p>
-                        <div style="margin-top:12px;"><a href="{{ $application ? route('applications.myApplication') : route('applications.create') }}" class="btn btn-primary">{{ __($application ? 'View My Application' : 'Apply Now') }}</a></div>
+                        <div style="margin-top:12px;"><a href="{{ route('applications.myApplication') }}" class="btn btn-primary">{{ __($application ? 'View My Application' : 'Apply Now') }}</a></div>
                     </div>
                 </div>
             </div>
@@ -636,7 +636,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 <div class="card-header">
                     <h2 class="text-section"><x-icon class="fa-solid fa-bullhorn" aria-hidden="true" /> {{ __('Announcements') }}</h2>
                     @if($application && $application->status === 'approved')
-                        <a href="{{ route('applicant.notifications.recent') }}">{{ __('View all notifications') }} →</a>
+                        <a href="{{ route('applicant.notifications.overview') }}">{{ __('View all notifications') }} →</a>
                     @endif
                 </div>
                 <div class="card-body">
@@ -716,7 +716,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-bolt" aria-hidden="true" /> {{ __('Quick Actions') }}</h2></div>
                 <div class="card-body">
                     <div class="quick-action-list">
-                        <a class="quick-action-link" href="{{ $application ? route('applications.myApplication') : route('applications.create') }}">
+                        <a class="quick-action-link" href="{{ route('applications.myApplication') }}">
                             <x-icon class="fa-solid fa-file-circle-plus" />{{ __($application ? 'View My Application' : 'Start Application') }}
                         </a>
                         <a class="quick-action-link" href="{{ route('profile.edit') }}">
@@ -728,8 +728,8 @@ document.addEventListener('DOMContentLoaded', function(){
                         <a class="quick-action-link" href="{{ route('applicant.appointments.index') }}">
                             <x-icon class="fa-solid fa-calendar-check" />{{ __('View Appointments') }}
                         </a>
-                        <a class="quick-action-link" href="{{ route('applicant.notifications.recent') }}">
-                            <x-icon class="fa-solid fa-bullhorn" />{{ __('Recent Notifications') }}
+                        <a class="quick-action-link" href="{{ route('applicant.notifications.overview') }}">
+                            <x-icon class="fa-solid fa-bell" />{{ __('Notification Overview') }}
                         </a>
                     </div>
                 </div>

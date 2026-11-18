@@ -86,6 +86,9 @@
     @if(session('success'))
         <div class="alert alert-success" role="status">{{ session('success') }}</div>
     @endif
+    @if(session('error'))
+        <div class="alert alert-danger" role="alert">{{ session('error') }}</div>
+    @endif
     @if($errors->any())
         <div class="alert alert-danger" role="alert">
             <ul style="margin-left:20px;">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
@@ -228,12 +231,12 @@
             </section>
             <section>
                 <h3>{{ __('Settings') }}</h3>
-                <p>{{ __('Preferences controls your display theme, language, sidebar, and display size. Admin Audit Logs shows recorded administrator actions and can be filtered by administrator or date. Backup creates or merges an archive of the database, stored files, and application logs.') }}</p>
+                <p>{{ __('Preferences controls your display theme, language, sidebar, and display size. Admin Audit Logs shows recorded administrator actions and can be filtered by administrator or date. Backup creates archives and can merge missing records or files, but it does not replace the live database.') }}</p>
             </section>
             <section>
                 <h3>{{ __('Annual backup schedule') }}</h3>
-                <p>{{ __('A full-system annual archive is created on December 31 at 11:59 PM in the application timezone (:timezone), covering the system state through the end of that year. On Windows, configure Task Scheduler to run :command every minute from the project directory; without the operating-system scheduler, automatic backups will not run.', ['timezone' => config('app.timezone'), 'command' => 'php artisan schedule:run']) }}</p>
-                <p>{{ __('If all admin accounts are lost but the database tables remain, a server operator can recover access by running :command from the project directory, replacing YYYY with the archive year and confirming the prompt. If the database schema itself was removed, run the project migrations before restoring.', ['command' => 'php artisan backup:restore-annual YYYY']) }}</p>
+                <p>{{ __('Automatic backups use the saved daily or weekly schedule in :timezone. The annual archive is created on December 31 at 11:59 PM. Deployment staff must configure Windows Task Scheduler, cron, or an equivalent host scheduler once; without that service, automatic backups cannot run. Small installations use synchronous backup processing by default.', ['timezone' => config('backup.timezone', 'Asia/Manila')]) }}</p>
+                <p>{{ __('A server operator can run :command from the project directory to merge missing records and files from an annual archive. This is not a full database replacement restore.', ['command' => 'php artisan backup:restore-annual YYYY']) }}</p>
             </section>
             <section>
                 <h3>{{ __('Protect applicant data') }}</h3>
@@ -293,7 +296,7 @@
 
     <section class="settings-section" id="backup" aria-labelledby="backup-heading">
         <div class="card-header"><h2 id="backup-heading"><x-icon class="fa-solid fa-database" aria-hidden="true" /> {{ __('Backup') }}</h2></div>
-        <div class="card-body" style="max-width:820px;">
+        <div class="card-body">
             @if($backupOperation)
                 <div
                     id="backup-operation-status"
@@ -313,123 +316,170 @@
                             {{ match ($backupOperation->status) {
                                 'processing' => __('The background operation is processing.'),
                                 'verifying' => __('The operation is verifying the backup.'),
-                                default => __('Waiting for a background worker.'),
+                                default => __('Backup operation is starting.'),
                             } }}
                         @endif
                     </span>
+                    @if(in_array($backupOperation->status, ['queued', 'processing', 'verifying'], true))
+                        <progress data-backup-progress aria-label="{{ __('Backup operation progress') }}" style="display:block;width:100%;height:8px;margin-top:12px;"></progress>
+                    @endif
                     @if($backupOperation->status === 'completed' && $backupOperation->action === 'create' && $backupOperation->archive_path)
                         <a data-backup-download href="{{ route('admin.backup.operations.download', $backupOperation) }}">{{ __('Download backup') }}</a>
                     @endif
                 </div>
             @endif
-            <h3 style="margin-bottom:8px;">{{ __('Backup storage and retention') }}</h3>
-            <p style="line-height:1.6;margin-bottom:8px;">{{ __('Private backup storage used: :size', ['size' => number_format($backupStorage['bytes'] / 1048576, 2).' MB']) }}</p>
-            @if($backupStorage['free_bytes'] !== null)
-                <p style="line-height:1.6;margin-bottom:8px;">{{ __('Available space on the backup volume: :size', ['size' => number_format($backupStorage['free_bytes'] / 1073741824, 2).' GB']) }}</p>
-                @if($backupStorage['free_bytes'] < $backupStorage['minimum_free_bytes'])
-                    <div class="alert alert-danger" role="alert">{{ __('Available disk space is below the configured backup safety threshold. New backups will be stopped.') }}</div>
+            <section aria-labelledby="manual-backup-heading">
+                <h3 id="manual-backup-heading" style="margin-bottom:8px;">{{ __('Manual Backup') }}</h3>
+                <p style="line-height:1.6;margin-bottom:16px;">{{ __('Create a verified ZIP backup of the database, private and public stored files, and application logs. Backup archives contain confidential applicant information.') }}</p>
+                <form method="POST" action="{{ route('admin.backup.download') }}" data-backup-create-form>
+                    @csrf
+                    <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
+                    <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-database" aria-hidden="true" /> {{ __('Create Backup') }}</button>
+                    <p data-backup-submit-progress role="status" aria-live="polite" hidden style="margin-top:10px;color:var(--text-muted);">
+                        {{ __('Creating and verifying your backup. This may take a few minutes.') }}
+                        <progress aria-label="{{ __('Backup creation progress') }}" style="display:block;width:100%;height:8px;margin-top:8px;"></progress>
+                    </p>
+                </form>
+                <p style="margin-top:12px;color:var(--text-muted);">{{ __('To download a completed backup, use its Download action in Backup History.') }}</p>
+                <p style="margin-top:12px;color:var(--text-muted);">{{ __('Backup storage used: :size', ['size' => number_format($backupStorage['bytes'] / 1048576, 2).' MB']) }}</p>
+                @if(!$backupStorage['available'])
+                    <div class="alert alert-danger" role="alert">{{ __('Private backup storage is unavailable or not writable. Contact the system administrator.') }}</div>
+                @elseif($backupStorage['free_bytes'] !== null && $backupStorage['free_bytes'] < $backupStorage['minimum_free_bytes'])
+                    <div class="alert alert-danger" role="alert">{{ __('Available disk space is below the safety threshold. Backup creation is paused.') }}</div>
                 @endif
-            @else
-                <p style="line-height:1.6;margin-bottom:8px;">{{ __('Available server disk space cannot be measured by this storage driver.') }}</p>
-            @endif
-            @if($failedBackupCount > 0)
-                <div class="alert {{ $failedBackupCount >= 3 ? 'alert-danger' : 'alert-warning' }}" role="alert" style="margin:12px 0;">
-                    {{ trans_choice(':count backup operation failed in the last 7 days.|:count backup operations failed in the last 7 days.', $failedBackupCount, ['count' => $failedBackupCount]) }}
-                    {{ __('Check the application log and confirm the database state before retrying any recovery operation.') }}
-                </div>
-                <ul style="margin:0 0 16px 20px;color:var(--text-muted);">
-                    @foreach($recentBackupFailures as $failedOperation)
-                        <li>{{ ucfirst($failedOperation->action) }} · {{ $failedOperation->updated_at->translatedFormat('M j, Y g:i A') }} · {{ $failedOperation->failure_message }}</li>
-                    @endforeach
-                </ul>
-            @endif
-            <p style="line-height:1.6;margin-bottom:18px;">{{ __('Full daily backups are retained for :daily days, plus the newest backup from each of the most recent :weekly weeks and :monthly months. The newest verified backup and any backup in use by a recovery job are protected. Annual safety archives are not automatically deleted.', [
-                'daily' => config('backup.retention.daily'),
-                'weekly' => config('backup.retention.weekly'),
-                'monthly' => config('backup.retention.monthly'),
-            ]) }}</p>
-            @if($dailyBackups !== [])
-                <div class="settings-table-wrap" style="margin-bottom:20px;">
-                    <table class="settings-table">
-                        <thead><tr><th>{{ __('Backup') }}</th><th>{{ __('Size') }}</th><th>{{ __('Duration') }}</th><th>{{ __('Verification') }}</th><th>{{ __('Retention') }}</th></tr></thead>
-                        <tbody>
-                        @foreach($dailyBackups as $dailyBackup)
-                            <tr>
-                                <td>{{ ucfirst($dailyBackup['type']) }} · {{ \Illuminate\Support\Carbon::parse($dailyBackup['created_at'])->translatedFormat('M j, Y g:i A') }}</td>
-                                <td>{{ number_format($dailyBackup['size'] / 1048576, 2) }} MB</td>
-                                <td>{{ $dailyBackup['duration_ms'] ? number_format($dailyBackup['duration_ms'] / 1000, 1).' s' : '—' }}</td>
-                                <td>{{ $dailyBackup['verified_at'] ? __('Verified') : __('Unverified') }}</td>
-                                <td>{{ $dailyBackup['will_expire'] ? __('Will expire at next cleanup') : __('Protected') }}</td>
-                            </tr>
-                        @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-            <h3 style="margin-bottom:8px;">{{ __('Download a Backup') }}</h3>
-            <p style="line-height:1.6;margin-bottom:12px;">{{ __('The archive includes every database table (including application transactions and audit logs), files from private and public storage, application log files, and a checksum manifest.') }}</p>
-            <p style="line-height:1.6;margin-bottom:18px;"><strong>{{ __('Protect this archive:') }}</strong> {{ __('it contains applicant information and uploaded documents. Download it only to an approved secure location. Environment files, credentials, and application source code are not included.') }}</p>
-            <form method="POST" action="{{ route('admin.backup.download') }}" onsubmit="return confirm(@js(__('Create and download a backup containing the database and stored applicant files? Handle it as confidential information.')));">
-                @csrf
-                <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
-                <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-download" aria-hidden="true" /> {{ __('Create and Download Backup') }}</button>
-            </form>
+            </section>
 
-            <hr style="margin:24px 0;border:0;border-top:1px solid var(--border);">
-            <h3 style="margin-bottom:8px;">{{ __('Automatic Annual Archives') }}</h3>
-            <p style="line-height:1.6;margin-bottom:18px;">{{ __('The system creates one complete private archive each December 31 at 11:59 PM (:timezone), capturing the system state at the end of that year, including its transactions and logs. Archives are retained until manually removed from server storage. They are kept separately and are not copied into later backups.', ['timezone' => config('app.timezone')]) }}</p>
-            @if($annualBackups === [])
-                <p style="color:var(--text-muted);">{{ __('No annual archives have been created yet. The first archive will be available after the scheduled year-end backup runs.') }}</p>
-            @else
+            <section class="settings-card-subsection" aria-labelledby="automatic-backup-heading">
+                <h3 id="automatic-backup-heading">{{ __('Automatic Backup') }}</h3>
                 <div class="settings-table-wrap">
                     <table class="settings-table">
-                        <thead><tr><th>{{ __('Backup year') }}</th><th>{{ __('Created') }}</th><th>{{ __('Size') }}</th><th>{{ __('Actions') }}</th></tr></thead>
                         <tbody>
-                        @foreach($annualBackups as $annualBackup)
-                            <tr>
-                                <td>{{ $annualBackup['year'] }}</td>
-                                <td>{{ \Illuminate\Support\Carbon::createFromTimestamp($annualBackup['last_modified'])->translatedFormat('M j, Y g:i A') }}</td>
-                                <td>{{ number_format($annualBackup['size'] / 1048576, 2) }} MB</td>
-                                <td style="display:flex;gap:8px;flex-wrap:wrap;">
-                                    <a class="btn btn-outline btn-sm" href="{{ route('admin.backup.archive.download', $annualBackup['year']) }}">{{ __('Download') }}</a>
-                                    <form style="display:grid;gap:6px;min-width:220px;" method="POST" action="{{ route('admin.backup.archive.restore', $annualBackup['year']) }}" onsubmit="return confirm(@js(__('Merge the :year annual backup? Existing records and files will be kept. You must enter RESTORE :year to confirm.', ['year' => $annualBackup['year']])));">
-                                        @csrf
-                                        <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
-                                        <label for="annual_restore_password_{{ $annualBackup['year'] }}">{{ __('Current password') }}</label>
-                                        <input id="annual_restore_password_{{ $annualBackup['year'] }}" name="current_password" type="password" autocomplete="current-password" required>
-                                        <label for="annual_restore_confirmation_{{ $annualBackup['year'] }}">{{ __('Type RESTORE :year', ['year' => $annualBackup['year']]) }}</label>
-                                        <input id="annual_restore_confirmation_{{ $annualBackup['year'] }}" name="confirmation" type="text" autocomplete="off" required>
-                                        <button class="btn btn-primary btn-sm" type="submit">{{ __('Restore / Merge') }}</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @endforeach
+                            <tr><th>{{ __('Automatic Backup') }}</th><td>{{ __($automaticBackupStatus['enabled'] ? 'Enabled' : 'Disabled') }}</td></tr>
+                            <tr><th>{{ __('Backup status') }}</th><td>{{ __(match ($automaticBackupStatus['status']) {
+                                'completed' => 'Completed',
+                                'processing' => 'Processing',
+                                'failed' => 'Failed',
+                                default => 'Unverified',
+                            }) }}</td></tr>
+                            <tr><th>{{ __('Last successful backup') }}</th><td>{{ $automaticBackupStatus['last_successful_at'] ? \Illuminate\Support\Carbon::parse($automaticBackupStatus['last_successful_at'])->timezone($automaticBackupStatus['timezone'])->translatedFormat('M j, Y g:i A') : __('Not available') }}</td></tr>
+                            <tr><th>{{ __('Next scheduled backup') }}</th><td>{{ $automaticBackupStatus['next_daily_at']?->translatedFormat('M j, Y g:i A') ?? __('Disabled') }}</td></tr>
+                            <tr><th>{{ __('Backup size') }}</th><td>{{ $automaticBackupStatus['size'] ? number_format($automaticBackupStatus['size'] / 1048576, 2).' MB' : '—' }}</td></tr>
+                            <tr><th>{{ __('Verification') }}</th><td>{{ __($automaticBackupStatus['verification'] === 'verified' ? 'Verified' : 'Unverified') }}</td></tr>
+                            <tr><th>{{ __('Annual safety archive') }}</th><td>{{ __('December 31 at 11:59 PM (:timezone)', ['timezone' => $automaticBackupStatus['timezone']]) }} · {{ __('Next: :date', ['date' => $automaticBackupStatus['next_annual_at']->translatedFormat('M j, Y g:i A')]) }}</td></tr>
                         </tbody>
                     </table>
                 </div>
-            @endif
+                <p style="margin:12px 0 0;color:var(--text-muted);">{{ __('Weekly backups run on Monday at the selected time. Annual safety archives are separate and are never removed by retention cleanup.') }}</p>
+                <form method="POST" action="{{ route('admin.backup.settings.update') }}" style="margin-top:16px;">
+                    @csrf
+                    @method('PUT')
+                    <div class="settings-form-grid">
+                        <div class="form-group">
+                            <span style="display:block;margin-bottom:7px;color:var(--text);font-size:.78rem;font-weight:700;">{{ __('Automatic Backup') }}</span>
+                            <input type="hidden" name="backup_enabled" value="0">
+                            <label for="backup_enabled" style="display:flex;align-items:center;gap:8px;">
+                                <input id="backup_enabled" type="checkbox" name="backup_enabled" value="1" @checked((bool) old('backup_enabled', $backupSettings->backup_enabled))>
+                                {{ __('Enable automatic backups') }}
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="backup_frequency">{{ __('Backup frequency') }}</label>
+                            <select id="backup_frequency" name="backup_frequency" required>
+                                <option value="daily" @selected(old('backup_frequency', $backupSettings->backup_frequency ?: 'daily') === 'daily')>{{ __('Daily') }}</option>
+                                <option value="weekly" @selected(old('backup_frequency', $backupSettings->backup_frequency) === 'weekly')>{{ __('Weekly (Monday)') }}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="backup_time">{{ __('Preferred backup time') }} ({{ $automaticBackupStatus['timezone'] }})</label>
+                            <input id="backup_time" name="backup_time" type="time" value="{{ old('backup_time', $backupSettings->backup_time ?: '02:00') }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="backup_retention_days">{{ __('Retention period') }}</label>
+                            <select id="backup_retention_days" name="backup_retention_days" required>
+                                @foreach([7, 14, 30, 90] as $days)
+                                    <option value="{{ $days }}" @selected((int) old('backup_retention_days', $backupSettings->backup_retention_days ?: 7) === $days)>{{ trans_choice(':count day|:count days', $days, ['count' => $days]) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary settings-save" type="submit"><x-icon class="fa-solid fa-floppy-disk" aria-hidden="true" /> {{ __('Save Settings') }}</button>
+                </form>
+                @if($failedBackupCount > 0)
+                    <div class="alert alert-warning" role="alert" style="margin-top:12px;">
+                        {{ trans_choice(':count backup operation failed in the last 7 days.|:count backup operations failed in the last 7 days.', $failedBackupCount, ['count' => $failedBackupCount]) }}
+                    </div>
+                    <ul style="margin:0 0 12px 20px;color:var(--text-muted);">
+                        @foreach($recentBackupFailures as $failedOperation)
+                            <li>{{ ucfirst($failedOperation->action) }} · {{ $failedOperation->updated_at->translatedFormat('M j, Y g:i A') }} · {{ $failedOperation->failure_message }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+                @if($backupStorage['free_bytes'] !== null)
+                    <p style="margin-top:10px;color:var(--text-muted);">{{ __('Free backup storage: :size', ['size' => number_format($backupStorage['free_bytes'] / 1073741824, 2).' GB']) }}</p>
+                @endif
+            </section>
 
-            <hr style="margin:24px 0;border:0;border-top:1px solid var(--border);">
-            <h3 style="margin-bottom:8px;">{{ __('Restore / Merge a Backup') }}</h3>
-            <p style="line-height:1.6;margin-bottom:12px;">{{ __('Upload a SPES backup ZIP to add missing records, stored files, and logs. Existing records and files are kept; duplicate database rows and file paths are skipped. The SQL file is never executed.') }}</p>
-            <p style="line-height:1.6;margin-bottom:12px;">{{ __('Limits: ZIP files may be up to 1 GB, and the database snapshot may be up to 256 MB.') }}</p>
-            <p style="line-height:1.6;margin-bottom:18px;"><strong>{{ __('Before continuing:') }}</strong> {{ __('use a backup from this system, verify it is complete, and keep a separate copy. Restored records may include sensitive applicant information.') }}</p>
-            <form method="POST" action="{{ route('admin.backup.restore') }}" enctype="multipart/form-data" onsubmit="return confirm(@js(__('Merge this backup into the current system? Existing records and files will be kept; only missing items will be added.')));">
+            <section class="settings-card-subsection" aria-labelledby="backup-history-heading">
+                <h3 id="backup-history-heading">{{ __('Backup History') }}</h3>
+                <div class="settings-table-wrap" role="region" aria-label="{{ __('Backup History') }}" tabindex="0">
+                    <table class="settings-table">
+                        <thead><tr><th>{{ __('Backup name') }}</th><th>{{ __('Type') }}</th><th>{{ __('Created') }}</th><th>{{ __('Size') }}</th><th>{{ __('Verification') }}</th><th>{{ __('Status') }}</th><th>{{ __('Actions') }}</th></tr></thead>
+                        <tbody>
+                        @forelse($backupHistory as $historyItem)
+                            <tr>
+                                <td>{{ $historyItem['name'] }}</td>
+                                <td>{{ __(ucfirst($historyItem['type'])) }}</td>
+                                <td>{{ $historyItem['created_at']->translatedFormat('M j, Y g:i A') }}</td>
+                                <td>{{ $historyItem['size'] ? number_format($historyItem['size'] / 1048576, 2).' MB' : '—' }}</td>
+                                <td>{{ __($historyItem['verified'] ? 'Verified' : 'Unverified') }}</td>
+                                <td>{{ __(match ($historyItem['status']) {
+                                    'queued', 'processing', 'verifying' => 'Processing',
+                                    'completed' => 'Completed',
+                                    'failed' => 'Failed',
+                                    'expired' => 'Expired',
+                                    default => 'Unverified',
+                                }) }}</td>
+                                <td>
+                                    @if($historyItem['download_url'])
+                                        <a class="btn btn-outline btn-sm" href="{{ $historyItem['download_url'] }}">{{ __('Download') }}</a>
+                                    @endif
+                                    @if($historyItem['type'] === 'annual' && $historyItem['verified'] && $historyItem['year'])
+                                        <form method="POST" action="{{ route('admin.backup.archive.restore', $historyItem['year']) }}" onsubmit="return confirm(@js(__('This adds missing records and files only; it does not replace existing data. A verified safety backup will be created first. This is not a full system replacement restore.')));">
+                                            @csrf
+                                            <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
+                                            <label for="annual_restore_password_{{ $historyItem['year'] }}">{{ __('Current password') }}</label>
+                                            <input id="annual_restore_password_{{ $historyItem['year'] }}" name="current_password" type="password" autocomplete="current-password" required>
+                                            <button class="btn btn-outline btn-sm" type="submit">{{ __('Restore (merge)') }}</button>
+                                        </form>
+                                    @elseif(!$historyItem['download_url'])
+                                        <span>—</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="7">{{ __('No backup operations are recorded yet.') }}</td></tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="settings-card-subsection" aria-labelledby="restore-backup-heading">
+                <h3 id="restore-backup-heading">{{ __('Restore from Backup') }}</h3>
+                <div class="alert alert-warning" role="alert">
+                    <strong>{{ __('Important:') }}</strong>
+                    {{ __('This existing restore adds missing records and files only; it does not overwrite modified records or replace the live database. Full-system cutover is not available in this application. A verified safety backup is created before merging.') }}
+                </div>
+                <form method="POST" action="{{ route('admin.backup.restore') }}" enctype="multipart/form-data" onsubmit="return confirm(@js(__('Only missing records and files will be added; existing data will not be replaced. A verified safety backup will be created first. Continue?')));">
                 @csrf
                 <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
-                <div class="admin-audit-filters" style="align-items:end;margin-bottom:14px;">
-                    <label for="backup">{{ __('Backup ZIP') }}
-                        <input id="backup" name="backup" type="file" accept=".zip,application/zip" required>
-                    </label>
-                    <label for="restore_current_password">{{ __('Current password') }}
-                        <input id="restore_current_password" name="current_password" type="password" autocomplete="current-password" required>
-                    </label>
-                    <label for="restore_confirmation">{{ __('Type MERGE to confirm') }}
-                        <input id="restore_confirmation" name="confirmation" type="text" autocomplete="off" required>
-                    </label>
+                <div class="admin-audit-filters" style="align-items:end;margin:14px 0;">
+                    <label for="backup">{{ __('Backup ZIP') }}<input id="backup" name="backup" type="file" accept=".zip,application/zip" required></label>
+                    <label for="restore_current_password">{{ __('Current password') }}<input id="restore_current_password" name="current_password" type="password" autocomplete="current-password" required></label>
                 </div>
-                <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-rotate-left" aria-hidden="true" /> {{ __('Validate and Merge Backup') }}</button>
-            </form>
+                    <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-rotate-left" aria-hidden="true" /> {{ __('Validate and Merge Backup') }}</button>
+                </form>
+            </section>
         </div>
     </section>
 </main>
@@ -446,6 +496,12 @@
     document.getElementById('language')?.addEventListener('change', function () {
         document.documentElement.lang = this.value === 'fil' ? 'fil' : 'en';
     });
+    document.querySelector('[data-backup-create-form]')?.addEventListener('submit', function () {
+        const progress = this.querySelector('[data-backup-submit-progress]');
+        if (progress) progress.hidden = false;
+        const button = this.querySelector('button[type="submit"]');
+        if (button) button.disabled = true;
+    });
 </script>
 @if($backupOperation && in_array($backupOperation->status, ['queued', 'processing', 'verifying'], true))
     <script>
@@ -454,6 +510,7 @@
             if (!panel) return;
 
             const message = panel.querySelector('[data-backup-operation-message]');
+            const progress = panel.querySelector('[data-backup-progress]');
             const poll = async () => {
                 try {
                     const response = await fetch(panel.dataset.statusUrl, {
@@ -464,6 +521,9 @@
                     const operation = await response.json();
                     panel.dataset.status = operation.status;
                     message.textContent = operation.message;
+                    if (progress && ['completed', 'failed'].includes(operation.status)) {
+                        progress.hidden = true;
+                    }
 
                     if (operation.download_url) {
                         const link = document.createElement('a');

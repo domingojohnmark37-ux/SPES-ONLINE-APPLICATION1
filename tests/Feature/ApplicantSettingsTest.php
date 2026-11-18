@@ -119,13 +119,9 @@ class ApplicantSettingsTest extends TestCase
             ->assertSee('Mga Detalye ng Profile')
             ->assertSee('Kasalukuyang tirahan');
 
-        $this->get(route('applicant.notifications.recent'))
+        $this->get(route('applicant.notifications.overview'))
             ->assertOk()
-            ->assertSee('Mga Kamakailang Abiso');
-
-        $this->get(route('applicant.notifications.previous'))
-            ->assertOk()
-            ->assertSee('Mga Nakaraang Abiso');
+            ->assertSee('Pangkalahatang-ideya ng mga Abiso');
 
         $this->get(route('applicant.appointments.index'))
             ->assertOk()

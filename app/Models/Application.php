@@ -40,7 +40,7 @@ class Application extends Model
         'birth_certificate', 'certificate_enrollment', 'certificate_grade', 'application_letter', 'indigency',
         'document_original_names',
         // Status
-        'status', 'admin_comment',
+        'status', 'review_started_at', 'admin_comment', 'admin_comment_document',
         // Form 3
         'f3_beneficiary_name', 'f3_beneficiary_age', 'f3_beneficiary_years', 'f3_beneficiary_address',
         'f3_signed_day', 'f3_signed_month', 'f3_signed_year', 'f3_signed_city',
@@ -57,6 +57,7 @@ class Application extends Model
 
     protected $casts = [
         'birthday' => 'date',
+        'review_started_at' => 'datetime',
         'f3_start_date' => 'date',
         'f3_end_date' => 'date',
         'f4_contract_start' => 'date',
@@ -123,6 +124,17 @@ class Application extends Model
             'approved' => 'badge-approved',
             'denied' => 'badge-denied',
             default => 'badge-pending',
+        };
+    }
+
+    public function statusLabel(): string
+    {
+        return match ($this->status) {
+            'pending' => $this->review_started_at ? __('Under Review') : __('Pending'),
+            'under_review' => __('Under Review'),
+            'approved' => __('Approved'),
+            'denied' => __('Declined'),
+            default => ucfirst(str_replace('_', ' ', $this->status)),
         };
     }
 }

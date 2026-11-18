@@ -13,8 +13,8 @@ class NotificationController extends Controller
         if ($notification) {
             $notification->markAsRead();
 
-            if ($request->input('redirect_to') === 'previous' && $user->role === 'user') {
-                return redirect()->route('applicant.notifications.previous');
+            if (in_array($request->input('redirect_to'), ['previous', 'overview'], true) && $user->role === 'user') {
+                return redirect()->route('applicant.notifications.overview');
             }
 
             if ($request->input('redirect_to') === 'back' && ! $request->expectsJson()) {

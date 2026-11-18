@@ -32,7 +32,7 @@ class AdminBackupService
         if (! class_exists(ZipArchive::class)) {
             throw new RuntimeException('The PHP ZIP extension is required to create backups.');
         }
-        if (! in_array($archiveType, ['manual', 'annual', 'daily'], true)) {
+        if (! in_array($archiveType, ['manual', 'annual', 'daily', 'weekly'], true)) {
             throw new RuntimeException('The backup archive type is invalid.');
         }
         $startedAt = microtime(true);
@@ -40,6 +40,9 @@ class AdminBackupService
             throw new RuntimeException('Run the database migrations before creating a protected backup.');
         }
         $storage = $this->backupStorageSummary();
+        if (! $storage['available']) {
+            throw new RuntimeException('The private backup directory is unavailable or not writable.');
+        }
         if ($storage['free_bytes'] !== null && $storage['free_bytes'] < $storage['minimum_free_bytes']) {
             throw new RuntimeException('Backup creation was stopped because available disk space is below the configured safety threshold.');
         }
@@ -146,6 +149,323 @@ class AdminBackupService
         }
     }
 
+    public function validateForRestore(string $archivePath, ?string $expectedType = null, ?int $expectedYear = null): array
+    {
+        if (! class_exists(ZipArchive::class)) {
+            throw new RuntimeException('The PHP ZIP extension is required to restore backups.');
+        }
+
+        $zip = new ZipArchive;
+        if ($zip->open($archivePath) !== true) {
+            throw new RuntimeException('The uploaded file is not a readable backup archive.');
+        }
+
+        try {
+            [$manifest, $tables] = $this->prepareRestoreSnapshot($zip, $expectedType, $expectedYear);
+
+            return [
+                'manifest' => $manifest,
+                'tables' => count($tables),
+            ];
+        } finally {
+            $zip->close();
+        }
+    }
+
+    public function createSafetyArchiveForRestore(string $operationId, ?int $generatedBy, bool $operationLockHeld = false): array
+    {
+        $temporaryArchive = $this->createManualArchive($generatedBy, $operationLockHeld);
+        $archivePath = "backups/recovery-safety/{$operationId}.zip";
+        $disk = Storage::disk('local');
+        $stream = fopen($temporaryArchive, 'rb');
+        if ($stream === false) {
+            @unlink($temporaryArchive);
+            throw new RuntimeException('Unable to open the safety backup archive.');
+        }
+
+        try {
+            if (! $disk->writeStream($archivePath, $stream)) {
+                $disk->delete($archivePath);
+                throw new RuntimeException('Unable to save the verified safety backup.');
+            }
+        } catch (\Throwable $exception) {
+            $disk->delete($archivePath);
+            throw $exception;
+        } finally {
+            fclose($stream);
+            @unlink($temporaryArchive);
+        }
+
+        try {
+            $manifest = $this->verifyArchiveFile($disk->path($archivePath), 'manual');
+            $credentialId = $manifest['credential']['id'] ?? null;
+            if (! is_string($credentialId)) {
+                throw new RuntimeException('The safety backup credential is missing.');
+            }
+            DB::table('backup_archive_credentials')
+                ->where('id', $credentialId)
+                ->update([
+                    'archive_path' => $archivePath,
+                    'file_size_bytes' => $disk->size($archivePath),
+                    'updated_at' => now(),
+                ]);
+
+            return [
+                'credential_id' => $credentialId,
+                'filename' => basename($archivePath),
+                'size' => $disk->size($archivePath),
+            ];
+        } catch (\Throwable $exception) {
+            $disk->delete($archivePath);
+            throw $exception;
+        }
+    }
+
+    public function verifiedArchiveByCredential(string $credentialId): ?array
+    {
+        $credential = DB::table('backup_archive_credentials')->where('id', $credentialId)->first();
+        if (
+            $credential === null
+            || $credential->verified_at === null
+            || ! is_string($credential->archive_path)
+            || ! preg_match('#^backups/(?:daily|weekly|annual|recovery-safety)/[A-Za-z0-9._-]+\.zip$#D', $credential->archive_path)
+        ) {
+            return null;
+        }
+
+        $disk = Storage::disk('local');
+        if (! $disk->exists($credential->archive_path)) {
+            return null;
+        }
+
+        $manifest = $this->verifyArchiveFile($disk->path($credential->archive_path), $credential->archive_type);
+        if (
+            ($manifest['credential']['id'] ?? null) !== $credentialId
+            || ($manifest['archive_year'] ?? null) !== $credential->archive_year
+        ) {
+            return null;
+        }
+
+        return [
+            'path' => $credential->archive_path,
+            'filename' => basename($credential->archive_path),
+            'size' => $disk->size($credential->archive_path),
+            'type' => $credential->archive_type,
+        ];
+    }
+
+    public function verifyStoredArchive(string $archivePath, string $expectedType, ?int $expectedYear = null): array
+    {
+        if (
+            ! preg_match('#^backups/(?:annual|daily|weekly|operations)/[A-Za-z0-9._/-]+\.zip$#D', $archivePath)
+            || str_contains($archivePath, '..')
+        ) {
+            throw new RuntimeException('The stored backup path is invalid.');
+        }
+        $disk = Storage::disk('local');
+        if (! $disk->exists($archivePath)) {
+            throw new RuntimeException('The stored backup archive is unavailable.');
+        }
+        $manifest = $this->verifyArchiveFile($disk->path($archivePath), $expectedType);
+        if ($expectedYear !== null && ($manifest['archive_year'] ?? null) !== $expectedYear) {
+            throw new RuntimeException('The stored backup archive does not match the selected year.');
+        }
+
+        return $manifest;
+    }
+
+    public function backupHistory(int $limit = 50): array
+    {
+        $disk = Storage::disk('local');
+        $history = [];
+        $operations = DB::table('admin_backup_operations')
+            ->whereIn('action', ['create', 'restore'])
+            ->where(function ($query): void {
+                $query->whereNotIn('archive_type', ['daily', 'weekly'])
+                    ->orWhereNull('archive_type')
+                    ->orWhere('status', '!=', 'completed');
+            })
+            ->latest('created_at')
+            ->limit($limit)
+            ->get();
+        $operationArchivePaths = $operations->pluck('archive_path')->filter()->all();
+
+        foreach ($operations as $operation) {
+            $exists = is_string($operation->archive_path) && $disk->exists($operation->archive_path);
+            $verified = $operation->verified_at !== null && $exists;
+            $result = is_string($operation->result) ? json_decode($operation->result, true) : [];
+            $result = is_array($result) ? $result : [];
+            $history[] = [
+                'key' => 'operation:'.$operation->id,
+                'name' => $result !== []
+                    ? ($result['filename'] ?? basename((string) $operation->archive_path))
+                    : ($operation->original_filename ?: __('Restore operation')),
+                'type' => $operation->action === 'restore'
+                    ? 'restore'
+                    : ($operation->archive_type === 'annual'
+                        ? 'annual'
+                        : (in_array($operation->archive_type, ['daily', 'weekly'], true) ? $operation->archive_type : 'manual')),
+                'year' => $operation->archive_year,
+                'created_at' => Carbon::parse($operation->created_at),
+                'size' => $operation->file_size_bytes,
+                'verified' => $verified,
+                'status' => ($result['expired'] ?? false) ? 'expired' : $operation->status,
+                'download_url' => $operation->action === 'create'
+                    && (int) ($operation->admin_id ?? 0) === (int) auth()->id()
+                    && $operation->status === 'completed'
+                    && $verified
+                    ? route('admin.backup.operations.download', $operation->id)
+                    : null,
+            ];
+        }
+
+        $credentials = DB::table('backup_archive_credentials')
+            ->where(function ($query): void {
+                $query->whereIn('archive_type', ['daily', 'weekly', 'annual'])
+                    ->orWhere('archive_path', 'like', 'backups/recovery-safety/%');
+            })
+            ->latest('created_at')
+            ->limit($limit)
+            ->get();
+
+        foreach ($credentials as $credential) {
+            if (
+                $credential->archive_type === 'annual'
+                && is_string($credential->archive_path)
+                && in_array($credential->archive_path, $operationArchivePaths, true)
+            ) {
+                continue;
+            }
+            $exists = is_string($credential->archive_path) && $disk->exists($credential->archive_path);
+            $verified = $credential->verified_at !== null && $exists;
+            $createdAt = Carbon::parse($credential->created_at);
+            $archiveType = str_starts_with((string) $credential->archive_path, 'backups/recovery-safety/')
+                ? 'safety'
+                : $credential->archive_type;
+            $history[] = [
+                'key' => 'credential:'.$credential->id,
+                'name' => is_string($credential->archive_path)
+                    ? basename($credential->archive_path)
+                    : ($credential->archive_type === 'annual'
+                        ? 'spes-annual-backup-'.$credential->archive_year.'.zip'
+                        : ($credential->archive_type === 'weekly'
+                            ? 'spes-weekly-backup-'.$createdAt->format('o-W').'.zip'
+                            : 'spes-daily-backup-'.$createdAt->format('Ymd').'.zip')),
+                'type' => $archiveType,
+                'year' => $credential->archive_type === 'annual' ? (int) $credential->archive_year : null,
+                'created_at' => $createdAt,
+                'size' => $credential->file_size_bytes,
+                'verified' => $verified,
+                'status' => $exists ? 'completed' : (in_array($credential->archive_type, ['daily', 'weekly'], true) ? 'expired' : 'failed'),
+                'download_url' => $verified
+                    ? ($credential->archive_type === 'annual'
+                        ? route('admin.backup.archive.download', $credential->archive_year)
+                        : route('admin.backup.verified.download', $credential->id))
+                    : null,
+            ];
+        }
+
+        usort($history, static fn (array $first, array $second): int => $second['created_at'] <=> $first['created_at']);
+
+        return array_slice($history, 0, $limit);
+    }
+
+    public function automaticBackupStatus(): array
+    {
+        $disk = Storage::disk('local');
+        $settings = \App\Models\SystemSetting::current();
+        $frequency = in_array($settings->backup_frequency, ['daily', 'weekly'], true)
+            ? $settings->backup_frequency
+            : 'daily';
+        $lastSuccessful = DB::table('backup_archive_credentials')
+            ->whereIn('archive_type', ['daily', 'weekly'])
+            ->whereNotNull('archive_path')
+            ->whereNotNull('verified_at')
+            ->latest('created_at')
+            ->limit(100)
+            ->get()
+            ->first(fn ($archive): bool => $disk->exists($archive->archive_path));
+        $lastConfiguredSuccessful = DB::table('backup_archive_credentials')
+            ->where('archive_type', $frequency)
+            ->whereNotNull('archive_path')
+            ->whereNotNull('verified_at')
+            ->latest('created_at')
+            ->limit(100)
+            ->get()
+            ->first(fn ($archive): bool => $disk->exists($archive->archive_path));
+        $latestOperation = DB::table('admin_backup_operations')
+            ->where('action', 'create')
+            ->where('archive_type', $frequency)
+            ->latest('created_at')
+            ->first();
+
+        $status = 'unverified';
+        if ($latestOperation !== null && in_array($latestOperation->status, ['queued', 'processing', 'verifying'], true)) {
+            $status = 'processing';
+        } elseif (
+            $latestOperation !== null
+            && $latestOperation->status === 'failed'
+            && ($lastConfiguredSuccessful === null || Carbon::parse($latestOperation->created_at)->greaterThan(Carbon::parse($lastConfiguredSuccessful->created_at)))
+        ) {
+            $status = 'failed';
+        }
+
+        $timezone = config('backup.timezone', 'Asia/Manila');
+        $now = Carbon::now($timezone);
+        $nextScheduled = $this->nextAutomaticBackupAt($settings, $now);
+        $latestScheduled = $nextScheduled->copy()->subWeek();
+        if ($frequency === 'daily') {
+            $latestScheduled = $nextScheduled->copy()->subDay();
+        }
+        if (
+            $status === 'unverified'
+            && $lastConfiguredSuccessful !== null
+            && Carbon::parse($lastConfiguredSuccessful->created_at, $timezone)->greaterThanOrEqualTo($latestScheduled)
+        ) {
+            $status = 'completed';
+        }
+        $nextAnnual = Carbon::createFromDate($now->year, 12, 31, $timezone)->setTime(23, 59);
+        if ($nextAnnual->lessThanOrEqualTo($now)) {
+            $nextAnnual->addYear();
+        }
+
+        return [
+            'status' => $status,
+            'last_successful_at' => $lastSuccessful?->created_at,
+            'size' => $lastSuccessful?->file_size_bytes,
+            'verification' => $lastSuccessful === null ? 'unverified' : 'verified',
+            'next_daily_at' => $settings->backup_enabled ? $nextScheduled : null,
+            'frequency' => $frequency,
+            'enabled' => (bool) $settings->backup_enabled,
+            'timezone' => $timezone,
+            'next_annual_at' => $nextAnnual,
+        ];
+    }
+
+    public function nextAutomaticBackupAt(?\App\Models\SystemSetting $settings = null, ?Carbon $from = null): Carbon
+    {
+        $settings ??= \App\Models\SystemSetting::current();
+        $timezone = config('backup.timezone', 'Asia/Manila');
+        $now = ($from ?? Carbon::now($timezone))->copy()->setTimezone($timezone);
+        $time = $settings->backup_time ?: config('backup.schedule_time', '02:00');
+        [$hour, $minute] = array_map('intval', explode(':', $time));
+        if ($settings->backup_frequency === 'weekly') {
+            $next = $now->copy()->startOfWeek(Carbon::MONDAY)->setTime($hour, $minute);
+            if ($next->lessThanOrEqualTo($now)) {
+                $next->addWeek();
+            }
+
+            return $next;
+        }
+
+        $next = $now->copy()->setTime($hour, $minute);
+        if ($next->lessThanOrEqualTo($now)) {
+            $next->addDay();
+        }
+
+        return $next;
+    }
+
     public function restore(string $archivePath, ?string $expectedType = null, ?int $expectedYear = null): array
     {
         if (! class_exists(ZipArchive::class)) {
@@ -159,34 +479,7 @@ class AdminBackupService
 
         $createdFiles = [];
         try {
-            $manifest = $this->validateArchive($zip);
-            $pdoDriver = DB::connection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
-            $backupDriver = $manifest['database_driver'] ?? null;
-            $compatibleDriver = $pdoDriver === 'mysql'
-                ? in_array($backupDriver, ['mysql', 'mariadb'], true)
-                : $backupDriver === $pdoDriver;
-            if (! $compatibleDriver) {
-                throw new RuntimeException('The backup database engine is incompatible with the configured application database.');
-            }
-            if (
-                ($expectedType !== null && ($manifest['archive_type'] ?? null) !== $expectedType)
-                || ($expectedYear !== null && ($manifest['archive_year'] ?? null) !== $expectedYear)
-            ) {
-                throw new RuntimeException('The backup credential does not match the selected annual archive.');
-            }
-            $snapshotContents = $zip->getFromName('database/data.json');
-            if (! is_string($snapshotContents)) {
-                throw new RuntimeException('The backup is missing its database data snapshot.');
-            }
-
-            try {
-                $snapshot = json_decode($snapshotContents, true, 512, JSON_THROW_ON_ERROR);
-            } catch (\JsonException $exception) {
-                throw new RuntimeException('The backup database snapshot is invalid.', previous: $exception);
-            }
-            unset($snapshotContents);
-
-            $tables = $this->validateSnapshot($snapshot);
+            [$manifest, $tables] = $this->prepareRestoreSnapshot($zip, $expectedType, $expectedYear);
             $this->restoreFiles($zip, $createdFiles);
             $importedRows = $this->mergeRows($tables, $manifest);
 
@@ -210,40 +503,59 @@ class AdminBackupService
             throw new RuntimeException('The annual backup year is invalid.');
         }
 
-        $filename = "spes-annual-backup-{$year}.zip";
-        $archivePath = 'backups/annual/'.$filename;
-        $disk = Storage::disk('local');
-
-        if ($disk->exists($archivePath)) {
-            return null;
-        }
-
-        $temporaryArchive = $this->create('annual', $year);
-        $stream = fopen($temporaryArchive, 'rb');
-        if ($stream === false) {
-            @unlink($temporaryArchive);
-            throw new RuntimeException('Unable to open the annual backup for archival.');
+        $creationLock = Cache::lock('admin-backup-operation', 3600);
+        if (! $creationLock->get()) {
+            throw new RuntimeException('Another backup creation is already in progress.');
         }
 
         try {
-            if (! $disk->writeStream($archivePath, $stream)) {
-                throw new RuntimeException('Unable to save the annual backup to private archive storage.');
-            }
-        } finally {
-            fclose($stream);
-            @unlink($temporaryArchive);
-        }
-        $manifest = $this->readArchiveManifest($disk->path($archivePath));
-        DB::table('backup_archive_credentials')
-            ->where('id', $manifest['credential']['id'])
-            ->update([
-                'archive_path' => $archivePath,
-                'file_size_bytes' => $disk->size($archivePath),
-                'verified_at' => now(),
-                'updated_at' => now(),
-            ]);
+            $filename = "spes-annual-backup-{$year}.zip";
+            $archivePath = 'backups/annual/'.$filename;
+            $disk = Storage::disk('local');
 
-        return $this->annualArchive($year);
+            if ($disk->exists($archivePath)) {
+                $this->verifyStoredArchive($archivePath, 'annual', $year);
+
+                return null;
+            }
+
+            $temporaryArchive = $this->create('annual', $year);
+            $stream = fopen($temporaryArchive, 'rb');
+            if ($stream === false) {
+                @unlink($temporaryArchive);
+                throw new RuntimeException('Unable to open the annual backup for archival.');
+            }
+
+            try {
+                if (! $disk->writeStream($archivePath, $stream)) {
+                    throw new RuntimeException('Unable to save the annual backup to private archive storage.');
+                }
+            } catch (\Throwable $exception) {
+                $disk->delete($archivePath);
+                throw $exception;
+            } finally {
+                fclose($stream);
+                @unlink($temporaryArchive);
+            }
+            try {
+                $manifest = $this->verifyStoredArchive($archivePath, 'annual', $year);
+            } catch (\Throwable $exception) {
+                $disk->delete($archivePath);
+                throw $exception;
+            }
+            DB::table('backup_archive_credentials')
+                ->where('id', $manifest['credential']['id'])
+                ->update([
+                    'archive_path' => $archivePath,
+                    'file_size_bytes' => $disk->size($archivePath),
+                    'verified_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            return $this->annualArchive($year);
+        } finally {
+            $creationLock->release();
+        }
     }
 
     public function annualArchives(): array
@@ -264,39 +576,64 @@ class AdminBackupService
 
     public function createDailyArchive(): ?array
     {
-        $lock = Cache::lock('admin-backup-daily-create', 1800);
-        if (! $lock->get()) {
-            throw new RuntimeException('A daily backup is already being created.');
+        return $this->createScheduledArchive('daily', Carbon::now(config('backup.timezone', 'Asia/Manila'))->format('Ymd'));
+    }
+
+    public function createScheduledArchive(string $archiveType, string $periodKey, bool $creationLockHeld = false): ?array
+    {
+        if (! in_array($archiveType, ['daily', 'weekly'], true)) {
+            throw new RuntimeException('The scheduled backup type is invalid.');
         }
-        $filename = 'spes-daily-backup-'.now(config('app.timezone'))->format('Ymd').'.zip';
-        $archivePath = 'backups/daily/'.$filename;
+        $validPeriod = $archiveType === 'daily'
+            ? preg_match('/^\d{8}$/D', $periodKey) === 1
+            : preg_match('/^\d{4}-W\d{2}$/D', $periodKey) === 1;
+        if (! $validPeriod) {
+            throw new RuntimeException('The scheduled backup period is invalid.');
+        }
+
+        $creationLock = $creationLockHeld ? null : Cache::lock('admin-backup-operation', 3600);
+        if ($creationLock !== null && ! $creationLock->get()) {
+            throw new RuntimeException('Another backup creation is already in progress.');
+        }
+        $lock = Cache::lock("admin-backup-{$archiveType}-create", 1800);
+        if (! $lock->get()) {
+            $creationLock?->release();
+            throw new RuntimeException('A scheduled backup is already being created.');
+        }
+        $filename = "spes-{$archiveType}-backup-{$periodKey}.zip";
+        $archivePath = "backups/{$archiveType}/{$filename}";
         $disk = Storage::disk('local');
 
         try {
             if ($disk->exists($archivePath)) {
-                $this->verifyArchiveFile($disk->path($archivePath), 'daily');
+                $this->verifyArchiveFile($disk->path($archivePath), $archiveType);
 
                 return null;
             }
 
-            $temporaryArchive = $this->create('daily');
+            $temporaryArchive = $this->create($archiveType);
             $stream = fopen($temporaryArchive, 'rb');
             if ($stream === false) {
                 @unlink($temporaryArchive);
-                throw new RuntimeException('Unable to open the daily backup for archival.');
+                throw new RuntimeException('Unable to open the scheduled backup for archival.');
             }
 
             try {
                 if (! $disk->writeStream($archivePath, $stream)) {
                     $disk->delete($archivePath);
-                    throw new RuntimeException('Unable to save the daily backup to private archive storage.');
+                    throw new RuntimeException('Unable to save the scheduled backup to private archive storage.');
                 }
             } finally {
                 fclose($stream);
                 @unlink($temporaryArchive);
             }
 
-            $manifest = $this->readArchiveManifest($disk->path($archivePath));
+            try {
+                $manifest = $this->verifyStoredArchive($archivePath, $archiveType);
+            } catch (\Throwable $exception) {
+                $disk->delete($archivePath);
+                throw $exception;
+            }
             DB::table('backup_archive_credentials')
                 ->where('id', $manifest['credential']['id'])
                 ->update([
@@ -312,12 +649,13 @@ class AdminBackupService
             ];
         } finally {
             $lock->release();
+            $creationLock?->release();
         }
     }
 
     public function verifiedDailyArchiveExists(): bool
     {
-        $path = 'backups/daily/spes-daily-backup-'.now(config('app.timezone'))->format('Ymd').'.zip';
+        $path = 'backups/daily/spes-daily-backup-'.Carbon::now(config('backup.timezone', 'Asia/Manila'))->format('Ymd').'.zip';
         $disk = Storage::disk('local');
         if (! $disk->exists($path)) {
             return false;
@@ -327,7 +665,27 @@ class AdminBackupService
         return true;
     }
 
-    private function verifyArchiveFile(string $archivePath, string $expectedType): void
+    public function createManualArchive(?int $generatedBy = null, bool $creationLockHeld = false): string
+    {
+        $creationLock = $creationLockHeld ? null : Cache::lock('admin-backup-operation', 3600);
+        if ($creationLock !== null && ! $creationLock->get()) {
+            throw new RuntimeException('Another backup creation is already in progress.');
+        }
+        $lock = Cache::lock('admin-backup-manual-create', 1800);
+        if (! $lock->get()) {
+            $creationLock?->release();
+            throw new RuntimeException('Another manual or safety backup is already being created.');
+        }
+
+        try {
+            return $this->create('manual', null, $generatedBy);
+        } finally {
+            $lock->release();
+            $creationLock?->release();
+        }
+    }
+
+    private function verifyArchiveFile(string $archivePath, string $expectedType): array
     {
         $zip = new ZipArchive;
         if ($zip->open($archivePath) !== true) {
@@ -338,9 +696,43 @@ class AdminBackupService
             if (($manifest['archive_type'] ?? null) !== $expectedType) {
                 throw new RuntimeException('The existing backup file has an unexpected archive type.');
             }
+
+            return $manifest;
         } finally {
             $zip->close();
         }
+    }
+
+    private function prepareRestoreSnapshot(ZipArchive $zip, ?string $expectedType, ?int $expectedYear): array
+    {
+        $manifest = $this->validateArchive($zip);
+        $pdoDriver = DB::connection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $backupDriver = $manifest['database_driver'] ?? null;
+        $compatibleDriver = $pdoDriver === 'mysql'
+            ? in_array($backupDriver, ['mysql', 'mariadb'], true)
+            : $backupDriver === $pdoDriver;
+        if (! $compatibleDriver) {
+            throw new RuntimeException('The backup database engine is incompatible with the configured application database.');
+        }
+        if (
+            ($expectedType !== null && ($manifest['archive_type'] ?? null) !== $expectedType)
+            || ($expectedYear !== null && ($manifest['archive_year'] ?? null) !== $expectedYear)
+        ) {
+            throw new RuntimeException('The backup credential does not match the selected archive.');
+        }
+        $snapshotContents = $zip->getFromName('database/data.json');
+        if (! is_string($snapshotContents)) {
+            throw new RuntimeException('The backup is missing its database data snapshot.');
+        }
+
+        try {
+            $snapshot = json_decode($snapshotContents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new RuntimeException('The backup database snapshot is invalid.', previous: $exception);
+        }
+        unset($snapshotContents);
+
+        return [$manifest, $this->validateSnapshot($snapshot)];
     }
 
     public function annualArchive(int $year): ?array
@@ -363,12 +755,13 @@ class AdminBackupService
     {
         $daily = DB::table('backup_archive_credentials')
             ->select('id', 'archive_path', 'created_at', 'duration_ms', 'verified_at')
-            ->where('archive_type', 'daily')
+            ->whereIn('archive_type', ['daily', 'weekly'])
             ->whereNotNull('archive_path')
             ->whereNotNull('verified_at')
             ->get();
         $manual = DB::table('admin_backup_operations')
             ->select('id', 'archive_path', 'created_at', 'duration_ms', 'verified_at')
+            ->addSelect('result')
             ->whereIn('action', ['create', 'restore'])
             ->where('status', 'completed')
             ->whereNotNull('archive_path')
@@ -389,9 +782,11 @@ class AdminBackupService
                 'size' => Storage::disk('local')->size($archive->archive_path),
                 'duration_ms' => $archive->duration_ms,
                 'verified_at' => $archive->verified_at,
-                'type' => str_starts_with($archive->archive_path, 'backups/daily/')
-                    ? 'daily'
-                    : (str_contains($archive->archive_path, '/uploads/') ? 'restore upload' : 'manual'),
+                'type' => str_starts_with($archive->archive_path, 'backups/weekly/')
+                    ? 'weekly'
+                    : (str_starts_with($archive->archive_path, 'backups/daily/')
+                        ? 'daily'
+                        : (str_contains($archive->archive_path, '/uploads/') ? 'restore upload' : 'manual')),
             ];
         }
 
@@ -408,14 +803,23 @@ class AdminBackupService
     {
         $disk = Storage::disk('local');
         $bytes = 0;
-        foreach ($disk->allFiles('backups') as $path) {
-            $bytes += $disk->size($path);
+        $root = $disk->path('');
+        $available = is_dir($root) && is_writable($root);
+        try {
+            if ($available) {
+                foreach ($disk->allFiles('backups') as $path) {
+                    $bytes += $disk->size($path);
+                }
+            }
+        } catch (\Throwable $exception) {
+            $available = false;
+            Log::warning('Private backup storage could not be inspected.', ['exception' => $exception]);
         }
 
-        $root = $disk->path('');
         $freeBytes = function_exists('disk_free_space') ? @disk_free_space($root) : false;
 
         return [
+            'available' => $available,
             'bytes' => $bytes,
             'free_bytes' => is_int($freeBytes) || is_float($freeBytes) ? (int) $freeBytes : null,
             'minimum_free_bytes' => (int) config('backup.minimum_free_bytes', 1_073_741_824),
@@ -431,7 +835,7 @@ class AdminBackupService
 
         try {
             $daily = DB::table('backup_archive_credentials')
-                ->where('archive_type', 'daily')
+                ->whereIn('archive_type', ['daily', 'weekly'])
                 ->whereNotNull('archive_path')
                 ->whereNotNull('verified_at')
                 ->get();
@@ -472,7 +876,7 @@ class AdminBackupService
                         continue;
                     }
                 }
-                if (str_starts_with($path, 'backups/daily/')) {
+                if (str_starts_with($path, 'backups/daily/') || str_starts_with($path, 'backups/weekly/')) {
                     DB::table('backup_archive_credentials')
                         ->where('id', $archive->id)
                         ->update(['archive_path' => null, 'updated_at' => now()]);
@@ -496,7 +900,7 @@ class AdminBackupService
                 ->where('status', 'failed')
                 ->whereNotNull('archive_path')
                 ->where('archive_path', 'like', 'backups/operations/uploads/%')
-                ->where('completed_at', '<', now()->subDays(max(1, (int) config('backup.retention.daily', 7))))
+                ->where('completed_at', '<', now()->subDays($this->backupRetentionDays()))
                 ->get();
             foreach ($failedUploads as $operation) {
                 $path = $operation->archive_path;
@@ -529,7 +933,7 @@ class AdminBackupService
     {
         $cutoff = now()->subSeconds(960);
         $operations = DB::table('admin_backup_operations')
-            ->whereIn('status', ['processing', 'verifying'])
+            ->whereIn('status', ['queued', 'processing', 'verifying'])
             ->where(function ($query) use ($cutoff): void {
                 $query->where('started_at', '<', $cutoff)
                     ->orWhere(function ($query) use ($cutoff): void {
@@ -538,16 +942,21 @@ class AdminBackupService
             })
             ->get();
 
+        $failedCount = 0;
         foreach ($operations as $operation) {
-            DB::table('admin_backup_operations')
+            $updated = DB::table('admin_backup_operations')
                 ->where('id', $operation->id)
-                ->whereIn('status', ['processing', 'verifying'])
+                ->whereIn('status', ['queued', 'processing', 'verifying'])
                 ->update([
                     'status' => 'failed',
                     'completed_at' => now(),
-                    'failure_message' => __('The worker stopped before the operation completed. Do not retry a restore until its database state has been checked.'),
+                    'failure_message' => __('The operation did not complete before its safety timeout. Do not retry a restore until its database state has been checked.'),
                     'updated_at' => now(),
                 ]);
+            if ($updated === 0) {
+                continue;
+            }
+            $failedCount++;
             Log::error('An interrupted admin backup operation was marked failed and requires inspection.', [
                 'operation_id' => $operation->id,
                 'action' => $operation->action,
@@ -572,7 +981,7 @@ class AdminBackupService
             }
         }
 
-        return count($operations);
+        return $failedCount;
     }
 
     private function retainedDailyArchiveIds(iterable $archives): array
@@ -582,27 +991,14 @@ class AdminBackupService
             ->sortByDesc('created_at')
             ->values();
         $keep = [];
-        $dailyDays = max(1, (int) config('backup.retention.daily', 7));
-        $weeklyCount = max(0, (int) config('backup.retention.weekly', 4));
-        $monthlyCount = max(0, (int) config('backup.retention.monthly', 12));
-        $cutoff = now()->subDays($dailyDays)->startOfDay();
-        $weekly = [];
-        $monthly = [];
+        $cutoff = now(config('backup.timezone', 'Asia/Manila'))
+            ->subDays($this->backupRetentionDays())
+            ->startOfDay();
 
         foreach ($archives as $archive) {
             $createdAt = Carbon::parse($archive->created_at);
             $path = $archive->archive_path;
             if ($createdAt->greaterThanOrEqualTo($cutoff)) {
-                $keep[$path] = true;
-            }
-            $week = $createdAt->format('o-W');
-            if (! isset($weekly[$week]) && count($weekly) < $weeklyCount) {
-                $weekly[$week] = true;
-                $keep[$path] = true;
-            }
-            $month = $createdAt->format('Y-m');
-            if (! isset($monthly[$month]) && count($monthly) < $monthlyCount) {
-                $monthly[$month] = true;
                 $keep[$path] = true;
             }
         }
@@ -613,6 +1009,11 @@ class AdminBackupService
         }
 
         return $keep;
+    }
+
+    private function backupRetentionDays(): int
+    {
+        return max(1, (int) (\App\Models\SystemSetting::current()->backup_retention_days ?: 7));
     }
 
     private function writeDatabaseDump(string $path): void
@@ -679,7 +1080,8 @@ class AdminBackupService
                 if (
                     $disk === 'local'
                     && (str_starts_with($relativePath, 'backups/annual/')
-                        || str_starts_with($relativePath, 'backups/operations/'))
+                        || str_starts_with($relativePath, 'backups/operations/')
+                        || str_starts_with($relativePath, 'backups/recovery-safety/'))
                 ) {
                     continue;
                 }
@@ -906,9 +1308,9 @@ class AdminBackupService
             || ! preg_match('/^[0-9a-f-]{36}$/D', $credential['id'])
             || ! is_string($credential['signature'] ?? null)
             || ! preg_match('/^[a-f0-9]{64}$/D', $credential['signature'])
-            || ! in_array($archiveType, ['manual', 'annual', 'daily'], true)
+            || ! in_array($archiveType, ['manual', 'annual', 'daily', 'weekly'], true)
             || ($archiveType === 'annual' && (! is_int($year) || $year < 2000 || $year > 9999))
-            || (in_array($archiveType, ['manual', 'daily'], true) && $year !== null)
+            || (in_array($archiveType, ['manual', 'daily', 'weekly'], true) && $year !== null)
             || ! is_array($hashes)
         ) {
             throw new RuntimeException('The backup credential is invalid or missing.');
@@ -948,24 +1350,6 @@ class AdminBackupService
         $registered = DB::table('backup_archive_credentials')->where('id', $credential['id'])->first();
         if ($registered === null || ! hash_equals($registered->credential_hash, hash('sha256', $credential['signature']))) {
             throw new RuntimeException('The backup credential could not be attached to the database registry.');
-        }
-    }
-
-    private function readArchiveManifest(string $archivePath): array
-    {
-        $zip = new ZipArchive;
-        if ($zip->open($archivePath) !== true) {
-            throw new RuntimeException('Unable to open the annual archive to register its credential.');
-        }
-        try {
-            $contents = $zip->getFromName('manifest.json');
-            if (! is_string($contents)) {
-                throw new RuntimeException('The annual archive manifest is missing.');
-            }
-
-            return json_decode($contents, true, 32, JSON_THROW_ON_ERROR);
-        } finally {
-            $zip->close();
         }
     }
 
@@ -1542,9 +1926,16 @@ class AdminBackupService
                 }
                 $createdFiles[] = ['path' => (string) $targetPath, 'disk' => null];
             } else {
-                $written = $storage->writeStream($relativePath, $stream);
-                fclose($stream);
+                try {
+                    $written = $storage->writeStream($relativePath, $stream);
+                } catch (\Throwable $exception) {
+                    $storage->delete($relativePath);
+                    throw $exception;
+                } finally {
+                    fclose($stream);
+                }
                 if (! $written) {
+                    $storage->delete($relativePath);
                     throw new RuntimeException("Unable to restore stored file [{$name}].");
                 }
                 $createdFiles[] = ['path' => $relativePath, 'disk' => $disk];

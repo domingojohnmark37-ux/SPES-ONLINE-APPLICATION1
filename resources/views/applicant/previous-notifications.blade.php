@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ __('Previous Notifications') }} — {{ __('SPES Portal') }}</title>
+    <title>{{ __('Notification Overview') }} — {{ __('SPES Portal') }}</title>
     <x-applicant-text-styles />
     <style>
         :root {
@@ -134,24 +134,24 @@
             <x-icon class="fa-solid fa-bars" aria-hidden="true" />
         </button>
         <div>
-            <h1>{{ __('Previous Notifications') }}</h1>
-            <p>{{ __('Read notifications stay in Recent for 24 hours, then appear in the archive. Unread notifications remain in Recent.') }}</p>
+            <h1>{{ __('Notification Overview') }}</h1>
+            <p>{{ __('View current and previous notifications, newest first.') }}</p>
         </div>
     </header>
     <main class="page-wrapper">
         <div class="page-content">
-            <section class="history-panel" aria-label="{{ __('Previous notification history') }}">
+            <section class="history-panel" aria-label="{{ __('Notification Overview') }}">
                 <div class="history-toolbar">
                     <nav class="filter-list" aria-label="{{ __('Filter notification history') }}">
                         @foreach(['all' => 'All', 'archived' => 'Archived', 'events' => 'Events', 'announcements' => 'Announcements', 'system' => 'System'] as $value => $label)
                             <a
                                 class="filter-chip {{ $filter === $value ? 'active' : '' }}"
-                                href="{{ route('applicant.notifications.previous', array_filter(['filter' => $value, 'search' => $search !== '' ? $search : null])) }}"
+                                href="{{ route('applicant.notifications.overview', array_filter(['filter' => $value, 'search' => $search !== '' ? $search : null])) }}"
                                 @if($filter === $value) aria-current="page" @endif
                             >{{ __($label) }}</a>
                         @endforeach
                     </nav>
-                    <form class="search-form" method="GET" action="{{ route('applicant.notifications.previous') }}">
+                    <form class="search-form" method="GET" action="{{ route('applicant.notifications.overview') }}">
                         @if($filter !== 'all')
                             <input type="hidden" name="filter" value="{{ $filter }}">
                         @endif
@@ -188,6 +188,12 @@
                                 <div class="history-copy">
                                     <h2>{{ $notification['title'] }}</h2>
                                     <p>{{ \Illuminate\Support\Str::limit($notification['message'], 220) }}</p>
+                                    @if($notification['appointment_date'] ?? null)
+                                        <p class="history-location">
+                                            <x-icon class="fa-solid fa-calendar-check" aria-hidden="true" />
+                                            {{ __('Appointment date') }}: {{ $notification['appointment_date']->locale(app()->getLocale())->translatedFormat('l, F j, Y · g:i A') }}
+                                        </p>
+                                    @endif
                                     @if(mb_strlen($notification['message']) > 220)
                                         <details class="history-message">
                                             <summary>{{ __('View full message') }}</summary>
@@ -204,14 +210,14 @@
                                         <p class="history-read-status"><x-icon class="fa-solid fa-envelope-open-text" aria-hidden="true" /> {{ $notification['read_status'] }}</p>
                                     @endif
                                     @if($notification['archived_from_recent'] ?? false)
-                                        <p class="history-read-status"><x-icon class="fa-solid fa-box-archive" aria-hidden="true" /> {{ __('Archived from Recent Notifications') }}</p>
+                                        <p class="history-read-status"><x-icon class="fa-solid fa-box-archive" aria-hidden="true" /> {{ __('Archived notification') }}</p>
                                     @endif
                                     @if($notification['id'] ?? null)
                                         <div class="history-actions">
                                             @if($isUnread)
                                                 <form method="POST" action="{{ route('notifications.read', $notification['id']) }}">
                                                     @csrf
-                                                    <input type="hidden" name="redirect_to" value="back">
+                                                    <input type="hidden" name="redirect_to" value="overview">
                                                     <button class="history-action compact" type="submit" data-loading-label="{{ __('Marking as read...') }}">
                                                         <x-icon class="fa-solid fa-envelope-open" aria-hidden="true" />
                                                         {{ __('Mark as read') }}

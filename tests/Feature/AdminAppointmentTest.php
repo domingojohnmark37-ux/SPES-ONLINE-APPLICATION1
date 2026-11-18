@@ -67,7 +67,7 @@ class AdminAppointmentTest extends TestCase
             ->assertSee('Appointment reminder')
             ->assertSee('Mark as read');
 
-        $this->get(route('applicant.notifications.recent'))
+        $this        ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Appointment reminder')
             ->assertSee('Appointment date')
@@ -106,7 +106,7 @@ class AdminAppointmentTest extends TestCase
             ->assertSee('Individual appointment')
             ->assertSee($startsAt->format('M j, Y · g:i A'));
 
-        $this->get(route('applicant.notifications.recent'))
+        $this        ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee($startsAt->format('l, F j, Y · g:i A'))
             ->assertSee('PESO Office');

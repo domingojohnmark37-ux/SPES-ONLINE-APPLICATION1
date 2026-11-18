@@ -43,8 +43,9 @@ class AdminSettingsFeatureController extends Controller
         ], $filters);
         $adminAuditLogs = $auditQuery->userAuditQuery($filters, 'admin')
             ->get();
-        $annualBackups = $backupService->annualArchives();
-        $dailyBackups = $backupService->retentionPreview();
+        $backupHistory = $backupService->backupHistory();
+        $automaticBackupStatus = $backupService->automaticBackupStatus();
+        $backupSettings = SystemSetting::current();
         $backupStorage = $backupService->backupStorageSummary();
         $failedBackupCount = AdminBackupOperation::query()
             ->where('status', 'failed')
@@ -71,8 +72,9 @@ class AdminSettingsFeatureController extends Controller
             'administrators',
             'filters',
             'adminAuditLogs',
-            'annualBackups',
-            'dailyBackups',
+            'backupHistory',
+            'automaticBackupStatus',
+            'backupSettings',
             'backupStorage',
             'failedBackupCount',
             'recentBackupFailures',
@@ -194,6 +196,56 @@ class AdminSettingsFeatureController extends Controller
         return redirect()->route('admin.preferences')->withFragment('backup');
     }
 
+    public function updateBackupSettings(Request $request, AuditLogger $auditLogger): RedirectResponse
+    {
+        if (! Schema::hasColumns('system_settings', [
+            'backup_enabled',
+            'backup_frequency',
+            'backup_time',
+            'backup_retention_days',
+        ])) {
+            Log::warning('Automatic backup settings could not be saved because their migration is pending.', [
+                'admin_id' => $request->user()->id,
+            ]);
+
+            return back()->withErrors([
+                'backup_settings' => __('Automatic backup settings are not ready yet. Apply the pending database migrations, then try again.'),
+            ])->withInput();
+        }
+
+        $validated = $request->validate([
+            'backup_enabled' => ['required', 'boolean'],
+            'backup_frequency' => ['required', Rule::in(['daily', 'weekly'])],
+            'backup_time' => ['required', 'date_format:H:i'],
+            'backup_retention_days' => ['required', 'integer', Rule::in([7, 14, 30, 90])],
+        ]);
+        $validated['backup_enabled'] = (bool) $validated['backup_enabled'];
+        $settings = SystemSetting::current();
+        $oldValues = [
+            'backup_enabled' => $settings->backup_enabled,
+            'backup_frequency' => $settings->backup_frequency,
+            'backup_time' => $settings->backup_time,
+            'backup_retention_days' => $settings->backup_retention_days,
+        ];
+
+        DB::transaction(function () use ($settings, $validated, $oldValues, $auditLogger, $request): void {
+            $settings->update($validated);
+            $auditLogger->recordChanges(
+                $oldValues,
+                $validated,
+                'System Backup',
+                $request->user(),
+                null,
+                null,
+                AuditAction::BACKUP_SETTINGS_UPDATED,
+            );
+        });
+
+        return redirect()->route('admin.preferences')
+            ->withFragment('backup')
+            ->with('success', __('Automatic backup settings have been saved.'));
+    }
+
     public function downloadBackup(Request $request): RedirectResponse
     {
         $operation = $this->queueBackupOperation($request, 'create');
@@ -206,12 +258,9 @@ class AdminSettingsFeatureController extends Controller
         $validated = $request->validate([
             'backup' => ['required', 'file', 'mimes:zip', 'max:1048576'],
             'current_password' => ['required', 'current_password'],
-            'confirmation' => ['required', Rule::in(['MERGE'])],
         ], [
             'backup.mimes' => __('Choose a valid SPES backup ZIP archive.'),
             'backup.required' => __('Choose a backup ZIP archive to restore.'),
-            'confirmation.in' => __('Type MERGE exactly to confirm the restore.'),
-            'confirmation.required' => __('Type MERGE to confirm the restore.'),
             'current_password.required' => __('Enter your current password to restore this backup.'),
             'current_password.current_password' => __('The current password is incorrect.'),
             'backup.max' => __('The backup ZIP must not exceed 1 GB.'),
@@ -236,6 +285,15 @@ class AdminSettingsFeatureController extends Controller
     {
         $archive = $backupService->annualArchive($year);
         abort_if($archive === null, 404);
+        try {
+            $backupService->verifyStoredArchive($archive['path'], 'annual', $year);
+        } catch (\RuntimeException $exception) {
+            Log::warning('Annual backup download was denied because the archive failed verification.', [
+                'year' => $year,
+                'exception' => $exception,
+            ]);
+            abort(404);
+        }
 
         app(AuditLogger::class)->record(
             AuditAction::DATABASE_BACKUP_DOWNLOADED,
@@ -251,15 +309,39 @@ class AdminSettingsFeatureController extends Controller
         ]);
     }
 
+    public function downloadVerifiedBackup(Request $request, string $credential, AdminBackupService $backupService): StreamedResponse
+    {
+        try {
+            $archive = $backupService->verifiedArchiveByCredential($credential);
+        } catch (\RuntimeException $exception) {
+            Log::warning('A stored backup download was denied because the archive failed verification.', [
+                'credential_id' => $credential,
+                'exception' => $exception,
+            ]);
+            abort(404);
+        }
+        abort_if($archive === null, 404);
+
+        app(AuditLogger::class)->record(
+            AuditAction::DATABASE_BACKUP_DOWNLOADED,
+            'System Backup',
+            $request->user(),
+            null,
+            null,
+            ['description' => 'Verified '.ucfirst($archive['type']).' backup archive downloaded'],
+        );
+
+        return Storage::disk('local')->download($archive['path'], $archive['filename'], [
+            'Content-Type' => 'application/zip',
+        ]);
+    }
+
     public function restoreAnnualBackup(Request $request, int $year, AdminBackupService $backupService): RedirectResponse
     {
         $request->validate([
             'current_password' => ['required', 'current_password'],
-            'confirmation' => ['required', Rule::in(["RESTORE {$year}"])],
         ], [
             'current_password.required' => __('Enter your current password to restore this backup.'),
-            'confirmation.in' => __('Type RESTORE :year exactly to confirm the restore.', ['year' => $year]),
-            'confirmation.required' => __('Type RESTORE :year to confirm the restore.', ['year' => $year]),
             'current_password.current_password' => __('The current password is incorrect.'),
         ]);
 
@@ -290,9 +372,9 @@ class AdminSettingsFeatureController extends Controller
             'status' => $operation->status,
             'action' => $operation->action,
             'message' => match ($operation->status) {
-                'queued' => __('Waiting for a background worker.'),
-                'processing' => __('The background operation is processing.'),
-                'verifying' => __('The operation is verifying the backup.'),
+                'queued' => __('Backup operation is starting.'),
+                'processing' => __('Backup operation is processing.'),
+                'verifying' => __('Verifying the backup archive.'),
                 'completed' => ($operation->result['expired'] ?? false)
                     ? __('This backup has expired under the configured retention policy.')
                     : ($operation->result['message'] ?? __('Backup is ready to download.')),
@@ -308,16 +390,30 @@ class AdminSettingsFeatureController extends Controller
         ]);
     }
 
-    public function downloadBackupOperation(Request $request, AdminBackupOperation $operation): StreamedResponse
+    public function downloadBackupOperation(
+        Request $request,
+        AdminBackupOperation $operation,
+        AdminBackupService $backupService,
+    ): StreamedResponse
     {
         abort_unless(
             (int) $operation->admin_id === (int) $request->user()->id
             && $operation->status === 'completed'
             && $operation->action === 'create'
+            && $operation->verified_at !== null
             && is_string($operation->archive_path)
             && Storage::disk('local')->exists($operation->archive_path),
             404,
         );
+        try {
+            $backupService->verifyStoredArchive($operation->archive_path, $operation->archive_type ?? 'manual');
+        } catch (\RuntimeException $exception) {
+            Log::warning('A backup operation download was denied because the archive failed verification.', [
+                'operation_id' => $operation->id,
+                'exception' => $exception,
+            ]);
+            abort(404);
+        }
 
         app(AuditLogger::class)->record(
             AuditAction::DATABASE_BACKUP_DOWNLOADED,
@@ -347,7 +443,7 @@ class AdminSettingsFeatureController extends Controller
         $operationId ??= (string) Str::uuid();
 
         try {
-            return DB::transaction(function () use (
+            $operation = DB::transaction(function () use (
                 $request,
                 $action,
                 $archivePath,
@@ -365,7 +461,6 @@ class AdminSettingsFeatureController extends Controller
                     'archive_type' => $archiveType ?? ($action === 'create' ? 'manual' : null),
                     'archive_year' => $archiveYear,
                 ]);
-                ProcessAdminBackupOperation::dispatch($operation->id)->afterCommit();
 
                 return $operation;
             });
@@ -376,13 +471,39 @@ class AdminSettingsFeatureController extends Controller
 
             throw $exception;
         }
+
+        try {
+            if (config('backup.execution_mode', 'sync') === 'queue') {
+                ProcessAdminBackupOperation::dispatch($operation->id);
+            } else {
+                (new ProcessAdminBackupOperation($operation->id))->handle(
+                    app(AdminBackupService::class),
+                    app(AuditLogger::class),
+                );
+            }
+        } catch (\Throwable $exception) {
+            (new ProcessAdminBackupOperation($operation->id))->failed($exception);
+        }
+
+        return $operation->fresh();
     }
 
     private function backupOperationRedirect(AdminBackupOperation $operation, string $message): RedirectResponse
     {
+        $operation->refresh();
+        if ($operation->status === 'completed') {
+            $message = $operation->action === 'create'
+                ? __('Backup created and verified. Download it from Backup History.')
+                : ($operation->result['message'] ?? __('Backup restore completed.'));
+        } elseif ($operation->status === 'failed') {
+            $message = $operation->failure_message ?? __('The backup operation failed.');
+        } elseif (config('backup.execution_mode', 'sync') === 'queue') {
+            $message = __('Backup operation started and will appear in Backup History when complete.');
+        }
+
         return redirect()->route('admin.preferences')
             ->withFragment('backup')
             ->with('backup_operation_id', $operation->id)
-            ->with('success', $message);
+            ->with($operation->status === 'failed' ? 'error' : 'success', $message);
     }
 }

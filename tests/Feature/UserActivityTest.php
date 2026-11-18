@@ -58,7 +58,7 @@ class UserActivityTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('applicant.notifications.previous'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('New sign-in to your SPES account')
             ->assertSee('Google Chrome on Windows (Desktop)')
@@ -150,7 +150,7 @@ class UserActivityTest extends TestCase
             ->assertDontSee('Need Help? Chat with Us')
             ->assertSee('Upcoming Appointments')
             ->assertSee('Profile Completion')
-            ->assertSee('Recent Notifications')
+            ->assertSee('Notification Overview')
             ->assertSee('SPES Applicant Help')
             ->assertSee('data-nav-group-toggle', false)
             ->assertSee('aria-controls="applicant-application-submenu"', false)
@@ -158,14 +158,13 @@ class UserActivityTest extends TestCase
             ->assertSee('aria-controls="applicant-notifications-submenu"', false)
             ->assertSee('id="applicant-notifications-submenu"', false)
             ->assertSee('href="' . route('applicant.appointments.index') . '"', false)
-            ->assertSee('href="' . route('applicant.notifications.recent') . '"', false)
-            ->assertSee('href="' . route('applicant.notifications.previous') . '"', false)
+            ->assertSee('href="' . route('applicant.notifications.overview') . '"', false)
             ->assertSee('aria-expanded="false"', false)
             ->assertSee('aria-controls="applicant-support-submenu"', false)
             ->assertSee('id="applicant-support-submenu"', false)
             ->assertSee('Need Help &amp; Support', false)
-            ->assertSee('Previous Notifications')
-            ->assertSee('Apply Now')
+            ->assertSee('Notification Overview')
+            ->assertSee('Application Status / Apply Now')
             ->assertSee('Application')
             ->assertSee('Documents')
             ->assertSee('After approval')
@@ -176,12 +175,10 @@ class UserActivityTest extends TestCase
                 'Dashboard',
                 'My Application',
                 'Application Status',
-                'Apply Now',
                 'Requirements',
                 'Notifications',
                 'Appointments',
-                'Recent Notifications',
-                'Previous Notifications',
+                'Notification Overview',
                 'Need Help & Support',
                 'FAQs',
                 'Contact Us',
@@ -214,7 +211,7 @@ class UserActivityTest extends TestCase
             ->assertSee('Mark all as read');
     }
 
-    public function test_recent_notifications_has_its_own_page_with_published_admin_announcements(): void
+    public function test_notification_overview_includes_published_admin_announcements(): void
     {
         $user = User::factory()->create();
         $admin = User::factory()->admin()->create();
@@ -244,12 +241,12 @@ class UserActivityTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('applicant.notifications.recent'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
-            ->assertSee('Recent Notifications')
+            ->assertSee('Notification Overview')
             ->assertSee('aria-expanded="true"', false)
-            ->assertSee('href="' . route('applicant.notifications.recent') . '" class="nav-link active"', false)
-            ->assertSee('Unread notifications and items received in the last 24 hours.')
+            ->assertSee('href="' . route('applicant.notifications.overview') . '" class="nav-link active"', false)
+            ->assertSee('View current and previous notifications, newest first.')
             ->assertSee('SPES Orientation Announcement')
             ->assertSee('Orientation will be held at PESO Lal-lo.')
             ->assertSee('Aug 23, 2026 · 10:24 AM')
@@ -259,12 +256,13 @@ class UserActivityTest extends TestCase
 
         $this->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('href="' . route('applicant.notifications.recent') . '"', false)
-            ->assertSee('href="' . route('applicant.notifications.previous') . '"', false)
+            ->assertSee('href="' . route('applicant.notifications.overview') . '"', false)
+            ->assertDontSee('href="' . route('applicant.notifications.recent') . '"', false)
+            ->assertDontSee('href="' . route('applicant.notifications.previous') . '"', false)
             ->assertDontSee('id="notifications"', false);
     }
 
-    public function test_recent_notifications_show_unread_items_and_items_from_the_last_24_hours(): void
+    public function test_notification_overview_includes_current_and_older_items_regardless_of_read_status(): void
     {
         $user = User::factory()->create();
         $admin = User::factory()->admin()->create();
@@ -312,13 +310,13 @@ class UserActivityTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        $response = $this->actingAs($user)->get(route('applicant.notifications.recent'));
+        $response = $this->actingAs($user)->get(route('applicant.notifications.overview'));
         $response->assertOk()
             ->assertSee('Old unread update')
             ->assertSee('Recent read update')
-            ->assertDontSee('Old read update')
+            ->assertSee('Old read update')
             ->assertSee('Recent portal announcement')
-            ->assertDontSee('Old portal announcement');
+            ->assertSee('Old portal announcement');
     }
 
     public function test_previous_notifications_archived_filter_shows_read_recent_items_after_24_hours(): void
@@ -361,11 +359,11 @@ class UserActivityTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('applicant.notifications.previous', ['filter' => 'archived']))
+            ->get(route('applicant.notifications.overview', ['filter' => 'archived']))
             ->assertOk()
             ->assertSee('Archived read application update')
             ->assertSee('Archived portal announcement')
-            ->assertSee('Archived from Recent Notifications')
+            ->assertSee('Archived notification')
             ->assertDontSee('Unread application update')
             ->assertDontSee('Recently read application update');
     }
@@ -380,7 +378,7 @@ class UserActivityTest extends TestCase
             ['status' => 'approved'],
         ));
         $notification = $user->notifications()->firstOrFail();
-        $historyUrl = route('applicant.notifications.previous', ['filter' => 'all', 'search' => 'Application']);
+        $historyUrl = route('applicant.notifications.overview', ['filter' => 'all', 'search' => 'Application']);
 
         $this->actingAs($user)
             ->get($historyUrl)
@@ -411,7 +409,7 @@ class UserActivityTest extends TestCase
         ));
 
         $this->actingAs($user)
-            ->get(route('applicant.notifications.previous'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('class="history-scroll"', false)
             ->assertSee('class="history-group-title">Today</h2>', false)
@@ -469,9 +467,9 @@ class UserActivityTest extends TestCase
         ));
         $redirectNotification = $user->notifications()->firstOrFail();
 
-        $this->from(route('applicant.notifications.previous'))
+        $this->from(route('applicant.notifications.overview'))
             ->delete(route('notifications.dismiss', $redirectNotification->id))
-            ->assertRedirect(route('applicant.notifications.previous'));
+            ->assertRedirect(route('applicant.notifications.overview'));
         $this->assertDatabaseMissing('notifications', ['id' => $redirectNotification->id]);
     }
 
@@ -490,15 +488,15 @@ class UserActivityTest extends TestCase
         ));
 
         $this->actingAs($user)
-            ->from(route('applicant.notifications.previous'))
+            ->from(route('applicant.notifications.overview'))
             ->post(route('notifications.readAll'), ['redirect_to' => 'back'])
-            ->assertRedirect(route('applicant.notifications.previous'))
+            ->assertRedirect(route('applicant.notifications.overview'))
             ->assertSessionHas('status');
 
         $this->assertSame(0, $user->unreadNotifications()->count());
     }
 
-    public function test_previous_notifications_has_its_own_filterable_history_page(): void
+    public function test_notification_overview_has_filterable_history(): void
     {
         $user = User::factory()->create();
         $admin = User::factory()->admin()->create();
@@ -532,10 +530,10 @@ class UserActivityTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('applicant.notifications.previous'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
-            ->assertSee('Previous Notifications')
-            ->assertSee('Read notifications stay in Recent for 24 hours, then appear in the archive. Unread notifications remain in Recent.')
+            ->assertSee('Notification Overview')
+            ->assertSee('View current and previous notifications, newest first.')
             ->assertSee('Document requirement update')
             ->assertSee('Important Announcement')
             ->assertSee('SPES Orientation Program')
@@ -546,23 +544,23 @@ class UserActivityTest extends TestCase
             ->assertSee('Announcements')
             ->assertSee('System')
             ->assertSee('aria-expanded="true"', false)
-            ->assertSee('href="' . route('applicant.notifications.previous') . '" class="nav-link active"', false);
+            ->assertSee('href="' . route('applicant.notifications.overview') . '" class="nav-link active"', false);
 
-        $this->get(route('applicant.notifications.previous', ['filter' => 'events', 'search' => 'Orientation']))
+        $this->get(route('applicant.notifications.overview', ['filter' => 'events', 'search' => 'Orientation']))
             ->assertOk()
             ->assertSee('SPES Orientation Program')
             ->assertDontSee('Important Announcement');
 
-        $this->get(route('applicant.notifications.previous', ['filter' => 'announcements']))
+        $this->get(route('applicant.notifications.overview', ['filter' => 'announcements']))
             ->assertOk()
             ->assertSee('Important Announcement')
             ->assertDontSee('SPES Orientation Program');
 
-        $this->get(route('applicant.notifications.previous', ['filter' => 'invalid']))
+        $this->get(route('applicant.notifications.overview', ['filter' => 'invalid']))
             ->assertBadRequest();
     }
 
-    public function test_application_status_notifications_are_recent_until_read_and_remain_in_history(): void
+    public function test_application_status_notifications_remain_in_the_notification_overview(): void
     {
         $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create([]);
@@ -592,7 +590,7 @@ class UserActivityTest extends TestCase
             ->assertSee('status-toast-countdown')
             ->assertSee('10000');
 
-        $this->get(route('applicant.notifications.recent'))
+        $this->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Application approved')
             ->assertSee('Mark as read')
@@ -609,7 +607,9 @@ class UserActivityTest extends TestCase
             ->assertDontSee('data-notification-id="' . $approvedNotification->id . '"', false);
 
         $this->actingAs($admin)
-            ->post(route('admin.applications.deny', $application))
+            ->post(route('admin.applications.deny', $application), [
+                'admin_comment' => 'The application does not meet the eligibility requirements.',
+            ])
             ->assertRedirect();
         $this->assertSame('denied', $application->fresh()->status);
         $this->assertSame(2, $applicant->notifications()->where('type', \App\Notifications\ApplicantPortalUpdate::class)->count());
@@ -619,7 +619,7 @@ class UserActivityTest extends TestCase
             ->firstOrFail();
 
         $this->actingAs($applicant)
-            ->get(route('applicant.notifications.recent'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Application approved')
             ->assertSee('Read ')
@@ -640,19 +640,21 @@ class UserActivityTest extends TestCase
             ->assertSee('data-notification-id="' . $deniedNotification->id . '"', false);
 
         $this->actingAs($admin)
-            ->post(route('admin.applications.deny', $application))
+            ->post(route('admin.applications.deny', $application), [
+                'admin_comment' => 'The application does not meet the eligibility requirements.',
+            ])
             ->assertRedirect();
         $this->assertSame(2, $applicant->notifications()->where('type', \App\Notifications\ApplicantPortalUpdate::class)->count());
 
         $this->actingAs($applicant)
-            ->get(route('applicant.notifications.previous'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Application approved')
             ->assertSee('Application denied')
             ->assertSee('Unread — delivered in-app');
     }
 
-    public function test_admin_feedback_appears_in_recent_notifications_and_remains_in_previous_history(): void
+    public function test_admin_feedback_appears_in_the_notification_overview(): void
     {
         $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create([]);
@@ -672,13 +674,13 @@ class UserActivityTest extends TestCase
         $this->assertSame('application_feedback', $notification->data['event']);
 
         $this->actingAs($applicant)
-            ->get(route('applicant.notifications.recent'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Document requirement update')
             ->assertSee($feedback)
             ->assertSee('Unread');
 
-        $this->get(route('applicant.notifications.previous'))
+        $this->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Document requirement update')
             ->assertSee($feedback);
@@ -695,7 +697,7 @@ class UserActivityTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('applicant.notifications.previous'))
+            ->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Account sign-in')
             ->assertSee('Safari on iPhone (Mobile)')

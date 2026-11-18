@@ -43,53 +43,6 @@ Route::middleware([
         return view('applicant.manual', compact('application'));
     })->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.manual');
 
-    Route::get('/recent-notifications', function () {
-        $recentSince = now()->subDay();
-        $announcements = \App\Models\News::published()
-            ->whereIn('display_on', ['portal', 'both'])
-            ->where('published_at', '>=', $recentSince)
-            ->get()
-            ->map(fn ($announcement): array => [
-                'id' => null,
-                'title' => $announcement->title,
-                'message' => \Illuminate\Support\Str::limit(strip_tags($announcement->content), 180),
-                'date' => $announcement->published_at,
-                'status' => null,
-            ]);
-        $applicationUpdates = auth()->user()->notifications()
-            ->get()
-            ->filter(function ($notification) use ($recentSince): bool {
-                $data = $notification->data;
-                $title = mb_strtolower((string) ($data['title'] ?? ''));
-                $isUnreadOrRecent = !$notification->read_at || $notification->created_at->greaterThanOrEqualTo($recentSince);
-
-                return $isUnreadOrRecent && (
-                    in_array($data['status'] ?? null, ['approved', 'denied'], true)
-                    || ($data['event'] ?? null) === 'application_feedback'
-                    || (isset($data['application_id']) && $title === 'document requirement update')
-                    || isset($data['appointment_id'])
-                );
-            })
-            ->map(fn ($notification): array => [
-                'id' => $notification->id,
-                'title' => $notification->data['title'] ?? 'Application status updated',
-                'message' => $notification->data['message'] ?? 'Your SPES application status has been updated.',
-                'date' => $notification->created_at,
-                'appointment_date' => isset($notification->data['appointment_date'])
-                    ? Carbon::parse($notification->data['appointment_date'])
-                    : null,
-                'appointment_location' => $notification->data['appointment_location'] ?? null,
-                'status' => $notification->data['status'] ?? null,
-                'read_at' => $notification->read_at,
-            ]);
-        $recentNotifications = $announcements
-            ->concat($applicationUpdates)
-            ->sortByDesc(fn (array $notification) => $notification['date']?->getTimestamp() ?? 0)
-            ->values();
-
-        return view('applicant.recent-notifications', compact('recentNotifications'));
-    })->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.notifications.recent');
-
     Route::get('/requirements', [ApplicantRequirementsController::class, 'index'])
         ->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.requirements');
     Route::get('/requirements/{additionalRequirement}/template', [ApplicantRequirementsController::class, 'downloadTemplate'])
@@ -99,7 +52,7 @@ Route::middleware([
     Route::post('/requirements/{additionalRequirement}/upload', [ApplicantRequirementsController::class, 'upload'])
         ->middleware([\App\Http\Middleware\EnsureApplicant::class, 'idempotent'])->name('applicant.requirements.upload');
 
-    Route::get('/previous-notifications', function () {
+    Route::get('/notification-overview', function () {
         $filter = request()->query('filter', 'all');
         $search = request()->query('search', '');
         abort_unless(is_string($filter) && in_array($filter, ['all', 'events', 'announcements', 'system', 'archived'], true), 400);
@@ -129,7 +82,10 @@ Route::middleware([
                     'message' => $data['message'] ?? 'There is a new update in your SPES application.',
                     'category' => $category,
                     'date' => $notification->created_at,
-                    'location' => null,
+                    'location' => $data['appointment_location'] ?? null,
+                    'appointment_date' => isset($data['appointment_date'])
+                        ? Carbon::parse($data['appointment_date'])
+                        : null,
                     'details' => isset($data['device'])
                         ? 'Device: '.$data['device'].(filled($data['ip_address'] ?? null) ? ' · IP: '.$data['ip_address'] : '')
                         : null,
@@ -222,7 +178,12 @@ Route::middleware([
             ->values();
 
         return view('applicant.previous-notifications', compact('notifications', 'filter', 'search', 'unreadCount'));
-    })->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.notifications.previous');
+    })->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.notifications.overview');
+
+    Route::get('/recent-notifications', fn () => redirect()->route('applicant.notifications.overview', request()->query()))
+        ->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.notifications.recent');
+    Route::get('/previous-notifications', fn () => redirect()->route('applicant.notifications.overview', request()->query()))
+        ->middleware(\App\Http\Middleware\EnsureApplicant::class)->name('applicant.notifications.previous');
 
     Route::get('/appointments', function () {
         $user = auth()->user();
@@ -304,7 +265,7 @@ Route::middleware([
     Route::post('/settings/devices/logout', [\App\Http\Controllers\ApplicantSettingsController::class, 'logoutOtherDevices'])->name('settings.logout-other-devices');
     Route::get('/settings/{document}', [\App\Http\Controllers\ApplicantSettingsController::class, 'document'])->where('document', 'privacy-policy|data-privacy-notice')->name('settings.document');
 
-    Route::get('/updates', fn () => redirect()->route('applicant.notifications.recent'))->name('updates');
+    Route::get('/updates', fn () => redirect()->route('applicant.notifications.overview'))->name('updates');
 
     // Application
     Route::get('/apply',           [ApplicationController::class, 'create'])->name('applications.create');
@@ -340,7 +301,7 @@ Route::middleware([
 // Admin
 Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.preferences', \App\Http\Middleware\TrackUserActivity::class])->prefix('admin')->name('admin.')->group(function () {
 
-    Route::get('/dashboard', function () {
+    Route::get('/dashboard', function (\App\Services\AdminBackupService $backupService) {
         $stats = [
             'total'    => \App\Models\Application::count(),
             'pending'  => \App\Models\Application::where('status', 'pending')->count(),
@@ -395,12 +356,15 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
             ->values()
             ->take(6);
 
-        return view('admin.dashboard', compact('stats', 'pendingApplications', 'recentActivities'));
+        $backupStatus = $backupService->automaticBackupStatus();
+
+        return view('admin.dashboard', compact('stats', 'pendingApplications', 'recentActivities', 'backupStatus'));
     })->name('dashboard');
 
     Route::get('/applications',                         [ApplicationController::class, 'index'])->name('applications.index');
     Route::get('/applications/export', [ExportController::class, 'masterList'])->name('applications.export');
     Route::get('/applications/{application}',          [ApplicationController::class, 'show'])->name('applications.show');
+    Route::post('/applications/{application}/review', [ApplicationController::class, 'markUnderReview'])->name('applications.review');
     Route::post('/applications/{application}/approve', [ApplicationController::class, 'approve'])->name('applications.approve');
     Route::post('/applications/{application}/deny',    [ApplicationController::class, 'deny'])->name('applications.deny');
     Route::post('/applications/{application}/comment', [ApplicationController::class, 'addComment'])->name('applications.comment');
@@ -443,6 +407,8 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
     Route::get('/security', [AdminSettingsFeatureController::class, 'security'])->name('security');
     Route::put('/security', [AdminSettingsFeatureController::class, 'updateSecurity'])->name('security.update');
     Route::get('/backup', [AdminSettingsFeatureController::class, 'backup'])->name('backup.index');
+    Route::put('/backup/settings', [AdminSettingsFeatureController::class, 'updateBackupSettings'])
+        ->name('backup.settings.update');
     Route::post('/backup', [AdminSettingsFeatureController::class, 'downloadBackup'])
         ->middleware('idempotent')->name('backup.download');
     Route::post('/backup/restore', [AdminSettingsFeatureController::class, 'restoreBackup'])
@@ -451,6 +417,8 @@ Route::middleware(['auth', 'admin', 'personal-security.recovery', 'admin.prefere
         ->name('backup.operations.status');
     Route::get('/backup/operations/{operation}/download', [AdminSettingsFeatureController::class, 'downloadBackupOperation'])
         ->name('backup.operations.download');
+    Route::get('/backup/verified/{credential}/download', [AdminSettingsFeatureController::class, 'downloadVerifiedBackup'])
+        ->whereUuid('credential')->name('backup.verified.download');
     Route::get('/backup/archives/{year}/download', [AdminSettingsFeatureController::class, 'downloadAnnualBackup'])
         ->whereNumber('year')->name('backup.archive.download');
     Route::post('/backup/archives/{year}/restore', [AdminSettingsFeatureController::class, 'restoreAnnualBackup'])

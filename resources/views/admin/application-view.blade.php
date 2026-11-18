@@ -430,7 +430,7 @@
 </div>
 
 <div class="bottom-buttons">
-    <button class="back-btn" onclick="window.history.back()"><x-icon class="fas fa-arrow-left" /> Back</button>
+    <a class="back-btn" href="{{ route('admin.applications.show', $application) }}"><x-icon class="fas fa-arrow-left" /> Back to Application</a>
     <button class="print-btn" onclick="window.print()"><x-icon class="fas fa-print" /> Print</button>
 </div>
 

@@ -507,9 +507,12 @@
             ]);
             $supportSectionActive = request()->routeIs('contact-peso.*');
             $appointmentsSectionActive = request()->routeIs('applicant.appointments.*');
-            $recentNotificationsActive = request()->routeIs('applicant.notifications.recent');
-            $previousNotificationsActive = request()->routeIs('applicant.notifications.previous');
-            $notificationsSectionActive = $appointmentsSectionActive || $recentNotificationsActive || $previousNotificationsActive;
+            $notificationsOverviewActive = request()->routeIs([
+                'applicant.notifications.overview',
+                'applicant.notifications.recent',
+                'applicant.notifications.previous',
+            ]);
+            $notificationsSectionActive = $appointmentsSectionActive || $notificationsOverviewActive;
         @endphp
         <div class="nav-group {{ $applicationSectionActive ? 'is-open' : '' }}" data-nav-group>
             <button
@@ -523,15 +526,9 @@
                 <x-icon class="fa-solid fa-chevron-down nav-chevron" aria-hidden="true" />
             </button>
             <div class="nav-submenu" id="applicant-application-submenu">
-                <a href="{{ route('applications.myApplication') }}" class="nav-link {{ request()->routeIs('applications.myApplication') ? 'active' : '' }}">
-                    <x-icon class="fa-solid fa-file-lines" /> {{ __('Application Status') }}
+                <a href="{{ route('applications.myApplication') }}" class="nav-link {{ request()->routeIs(['applications.myApplication', 'applications.create', 'applications.store', 'applications.edit']) ? 'active' : '' }}">
+                    <x-icon class="fa-solid fa-file-lines" /> {{ __('Application Status / Apply Now') }}
                 </a>
-                @if(!$application || $application->status === 'denied')
-                    <a href="{{ $application ? route('applications.edit') : route('applications.create') }}" class="nav-link {{ request()->routeIs(['applications.create', 'applications.store', 'applications.edit']) ? 'active' : '' }}">
-                        <x-icon class="fa-solid {{ $application ? 'fa-rotate-right' : 'fa-file-circle-plus' }}" />
-                        {{ __($application ? 'Reapply' : 'Apply Now') }}
-                    </a>
-                @endif
                 <a href="{{ route('applicant.requirements') }}" class="nav-link {{ request()->routeIs('applicant.requirements') ? 'active' : '' }}">
                     <x-icon class="fa-solid fa-folder-open" /> {{ __('Additional Requirements') }}
                 </a>
@@ -555,11 +552,8 @@
                 <a href="{{ route('applicant.appointments.index') }}" class="nav-link {{ $appointmentsSectionActive ? 'active' : '' }}">
                     <x-icon class="fa-solid fa-calendar-check" /> {{ __('Appointments') }}
                 </a>
-                <a href="{{ route('applicant.notifications.recent') }}" class="nav-link {{ $recentNotificationsActive ? 'active' : '' }}">
-                    <x-icon class="fa-solid fa-bullhorn" /> {{ __('Recent Notifications') }}
-                </a>
-                <a href="{{ route('applicant.notifications.previous') }}" class="nav-link {{ $previousNotificationsActive ? 'active' : '' }}">
-                    <x-icon class="fa-solid fa-bell" /> {{ __('Previous Notifications') }}
+                <a href="{{ route('applicant.notifications.overview') }}" class="nav-link {{ $notificationsOverviewActive ? 'active' : '' }}">
+                    <x-icon class="fa-solid fa-bell" /> {{ __('Notification Overview') }}
                 </a>
             </div>
         </div>

@@ -148,6 +148,76 @@ class ApplicationTest extends TestCase
             ], false);
     }
 
+    public function test_unified_application_page_shows_the_form_then_tracking_after_submission(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee('name="birth_certificate"', false)
+            ->assertSee(route('applications.store'), false);
+
+        $this->post(route('applications.store'), $this->validApplicationPayload())
+            ->assertRedirect(route('applications.myApplication'));
+
+        $this->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee('Application Status')
+            ->assertSee('Pending')
+            ->assertDontSee(route('applications.store'), false);
+    }
+
+    public function test_decline_requires_a_reason_and_displays_document_feedback_beside_the_upload(): void
+    {
+        Storage::fake('local');
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create();
+        $documentPath = 'applications/birth_certificates/unclear.pdf';
+        Storage::disk('local')->put($documentPath, 'document');
+        $application = Application::factory()->for($applicant)->create([
+            'birth_certificate' => $documentPath,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.applications.deny', $application))
+            ->assertSessionHasErrors('admin_comment');
+
+        $reason = 'The uploaded birth certificate is cropped and incomplete.';
+        $this->post(route('admin.applications.deny', $application), [
+            'admin_comment' => $reason,
+            'admin_comment_document' => 'birth_certificate',
+        ])->assertSessionHas('success');
+
+        $this->actingAs($applicant)
+            ->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee('Declined')
+            ->assertSee('Birth Certificate')
+            ->assertSee($reason)
+            ->assertSee('Update and resubmit application');
+    }
+
+    public function test_admin_can_mark_pending_application_under_review_and_applicant_sees_it(): void
+    {
+        Queue::fake();
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create();
+        $application = Application::factory()->for($applicant)->create(['status' => 'pending']);
+
+        $this->actingAs($admin)
+            ->post(route('admin.applications.review', $application))
+            ->assertSessionHas('success');
+
+        $this->assertNotNull($application->fresh()->review_started_at);
+        $this->actingAs($applicant)
+            ->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee('Under Review');
+    }
+
     public function test_application_form_uses_birth_certificate_field_name_and_matching_labels(): void
     {
             $this->actingAs(User::factory()->create())
@@ -566,7 +636,7 @@ class ApplicationTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_applicant_page_hides_status_but_keeps_denied_application_feedback_and_reapply(): void
+    public function test_applicant_tracking_shows_decline_feedback_and_reapply_action(): void
     {
         $user = User::factory()->create();
         Application::factory()->for($user)->create([
@@ -577,11 +647,10 @@ class ApplicationTest extends TestCase
         $this->actingAs($user)
             ->get(route('applications.myApplication'))
             ->assertOk()
-            ->assertDontSee('Current Status')
-            ->assertDontSee('Your application was Denied')
+            ->assertSee('Declined')
             ->assertSee('Application Status')
             ->assertSee('Please provide a clearer certificate.')
-            ->assertSee('Reapply');
+            ->assertSee('Update and resubmit application');
     }
 
     public function test_approved_applicant_sees_the_proposed_applicant_next_steps(): void
@@ -606,7 +675,6 @@ class ApplicationTest extends TestCase
 
         $this->get(route('applications.myApplication'))
             ->assertOk()
-            ->assertDontSee('Current Status')
             ->assertSee('Application Status')
             ->assertSee('FAQs')
             ->assertSee('Need Help &amp; Support', false)
@@ -626,9 +694,14 @@ class ApplicationTest extends TestCase
         Application::factory()->for($user)->create(['status' => 'approved']);
 
         $this->get(route('updates'))
-            ->assertRedirect(route('applicant.notifications.recent'));
+            ->assertRedirect(route('applicant.notifications.overview'));
 
         $this->get(route('applicant.notifications.recent'))
+            ->assertRedirect(route('applicant.notifications.overview'));
+        $this->get(route('applicant.notifications.previous'))
+            ->assertRedirect(route('applicant.notifications.overview'));
+
+        $this->get(route('applicant.notifications.overview'))
             ->assertOk()
             ->assertSee('Application Status')
             ->assertDontSee('href="'.route('updates').'"', false)
@@ -779,7 +852,9 @@ class ApplicationTest extends TestCase
             ->assertRedirect();
         $this->assertEquals('approved', $application->fresh()->status);
 
-        $this->post(route('admin.applications.deny', $application))
+        $this->post(route('admin.applications.deny', $application), [
+            'admin_comment' => 'The application does not meet the eligibility requirements.',
+        ])
             ->assertRedirect();
         $this->assertEquals('denied', $application->fresh()->status);
     }

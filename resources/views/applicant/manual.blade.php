@@ -167,22 +167,21 @@
 
                 <section class="guide-card">
                     <h2><x-icon class="fa-solid fa-bell" aria-hidden="true" />{{ __('Notifications and Appointments') }}</h2>
-                    <p>{{ __('The Notifications menu includes appointments, recent updates, and previous notifications. Recent Notifications highlights new or recent announcements and application updates. Previous Notifications lets you search and review older items. Open Appointments to see published schedules and their details.') }}</p>
+                    <p>{{ __('Notification Overview brings current and previous notifications together, newest first. Use the filters and search to review announcements, application updates, and older items. Open Appointments to see published schedules and their details.') }}</p>
                     <ul>
                         <li>{{ __('Read appointment dates, times, and locations carefully, and follow any instructions provided.') }}</li>
                         <li>{{ __('Use notification links to return to the related application or update when available.') }}</li>
                         <li>{{ __('Announcements may include information that applies to all applicants.') }}</li>
                     </ul>
                     <div class="guide-links">
-                        <a class="guide-link" href="{{ route('applicant.notifications.recent') }}">{{ __('Recent Notifications') }}</a>
-                        <a class="guide-link" href="{{ route('applicant.notifications.previous') }}">{{ __('Previous Notifications') }}</a>
+                        <a class="guide-link" href="{{ route('applicant.notifications.overview') }}">{{ __('Notification Overview') }}</a>
                         <a class="guide-link" href="{{ route('applicant.appointments.index') }}">{{ __('Appointments') }}</a>
                     </div>
                 </section>
 
                 <section class="guide-card">
                     <h2><x-icon class="fa-solid fa-circle-question" aria-hidden="true" />{{ __('Help and Contact') }}</h2>
-                    <p>{{ __('Open FAQs in the Need Help & Support menu for answers to common questions. Use Contact Us to send a support request to PESO if you need help that is not covered by the FAQs.') }}</p>
+                    <p>{{ __('Open FAQs in the Need Help & Support menu for answers to common questions. Use Contact Us to find contact channels and reach PESO directly if you need help that is not covered by the FAQs.') }}</p>
                     <div class="guide-links">
                         <button class="guide-link" type="button" data-open-portal-help>{{ __('Open FAQs') }}</button>
                         <a class="guide-link" href="{{ route('contact-peso.index') }}">{{ __('Contact PESO') }}</a>

@@ -333,7 +333,9 @@ class ApplicantAuditTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->post(route('admin.applications.deny', $application))
+            ->post(route('admin.applications.deny', $application), [
+                'admin_comment' => 'The application does not meet the eligibility requirements.',
+            ])
             ->assertRedirect();
 
         $event = AuditLog::query()

@@ -53,7 +53,7 @@
         <div class="card" style="margin-bottom:20px;">
             <div class="card-header">
                 <h2><x-icon class="fa-solid fa-id-card" /> Personal Information</h2>
-                <span class="badge badge-{{ $application->status }}">{{ ucfirst($application->status) }}</span>
+                <span class="badge badge-{{ $application->statusBadgeClass() }}">{{ $application->statusLabel() }}</span>
             </div>
             <div class="detail-grid">
                 <div class="detail-item"><div class="detail-label">Full Name</div><div class="detail-value">{{ $application->full_name }}</div></div>
@@ -211,6 +211,14 @@
         <div class="card" style="margin-bottom:16px;">
             <div class="card-header"><h2><x-icon class="fa-solid fa-gavel" /> Decision</h2></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+                @if(!$application->review_started_at)
+                    <form method="POST" action="{{ route('admin.applications.review', $application) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline" style="width:100%;">
+                            <x-icon class="fa-solid fa-magnifying-glass" aria-hidden="true" /> {{ __('Mark as Under Review') }}
+                        </button>
+                    </form>
+                @endif
                 @if($approvalCapacity['limit'])
                     <div class="alert {{ $approvalCapacity['full'] ? 'alert-danger' : 'alert-info' }}" role="status">
                         <x-icon class="fa-solid {{ $approvalCapacity['full'] ? 'fa-lock' : 'fa-chart-simple' }}" aria-hidden="true" />
@@ -237,8 +245,33 @@
                 @endif
                 <form method="POST" action="{{ route('admin.applications.deny', $application) }}">
                     @csrf
+                    <label for="decline_reason" style="display:block;margin-bottom:6px;font-size:.82rem;font-weight:600;">{{ __('Specific reason for declining') }}</label>
+                    <textarea id="decline_reason" name="admin_comment" rows="3" maxlength="2000" required
+                        placeholder="{{ __('Explain why this application is being declined.') }}"
+                        style="width:100%;padding:10px;border:1px solid var(--border);border-radius:7px;font:inherit;resize:vertical;">{{ old('admin_comment') }}</textarea>
+                    @error('admin_comment')
+                        <div style="color:var(--danger);font-size:.78rem;margin-top:4px;">{{ $message }}</div>
+                    @enderror
+                    <label for="decline_document" style="display:block;margin:10px 0 6px;font-size:.82rem;font-weight:600;">{{ __('Related uploaded document (optional)') }}</label>
+                    <select id="decline_document" name="admin_comment_document" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:7px;">
+                        <option value="">{{ __('Not document-specific') }}</option>
+                        @foreach([
+                            'birth_certificate' => 'Birth Certificate',
+                            'certificate_enrollment' => 'Certificate of Enrollment',
+                            'certificate_grade' => 'Certificate of Grades',
+                            'application_letter' => 'Application Letter',
+                            'indigency' => 'Certificate of Indigency',
+                        ] as $documentKey => $documentLabel)
+                            @if(filled($application->{$documentKey}))
+                                <option value="{{ $documentKey }}" @selected(old('admin_comment_document') === $documentKey)>{{ __($documentLabel) }}</option>
+                            @endif
+                        @endforeach
+                    </select>
+                    @error('admin_comment_document')
+                        <div style="color:var(--danger);font-size:.78rem;margin-top:4px;">{{ $message }}</div>
+                    @enderror
                     <button type="submit" class="btn btn-danger" style="width:100%;" onclick="return confirm('Deny this application?')">
-                        <x-icon class="fa-solid fa-circle-xmark" /> Deny Application
+                        <x-icon class="fa-solid fa-circle-xmark" /> {{ __('Decline Application') }}
                     </button>
                 </form>
             </div>

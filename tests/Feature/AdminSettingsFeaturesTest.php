@@ -52,7 +52,11 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertSee('Admin Guide')
             ->assertSee('All administrators')
             ->assertSee('No administrator audit activity matches the selected filters.')
-            ->assertSee('Create and Download Backup')
+            ->assertSee('Manual Backup')
+            ->assertSee('Create Backup')
+            ->assertSee('Automatic Backup')
+            ->assertSee('Backup History')
+            ->assertSee('Restore from Backup')
             ->assertDontSee('admin-settings-submenu')
             ->assertSee('href="'.route('admin.preferences').'"', false)
             ->assertSee('href="#manual"', false)
@@ -118,17 +122,13 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertSee('Suriin ang mga naisumiteng aplikasyon')
             ->assertSee('Buksan ang Pamamahala')
             ->assertSee('Taunang iskedyul ng backup')
-            ->assertSee('Gumagawa ng kumpletong taunang backup')
             ->assertSee('Pangalagaan ang datos ng aplikante')
-            ->assertSee('Mag-download ng Backup')
-            ->assertSee('Kasama sa archive ang lahat ng talahanayan ng database')
-            ->assertSee('Ibalik / Isama ang Backup')
-            ->assertSee('Hindi kailanman isinasagawa ang SQL file')
             ->assertSee('Mga Tala ng Audit ng Admin')
             ->assertSee('Saklaw ng Petsa')
             ->assertSee('Na-update ang Mga Kagustuhan ng Admin')
-            ->assertSee('I-type ang MERGE upang kumpirmahin')
-            ->assertSee('Gumagawa ang system ng kumpletong pribadong archive');
+            ->assertSee('Backup History')
+            ->assertSee('Restore from Backup')
+            ->assertSee('This existing restore adds missing records and files only', false);
 
         $this->get(route('admin.dashboard'))
             ->assertOk()
@@ -136,6 +136,8 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertSee('data-admin-theme="dark"', false)
             ->assertSee('data-admin-sidebar="collapsed"', false)
             ->assertSee('data-admin-font-size="large"', false)
+            ->assertSee('Automatic Backup')
+            ->assertSee('Unverified')
             ->assertSee('Mga Aplikasyon')
             ->assertSee('Mga Setting');
     }
@@ -333,13 +335,25 @@ class AdminSettingsFeaturesTest extends TestCase
         $this->assertNotNull($event);
         $this->assertSame('59 23 31 12 *', $event->expression);
         $this->assertSame('spes-annual-backup', $event->description);
-        $this->assertSame(config('app.timezone'), $event->timezone);
+        $this->assertSame(config('backup.timezone'), $event->timezone);
+    }
+
+    public function test_automatic_backup_dispatcher_runs_every_minute_in_backup_timezone(): void
+    {
+        $event = collect(Schedule::events())->first(
+            fn ($scheduledEvent): bool => $scheduledEvent->description === 'spes-automatic-backup',
+        );
+
+        $this->assertNotNull($event);
+        $this->assertSame('* * * * *', $event->expression);
+        $this->assertSame(config('backup.timezone'), $event->timezone);
     }
 
     public function test_admin_can_download_and_merge_an_annual_backup_archive(): void
     {
         Storage::fake('local');
         Storage::fake('public');
+        config()->set('backup.execution_mode', 'queue');
         Queue::fake();
         $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create([ 'name' => 'Annual Backup Applicant']);
@@ -351,7 +365,7 @@ class AdminSettingsFeaturesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.preferences'))
             ->assertOk()
-            ->assertSee('Automatic Annual Archives')
+            ->assertSee('Backup History')
             ->assertSee((string) $year)
             ->assertSee(route('admin.backup.archive.download', $year), false);
 
@@ -362,7 +376,6 @@ class AdminSettingsFeaturesTest extends TestCase
         $this->post(route('admin.backup.archive.restore', $year), [
             '_idempotency_token' => str_repeat('d', 40),
             'current_password' => 'password',
-            'confirmation' => "RESTORE {$year}",
         ])->assertRedirect(route('admin.preferences').'#backup')
             ->assertSessionHas('success');
 
@@ -403,6 +416,17 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertSame('Console Recovered Applicant', User::findOrFail($applicantId)->name);
+        $this->assertDatabaseHas('admin_backup_operations', [
+            'action' => 'restore',
+            'archive_type' => 'annual',
+            'status' => 'completed',
+        ]);
+        $this->assertGreaterThan(
+            0,
+            DB::table('backup_archive_credentials')
+                ->where('archive_path', 'like', 'backups/recovery-safety/%')
+                ->count(),
+        );
         $this->assertDatabaseHas('audit_logs', [
             'action' => AuditAction::DATABASE_BACKUP_RESTORED,
             'actor_role' => 'system',
@@ -594,25 +618,27 @@ class AdminSettingsFeaturesTest extends TestCase
         }
     }
 
-    public function test_admin_restore_requires_password_and_typed_confirmation(): void
+    public function test_admin_restore_requires_password_and_uses_a_confirmation_dialog(): void
     {
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->get(route('admin.preferences'))
             ->assertOk()
-            ->assertSee('Restore / Merge a Backup')
+            ->assertSee('Restore from Backup')
             ->assertSee('name="current_password"', false)
-            ->assertSee('name="confirmation"', false);
+            ->assertSee('This existing restore adds missing records and files only', false)
+            ->assertSee('onsubmit="return confirm(', false);
 
         $this->post(route('admin.backup.restore'), [])
-            ->assertSessionHasErrors(['backup', 'current_password', 'confirmation']);
+            ->assertSessionHasErrors(['backup', 'current_password']);
     }
 
     public function test_admin_can_restore_a_verified_backup_from_the_settings_form(): void
     {
         Storage::fake('local');
         Storage::fake('public');
+        config()->set('backup.execution_mode', 'queue');
         Queue::fake();
         $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create([ 'name' => 'Restored Through Form']);
@@ -626,7 +652,6 @@ class AdminSettingsFeaturesTest extends TestCase
                     '_idempotency_token' => str_repeat('b', 40),
                     'backup' => new UploadedFile($archivePath, 'spes-backup.zip', 'application/zip', UPLOAD_ERR_OK, true),
                     'current_password' => 'password',
-                    'confirmation' => 'MERGE',
                 ])
                 ->assertRedirect(route('admin.preferences').'#backup')
                 ->assertSessionHas('success');
@@ -642,6 +667,11 @@ class AdminSettingsFeaturesTest extends TestCase
 
             $this->assertSame('Restored Through Form', User::findOrFail($applicantId)->name);
             $this->assertSame('completed', $operation->fresh()->status);
+            $safetyCredential = DB::table('backup_archive_credentials')
+                ->where('archive_path', 'like', 'backups/recovery-safety/%')
+                ->first();
+            $this->assertNotNull($safetyCredential);
+            $this->assertNotNull(app(AdminBackupService::class)->verifiedArchiveByCredential($safetyCredential->id));
             $this->assertDatabaseHas('audit_logs', [
                 'user_id' => $admin->id,
                 'action' => AuditAction::DATABASE_BACKUP_RESTORED,
@@ -652,10 +682,39 @@ class AdminSettingsFeaturesTest extends TestCase
         }
     }
 
+    public function test_invalid_restore_archive_fails_before_safety_backup_or_data_changes(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create(['name' => 'Keep Existing Applicant']);
+        $operationId = (string) Str::uuid();
+        $archivePath = "backups/operations/uploads/{$operationId}.zip";
+        Storage::disk('local')->put($archivePath, 'not a valid zip');
+        $operation = AdminBackupOperation::query()->create([
+            'id' => $operationId,
+            'admin_id' => $admin->id,
+            'action' => 'restore',
+            'status' => 'queued',
+            'archive_path' => $archivePath,
+        ]);
+
+        (new ProcessAdminBackupOperation($operation->id))->handle(
+            app(AdminBackupService::class),
+            app(AuditLogger::class),
+        );
+
+        $this->assertSame('failed', $operation->fresh()->status);
+        $this->assertSame('Keep Existing Applicant', $applicant->fresh()->name);
+        $this->assertDatabaseCount('backup_archive_credentials', 0);
+        Storage::disk('local')->assertMissing("backups/recovery-safety/{$operationId}.zip");
+    }
+
     public function test_admin_backup_download_is_audited(): void
     {
         Storage::fake('local');
         Storage::fake('public');
+        config()->set('backup.execution_mode', 'queue');
         Queue::fake();
         $admin = User::factory()->admin()->create();
 
@@ -684,6 +743,11 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertOk()
             ->assertHeader('content-type', 'application/zip');
 
+        $this->get(route('admin.preferences'))
+            ->assertOk()
+            ->assertSee($operation->fresh()->result['filename'])
+            ->assertDontSee('backups/operations/', false);
+
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $admin->id,
             'action' => AuditAction::DATABASE_BACKUP_GENERATED,
@@ -704,6 +768,7 @@ class AdminSettingsFeaturesTest extends TestCase
     public function test_backup_retention_deletes_expired_archives_and_keeps_the_newest_verified_backup(): void
     {
         Storage::fake('local');
+        SystemSetting::current()->update(['backup_retention_days' => 1]);
         config()->set('backup.retention.daily', 1);
         config()->set('backup.retention.weekly', 0);
         config()->set('backup.retention.monthly', 0);
@@ -743,6 +808,20 @@ class AdminSettingsFeaturesTest extends TestCase
         Storage::disk('local')->assertMissing($expiredPath);
         Storage::disk('local')->assertExists($newestPath);
         $this->assertDatabaseHas('backup_cleanup_runs', ['examined' => 2, 'deleted' => 1]);
+
+        $safetyPath = 'backups/recovery-safety/restore-safety.zip';
+        Storage::disk('local')->put($safetyPath, 'preserved safety archive');
+        DB::table('backup_archive_credentials')->insert([
+            'id' => (string) Str::uuid(),
+            'credential_hash' => str_repeat('c', 64),
+            'archive_type' => 'manual',
+            'archive_path' => $safetyPath,
+            'created_at' => now()->subYear(),
+            'updated_at' => now()->subYear(),
+            'verified_at' => now()->subYear(),
+        ]);
+        app(AdminBackupService::class)->cleanupExpiredBackups();
+        Storage::disk('local')->assertExists($safetyPath);
     }
 
     public function test_daily_backup_command_queues_one_full_backup_operation(): void
@@ -760,6 +839,166 @@ class AdminSettingsFeaturesTest extends TestCase
         Artisan::call('backup:daily');
 
         $this->assertSame(1, AdminBackupOperation::query()->count());
+    }
+
+    public function test_one_click_manual_backup_runs_without_a_queue_worker_and_is_downloadable(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        config()->set('backup.execution_mode', 'sync');
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.backup.download'), ['_idempotency_token' => str_repeat('m', 40)])
+            ->assertRedirect(route('admin.preferences').'#backup')
+            ->assertSessionHas('success', 'Backup created and verified. Download it from Backup History.');
+
+        $operation = AdminBackupOperation::query()->sole();
+        $this->assertSame('completed', $operation->status);
+        $this->assertNotNull($operation->verified_at);
+        $this->assertNotNull($operation->file_size_bytes);
+        $this->assertTrue(Storage::disk('local')->exists($operation->archive_path));
+        $this->get(route('admin.backup.operations.download', $operation))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/zip');
+    }
+
+    public function test_saved_daily_schedule_creates_a_verified_archive_only_once_without_a_worker(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        config()->set('backup.execution_mode', 'sync');
+        SystemSetting::current()->update([
+            'backup_enabled' => true,
+            'backup_frequency' => 'daily',
+            'backup_time' => '02:00',
+        ]);
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-17 02:01:00', 'Asia/Manila'));
+
+        Artisan::call('backup:run-if-due');
+        Artisan::call('backup:run-if-due');
+
+        $operation = AdminBackupOperation::query()->sole();
+        $this->assertSame('daily', $operation->archive_type);
+        $this->assertSame('completed', $operation->status);
+        $this->assertNotNull($operation->verified_at);
+        $this->assertStringContainsString('spes-daily-backup-20261117.zip', $operation->archive_path);
+    }
+
+    public function test_disabled_automatic_backup_has_no_next_run_and_does_not_create_archives(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        SystemSetting::current()->update(['backup_enabled' => false]);
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-17 03:00:00', 'Asia/Manila'));
+
+        Artisan::call('backup:run-if-due');
+
+        $this->assertSame(0, AdminBackupOperation::query()->count());
+        $this->assertNull(app(AdminBackupService::class)->automaticBackupStatus()['next_daily_at']);
+    }
+
+    public function test_synchronous_backup_failure_is_recorded_and_reported_to_the_admin(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        config()->set('backup.execution_mode', 'sync');
+        config()->set('backup.minimum_free_bytes', PHP_INT_MAX);
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.backup.download'), ['_idempotency_token' => str_repeat('f', 40)])
+            ->assertRedirect(route('admin.preferences').'#backup')
+            ->assertSessionHas('error');
+
+        $operation = AdminBackupOperation::query()->sole();
+        $this->assertSame('failed', $operation->status);
+        $this->assertNull($operation->verified_at);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $admin->id,
+            'action' => AuditAction::DATABASE_BACKUP_FAILED,
+        ]);
+    }
+
+    public function test_automatic_backup_settings_save_and_weekly_schedule_creates_only_one_verified_archive(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        config()->set('backup.execution_mode', 'sync');
+        $admin = User::factory()->admin()->create();
+
+        $this->assertTrue(SystemSetting::current()->backup_enabled);
+        $this->assertSame('daily', SystemSetting::current()->backup_frequency);
+        $this->assertSame('02:00', SystemSetting::current()->backup_time);
+        $this->assertSame(7, SystemSetting::current()->backup_retention_days);
+
+        $this->actingAs($admin)
+            ->put(route('admin.backup.settings.update'), [
+                'backup_enabled' => '1',
+                'backup_frequency' => 'weekly',
+                'backup_time' => '02:00',
+                'backup_retention_days' => '14',
+            ])
+            ->assertRedirect(route('admin.preferences').'#backup');
+
+        $this->assertDatabaseHas('system_settings', [
+            'backup_enabled' => 1,
+            'backup_frequency' => 'weekly',
+            'backup_time' => '02:00',
+            'backup_retention_days' => 14,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $admin->id,
+            'action' => AuditAction::BACKUP_SETTINGS_UPDATED,
+        ]);
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-16 01:59:00', 'Asia/Manila'));
+        Artisan::call('backup:run-if-due');
+        $this->assertSame(0, AdminBackupOperation::query()->count());
+
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-16 02:01:00', 'Asia/Manila'));
+        Artisan::call('backup:run-if-due');
+        $operation = AdminBackupOperation::query()->sole();
+        $this->assertSame('weekly', $operation->archive_type);
+        $this->assertSame('completed', $operation->status);
+        $this->assertNotNull($operation->verified_at);
+        $this->assertStringContainsString('spes-weekly-backup-2026-W47.zip', $operation->archive_path);
+        $this->assertNotNull(app(AdminBackupService::class)->verifiedArchiveByCredential(
+            DB::table('backup_archive_credentials')->where('archive_type', 'weekly')->value('id'),
+        ));
+
+        Artisan::call('backup:run-if-due');
+        $this->assertSame(1, AdminBackupOperation::query()->count());
+    }
+
+    public function test_daily_backup_job_creates_and_verifies_a_downloadable_archive(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        Queue::fake();
+        $admin = User::factory()->admin()->create();
+
+        Artisan::call('backup:daily');
+        $operation = AdminBackupOperation::query()->sole();
+
+        (new ProcessAdminBackupOperation($operation->id))->handle(
+            app(AdminBackupService::class),
+            app(AuditLogger::class),
+        );
+
+        $operation->refresh();
+        $this->assertSame('completed', $operation->status);
+        $this->assertNotNull($operation->verified_at);
+        $credential = DB::table('backup_archive_credentials')
+            ->where('archive_type', 'daily')
+            ->whereNotNull('archive_path')
+            ->first();
+        $this->assertNotNull($credential);
+        $this->assertNotNull(app(AdminBackupService::class)->verifiedArchiveByCredential($credential->id));
+        $this->actingAs($admin)
+            ->get(route('admin.backup.verified.download', $credential->id))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/zip');
     }
 
     public function test_overlapping_recovery_is_rejected_and_audited_without_retrying(): void
@@ -821,5 +1060,6 @@ class AdminSettingsFeaturesTest extends TestCase
 
         $this->get(route('admin.security'))->assertForbidden();
         $this->get(route('admin.backup.index'))->assertForbidden();
+        $this->get(route('admin.backup.verified.download', (string) Str::uuid()))->assertForbidden();
     }
 }
