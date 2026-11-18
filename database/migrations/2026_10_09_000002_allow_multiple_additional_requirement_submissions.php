@@ -21,11 +21,6 @@ return new class extends Migration
             fn (array $index): bool => $index['unique']
                 && $index['columns'] === ['application_id', 'additional_requirement_id'],
         ));
-        foreach ($previousUniqueIndexes as $index) {
-            Schema::table('application_additional_requirements', function (Blueprint $table) use ($index): void {
-                $table->dropUnique($index['name']);
-            });
-        }
 
         $hasFileNumberUniqueIndex = collect($indexes)->contains(
             fn (array $index): bool => $index['unique']
@@ -37,6 +32,12 @@ return new class extends Migration
                     ['application_id', 'additional_requirement_id', 'file_number'],
                     'application_requirement_file_unique',
                 );
+            });
+        }
+
+        foreach ($previousUniqueIndexes as $index) {
+            Schema::table('application_additional_requirements', function (Blueprint $table) use ($index): void {
+                $table->dropUnique($index['name']);
             });
         }
     }
@@ -54,12 +55,18 @@ return new class extends Migration
         }
 
         Schema::table('application_additional_requirements', function (Blueprint $table): void {
-            $table->dropUnique('application_requirement_file_unique');
-            $table->dropColumn('file_number');
             $table->unique(
                 ['application_id', 'additional_requirement_id'],
                 'application_requirement_unique',
             );
+        });
+
+        Schema::table('application_additional_requirements', function (Blueprint $table): void {
+            $table->dropUnique('application_requirement_file_unique');
+        });
+
+        Schema::table('application_additional_requirements', function (Blueprint $table): void {
+            $table->dropColumn('file_number');
         });
     }
 };
