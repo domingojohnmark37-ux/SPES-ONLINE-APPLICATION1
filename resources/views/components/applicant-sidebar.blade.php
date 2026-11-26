@@ -22,6 +22,8 @@
 
 @once
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/portal-refinement.css') }}?v={{ filemtime(public_path('css/portal-refinement.css')) }}">
+    @vite('resources/js/alerts.js')
 @endonce
 
 <style>
@@ -137,7 +139,7 @@
         width:var(--sidebar-w, 260px);
         height:100vh;
         height:100dvh;
-        overflow-y:auto;
+        overflow:hidden;
         overflow-x:hidden;
         background:linear-gradient(180deg,#5E0A0F 0%,#5E0A0F 58%,#3c080c 100%);
         transition:transform .24s ease;
@@ -172,8 +174,8 @@
         flex:0 0 auto;
         align-items:center;
         gap:12px;
-        min-height:112px;
-        padding:16px 14px;
+        min-height:88px;
+        padding:12px 14px;
         border-bottom:1px solid rgba(255,255,255,.18);
         color:#fff;
     }
@@ -197,13 +199,13 @@
     .applicant-sidebar .sidebar-backdrop { display:none; }
     .applicant-sidebar .sidebar-brand > img {
         display:block;
-        flex:0 0 68px;
-        width:68px !important;
-        min-width:68px;
-        max-width:68px;
-        height:68px !important;
-        min-height:68px;
-        max-height:68px;
+        flex:0 0 54px;
+        width:54px !important;
+        min-width:54px;
+        max-width:54px;
+        height:54px !important;
+        min-height:54px;
+        max-height:54px;
         border:2px solid rgba(255,255,255,.92);
         border-radius:50%;
         object-fit:cover;
@@ -214,13 +216,13 @@
     .applicant-sidebar .sidebar-brand span {
         display:block;
         color:#fff;
-        font-size:1.5rem;
+        font-size:1.28rem;
         font-weight:700;
         line-height:1.2;
     }
     .applicant-sidebar .sidebar-brand .sidebar-brand-subtitle {
         margin-top:2px;
-        font-size:1rem;
+        font-size:.88rem;
         font-weight:700;
         line-height:1.2;
     }
@@ -228,42 +230,55 @@
         display:block;
         margin-top:3px;
         color:rgba(255,255,255,.86);
-        font-size:.65rem;
+        font-size:.62rem;
         font-weight:400;
         line-height:1.3;
     }
     .applicant-sidebar .sidebar-nav {
         display:flex;
         flex-direction:column;
-        flex:1;
-        gap:5px;
-        padding:14px 10px;
+        flex:1 1 auto;
+        min-height:0;
+        gap:3px;
+        padding:12px 10px;
+        overflow-y:auto;
+        overscroll-behavior:contain;
     }
     .applicant-sidebar .nav-link {
         display:flex;
         align-items:center;
-        gap:12px;
+        gap:10px;
         width:100%;
-        min-height:48px;
+        min-height:42px;
         margin:0;
-        padding:12px 12px;
-        border-radius:11px;
+        padding:10px 11px;
+        border-radius:9px;
         color:rgba(255,255,255,.96);
-        font-size:.94rem;
+        font-size:.9rem;
         font-weight:500;
         text-align:left;
         text-decoration:none;
         transition:background .18s, color .18s, transform .08s, box-shadow .18s;
     }
-    .applicant-sidebar .nav-link svg.icon { width:22px; flex:0 0 22px; color:#fff4d6; font-size:1.12rem; text-align:center; }
-    .applicant-sidebar .nav-link:hover { background:rgba(255,255,255,.08); color:#fff; }
+    .applicant-sidebar .nav-link svg.icon { width:20px; flex:0 0 20px; color:#fff4d6; font-size:1.02rem; text-align:center; }
+    .applicant-sidebar .nav-link:hover { background:rgba(255,255,255,.1); color:#fff; }
+    .applicant-sidebar :is(.nav-link, .sidebar-profile-link, .btn-logout, .sidebar-close):focus-visible {
+        outline:2px solid #FFD23F;
+        outline-offset:2px;
+    }
     .applicant-sidebar .nav-link.active {
         background:linear-gradient(110deg,#F5B800,#FFD23F);
         color:#4A0B10;
         font-weight:700;
-        box-shadow:0 4px 12px rgba(0,0,0,.2);
+        box-shadow:0 3px 9px rgba(0,0,0,.18);
     }
     .applicant-sidebar .nav-link.active svg.icon { color:#4A0B10; }
+    .applicant-sidebar .nav-group-toggle.active {
+        background:rgba(245,184,0,.16);
+        color:#fff;
+        box-shadow:inset 3px 0 #F5B800;
+    }
+    .applicant-sidebar .nav-group-toggle.active svg.icon { color:#FFD23F; }
     .applicant-sidebar button.nav-link { border:0; background:transparent; cursor:pointer; font-family:inherit; }
     .applicant-sidebar .nav-group { display:flex; flex-direction:column; }
     .applicant-sidebar .nav-group-toggle { justify-content:flex-start; }
@@ -271,9 +286,22 @@
     .applicant-sidebar .nav-group-toggle[aria-expanded="true"] .nav-chevron { transform:rotate(180deg); }
     .applicant-sidebar .nav-group-toggle.has-count .nav-count { margin-left:auto; }
     .applicant-sidebar .nav-group-toggle.has-count .nav-chevron { margin-left:0; }
-    .applicant-sidebar .nav-submenu { display:none; flex-direction:column; gap:3px; padding:4px 0 4px 14px; }
-    .applicant-sidebar .nav-group.is-open .nav-submenu { display:flex; }
-    .applicant-sidebar .nav-submenu .nav-link { min-height:40px; padding:9px 10px; font-size:.86rem; }
+    .applicant-sidebar .nav-submenu {
+        display:flex;
+        max-height:0;
+        flex-direction:column;
+        gap:3px;
+        overflow:hidden;
+        padding:0 0 0 11px;
+        border-left:1px solid rgba(255,255,255,.24);
+        margin-left:10px;
+        opacity:0;
+        visibility:hidden;
+        transform:translateY(-3px);
+        transition:max-height .2s ease, padding .2s ease, opacity .16s ease, transform .16s ease, visibility .16s;
+    }
+    .applicant-sidebar .nav-group.is-open .nav-submenu { max-height:24rem; padding-top:4px; padding-bottom:4px; opacity:1; visibility:visible; transform:none; }
+    .applicant-sidebar .nav-submenu .nav-link { min-height:36px; padding:8px 9px; font-size:.84rem; }
     .applicant-sidebar .nav-count {
         min-width:18px;
         margin-left:auto;
@@ -289,7 +317,7 @@
         display:flex;
         align-items:center;
         gap:11px;
-        padding:13px 14px;
+        padding:11px 14px;
         border-top:1px solid rgba(255,255,255,.2);
         color:#fff;
     }
@@ -328,14 +356,15 @@
         display:flex;
         flex-direction:column;
         gap:3px;
-        padding:9px 12px 5px;
+        padding:7px 12px 4px;
         border-top:1px solid rgba(255,255,255,.18);
     }
     .applicant-sidebar .sidebar-profile-link {
         display:flex;
         align-items:center;
         gap:10px;
-        padding:9px 10px;
+        min-height:36px;
+        padding:8px 10px;
         border-radius:8px;
         color:rgba(255,255,255,.9);
         text-decoration:none;
@@ -352,7 +381,7 @@
     }
     .applicant-sidebar .sidebar-footer {
         flex:0 0 auto;
-        padding:7px 12px 18px;
+        padding:6px 12px 12px;
         border-top:1px solid rgba(255,255,255,.18);
     }
     .applicant-sidebar .sidebar-footer form { margin:0; }
@@ -362,7 +391,7 @@
         justify-content:flex-start;
         gap:10px;
         width:100%;
-        min-height:42px;
+        min-height:40px;
         padding:8px 10px;
         border:0;
         border-radius:8px;
@@ -447,23 +476,24 @@
     @media(prefers-reduced-motion:reduce) {
         .application-status-toast,.application-status-toast-progress { animation:none; }
         .application-status-toast.is-dismissing { transition:none; }
+        .applicant-sidebar, .applicant-sidebar .nav-submenu, .applicant-sidebar .nav-chevron { transition-duration:.01ms; }
     }
     @media(max-width:768px) {
         .applicant-sidebar:not(.open) { transform:translateX(-100%); }
         .applicant-sidebar.open { transform:translateX(0); }
         .applicant-sidebar .sidebar-close { display:inline-flex; }
-        .applicant-sidebar .sidebar-brand { gap:9px; min-height:96px; padding:12px 10px; }
+        .applicant-sidebar .sidebar-brand { gap:9px; min-height:84px; padding:10px; }
         .applicant-sidebar .sidebar-brand > img {
-            width:56px !important;
-            min-width:56px;
-            max-width:56px;
-            height:56px !important;
-            min-height:56px;
-            max-height:56px;
-            flex-basis:56px;
+            width:48px !important;
+            min-width:48px;
+            max-width:48px;
+            height:48px !important;
+            min-height:48px;
+            max-height:48px;
+            flex-basis:48px;
         }
-        .applicant-sidebar .sidebar-brand span { font-size:1.28rem; }
-        .applicant-sidebar .sidebar-brand .sidebar-brand-subtitle { font-size:.86rem; }
+        .applicant-sidebar .sidebar-brand span { font-size:1.15rem; }
+        .applicant-sidebar .sidebar-brand .sidebar-brand-subtitle { font-size:.8rem; }
         .applicant-sidebar .sidebar-brand small { font-size:.58rem; }
         .applicant-sidebar .sidebar-close { width:32px; height:32px; flex-basis:32px; }
         .sidebar-backdrop:not([hidden]) {
@@ -598,7 +628,12 @@
         </a>
     </div>
     <div class="sidebar-footer">
-        <form method="POST" action="{{ route('logout') }}">
+        <form method="POST" action="{{ route('logout') }}"
+              data-swal-confirm="{{ __('Are you sure you want to log out of your account?') }}"
+              data-swal-title="{{ __('Confirm Logout') }}"
+              data-swal-confirm-action="{{ __('Yes, Log Out') }}"
+              data-swal-cancel-action="{{ __('Cancel') }}"
+              data-no-request-loading>
             @csrf
             <button type="submit" class="btn-logout"><x-icon class="fa-solid fa-right-from-bracket" /> {{ __('Log Out') }}</button>
         </form>

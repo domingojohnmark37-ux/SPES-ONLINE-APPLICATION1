@@ -84,10 +84,10 @@
     </div>
 
     @if(session('success'))
-        <div class="alert alert-success" role="status">{{ session('success') }}</div>
+        <div class="alert alert-success" role="status" data-spes-alert="success">{{ session('success') }}</div>
     @endif
     @if(session('error'))
-        <div class="alert alert-danger" role="alert">{{ session('error') }}</div>
+        <div class="alert alert-danger" role="alert" data-spes-alert="error">{{ session('error') }}</div>
     @endif
     @if($errors->any())
         <div class="alert alert-danger" role="alert">
@@ -444,7 +444,7 @@
                                         <a class="btn btn-outline btn-sm" href="{{ $historyItem['download_url'] }}">{{ __('Download') }}</a>
                                     @endif
                                     @if($historyItem['type'] === 'annual' && $historyItem['verified'] && $historyItem['year'])
-                                        <form method="POST" action="{{ route('admin.backup.archive.restore', $historyItem['year']) }}" onsubmit="return confirm(@js(__('This adds missing records and files only; it does not replace existing data. A verified safety backup will be created first. This is not a full system replacement restore.')));">
+                                        <form method="POST" action="{{ route('admin.backup.archive.restore', $historyItem['year']) }}" data-swal-confirm="{{ __('This adds missing records and files only; it does not replace existing data. A verified safety backup will be created first. This is not a full system replacement restore.') }}">
                                             @csrf
                                             <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
                                             <label for="annual_restore_password_{{ $historyItem['year'] }}">{{ __('Current password') }}</label>
@@ -470,7 +470,7 @@
                     <strong>{{ __('Important:') }}</strong>
                     {{ __('This existing restore adds missing records and files only; it does not overwrite modified records or replace the live database. Full-system cutover is not available in this application. A verified safety backup is created before merging.') }}
                 </div>
-                <form method="POST" action="{{ route('admin.backup.restore') }}" enctype="multipart/form-data" onsubmit="return confirm(@js(__('Only missing records and files will be added; existing data will not be replaced. A verified safety backup will be created first. Continue?')));">
+                <form method="POST" action="{{ route('admin.backup.restore') }}" enctype="multipart/form-data" data-swal-confirm="{{ __('Only missing records and files will be added; existing data will not be replaced. A verified safety backup will be created first. Continue?') }}">
                 @csrf
                 <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
                 <div class="admin-audit-filters" style="align-items:end;margin:14px 0;">

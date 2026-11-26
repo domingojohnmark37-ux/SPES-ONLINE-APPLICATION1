@@ -155,6 +155,10 @@
             delete action.form.dataset.requestPending;
             action.form.removeAttribute('aria-busy');
         }
+        if (activeActions.size === 0 && feedback?.dataset.kind === 'pending') {
+            feedback.replaceChildren();
+            feedback.hidden = true;
+        }
     }
 
     function announce(message, kind) {

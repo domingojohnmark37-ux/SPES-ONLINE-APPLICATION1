@@ -67,7 +67,7 @@
                                                 {{ $appointment->is_published ? 'Unpublish' : 'Publish' }}
                                             </button>
                                         </form>
-                                        <form method="POST" action="{{ route('admin.appointments.destroy', $appointment) }}" onsubmit="return confirm('Delete this appointment?')">
+                                        <form method="POST" action="{{ route('admin.appointments.destroy', $appointment) }}" data-swal-confirm="{{ __('Delete this appointment?') }}">
                                             @csrf
                                             @method('DELETE')
                                             <button class="btn btn-danger btn-sm" type="submit">Delete</button>

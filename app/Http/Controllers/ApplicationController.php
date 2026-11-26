@@ -14,8 +14,10 @@ use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -170,32 +172,32 @@ class ApplicationController extends Controller
         $letterPath = null;
         $indigencyPath = null;
 
-        if ($request->hasFile('birth_certificate')) {
-            $birthCertificatePath = $request->file('birth_certificate')->store('applications/birth_certificates', 'local');
-        }
-        if ($request->hasFile('certificate_enrollment')) {
-            $enrollmentPath = $request->file('certificate_enrollment')->store('applications/enrollment', 'local');
-        }
-        if ($request->hasFile('certificate_grade')) {
-            $gradePath = $request->file('certificate_grade')->store('applications/grades', 'local');
-        }
-        if ($request->hasFile('application_letter')) {
-            $letterPath = $request->file('application_letter')->store('applications/letters', 'local');
-        }
-        if ($request->hasFile('indigency')) {
-            $indigencyPath = $request->file('indigency')->store('applications/indigency', 'local');
-        }
+        $newlyStoredPaths = [];
         $documentOriginalNames = [];
-        foreach ([
-            'birth_certificate',
-            'certificate_enrollment',
-            'certificate_grade',
-            'application_letter',
-            'indigency',
-        ] as $document) {
-            if ($request->hasFile($document)) {
-                $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
+        try {
+            $documentDirectories = [
+                'birth_certificate' => 'applications/birth_certificates',
+                'certificate_enrollment' => 'applications/enrollment',
+                'certificate_grade' => 'applications/grades',
+                'application_letter' => 'applications/letters',
+                'indigency' => 'applications/indigency',
+            ];
+            $storedDocumentPaths = [];
+            foreach ($documentDirectories as $document => $directory) {
+                if ($request->hasFile($document)) {
+                    $storedDocumentPaths[$document] = $this->storePrivateDocument($request->file($document), $directory);
+                    $newlyStoredPaths[] = $storedDocumentPaths[$document];
+                    $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
+                }
             }
+            $birthCertificatePath = $storedDocumentPaths['birth_certificate'] ?? null;
+            $enrollmentPath = $storedDocumentPaths['certificate_enrollment'] ?? null;
+            $gradePath = $storedDocumentPaths['certificate_grade'] ?? null;
+            $letterPath = $storedDocumentPaths['application_letter'] ?? null;
+            $indigencyPath = $storedDocumentPaths['indigency'] ?? null;
+        } catch (Throwable $exception) {
+            Application::deleteLocalFiles($newlyStoredPaths);
+            throw $exception;
         }
 
         $fullName = trim(implode(' ', array_filter([
@@ -205,13 +207,6 @@ class ApplicationController extends Controller
         ], fn ($part) => ! empty(trim((string) $part)) && trim((string) $part) !== 'N/A')));
 
         $applicant = Auth::user();
-        $newlyStoredPaths = array_filter([
-            $birthCertificatePath,
-            $enrollmentPath,
-            $gradePath,
-            $letterPath,
-            $indigencyPath,
-        ]);
         try {
             $createdApplication = DB::transaction(function () use ($validated, $fullName, $birthCertificatePath, $enrollmentPath, $gradePath, $letterPath, $indigencyPath, $documentOriginalNames, $applicant, $auditLogger): ?Application {
                 if (Application::where('user_id', $applicant->id)->exists()) {
@@ -380,7 +375,7 @@ class ApplicationController extends Controller
                 if ($application->birth_certificate) {
                     $oldPathsToDelete[] = $application->birth_certificate;
                 }
-                $application->birth_certificate = $request->file('birth_certificate')->store('applications/birth_certificates', 'local');
+                $application->birth_certificate = $this->storePrivateDocument($request->file('birth_certificate'), 'applications/birth_certificates');
                 $newlyStoredPaths[] = $application->birth_certificate;
                 $documentOriginalNames['birth_certificate'] = $request->file('birth_certificate')->getClientOriginalName();
                 $submittedDocuments['Birth Certificate'] = true;
@@ -390,7 +385,7 @@ class ApplicationController extends Controller
                     if ($application->{$document}) {
                         $oldPathsToDelete[] = $application->{$document};
                     }
-                    $application->{$document} = $request->file($document)->store($directory, 'local');
+                    $application->{$document} = $this->storePrivateDocument($request->file($document), $directory);
                     $newlyStoredPaths[] = $application->{$document};
                     $documentOriginalNames[$document] = $request->file($document)->getClientOriginalName();
                     if ($document === 'certificate_enrollment') {
@@ -404,7 +399,7 @@ class ApplicationController extends Controller
                 if ($application->application_letter) {
                     $oldPathsToDelete[] = $application->application_letter;
                 }
-                $application->application_letter = $request->file('application_letter')->store('applications/letters', 'local');
+                $application->application_letter = $this->storePrivateDocument($request->file('application_letter'), 'applications/letters');
                 $newlyStoredPaths[] = $application->application_letter;
                 $documentOriginalNames['application_letter'] = $request->file('application_letter')->getClientOriginalName();
                 $submittedDocuments['Application Letter'] = true;
@@ -413,7 +408,7 @@ class ApplicationController extends Controller
                 if ($application->indigency) {
                     $oldPathsToDelete[] = $application->indigency;
                 }
-                $application->indigency = $request->file('indigency')->store('applications/indigency', 'local');
+                $application->indigency = $this->storePrivateDocument($request->file('indigency'), 'applications/indigency');
                 $newlyStoredPaths[] = $application->indigency;
                 $documentOriginalNames['indigency'] = $request->file('indigency')->getClientOriginalName();
                 $submittedDocuments['Certificate of Indigency'] = true;
@@ -617,6 +612,20 @@ class ApplicationController extends Controller
         return $age;
     }
 
+    private function storePrivateDocument(UploadedFile $file, string $directory): string
+    {
+        $path = $file->store($directory, 'local');
+        if (! is_string($path) || $path === '' || ! Storage::disk('local')->exists($path)) {
+            if (is_string($path) && $path !== '') {
+                Application::deleteLocalFiles([$path]);
+            }
+
+            throw new RuntimeException('Unable to store an uploaded application document.');
+        }
+
+        return $path;
+    }
+
     private function canEditApplication(Application $application): bool
     {
         $settings = SystemSetting::current();
@@ -753,7 +762,7 @@ class ApplicationController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $query = Application::with('user')->latest();
+        $query = Application::with('user', 'additionalRequirementSubmissions.requirement')->latest();
 
         if (filled($filters['status'] ?? null)) {
             $query->where('status', $filters['status']);
@@ -819,6 +828,7 @@ class ApplicationController extends Controller
      * Admin: approve an application.
      */
     public function approve(
+        Request $request,
         Application $application,
         AuditLogger $auditLogger,
         ApplicationApprovalCapacity $capacity,
@@ -828,6 +838,7 @@ class ApplicationController extends Controller
         $approved = false;
         $justApproved = false;
         $capacityReached = false;
+        $invalidTransition = false;
         $newlyDeniedIds = [];
 
         DB::transaction(function () use (
@@ -838,13 +849,14 @@ class ApplicationController extends Controller
             &$approved,
             &$justApproved,
             &$capacityReached,
+            &$invalidTransition,
             &$newlyDeniedIds,
         ): void {
             $lockedSettings = SystemSetting::query()->lockForUpdate()->findOrFail($settings->id);
             $lockedApplication = Application::query()->lockForUpdate()->with('user')->findOrFail($application->id);
 
-            if ($lockedApplication->status === 'approved') {
-                $approved = true;
+            if ($lockedApplication->status !== 'pending') {
+                $invalidTransition = true;
                 return;
             }
 
@@ -884,38 +896,83 @@ class ApplicationController extends Controller
             }
         });
 
+        if ($invalidTransition) {
+            return $this->decisionResponse(
+                $request,
+                $application,
+                false,
+                'Only pending applications can be approved. This application has already been decided.',
+                409,
+            );
+        }
+
         if (! $approved && $capacityReached) {
             if ($newlyDeniedIds !== []) {
-                NotifyClosedApplicantsJob::dispatch($newlyDeniedIds, (int) $settings->fresh()->approved_applicant_limit)->afterCommit();
+                $limit = (int) $settings->fresh()->approved_applicant_limit;
+                $this->queueStatusNotification(
+                    fn () => NotifyClosedApplicantsJob::dispatch($newlyDeniedIds, $limit)
+                        ->onConnection('database')
+                        ->afterCommit(),
+                    $application,
+                    'approval_limit_reached',
+                );
             }
 
-            return back()
-                ->with('error', 'The approved-applicant limit has been reached. This application was not approved.')
-                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. Further approvals and new submissions are closed.');
+            return $this->decisionResponse(
+                $request,
+                $application,
+                false,
+                'The approved-applicant limit has been reached. This application was not approved.',
+                409,
+                ['capacity_reached' => true, 'auto_denied_ids' => $newlyDeniedIds],
+                ['approval_limit_notice' => 'The approved-applicant limit has been reached. Further approvals and new submissions are closed.'],
+            );
         }
 
         if ($justApproved) {
-            NotifyApplicantsJob::dispatch(
-                'users',
-                "application:{$application->id}:approved:{$application->updated_at?->getTimestamp()}",
-                'notify_documents',
-                'Application approved',
-                'Your SPES application has been approved. Review your application status for next steps.',
-                ['application_id' => $application->id, 'status' => 'approved', 'event' => 'application_approved'],
-                userIds: [$application->user->id],
-            )->afterCommit();
+            $this->queueStatusNotification(
+                fn () => NotifyApplicantsJob::dispatch(
+                    'users',
+                    "application:{$application->id}:approved:{$application->updated_at?->getTimestamp()}",
+                    'notify_documents',
+                    'Application approved',
+                    'Your SPES application has been approved. Review your application status for next steps.',
+                    ['application_id' => $application->id, 'status' => 'approved', 'event' => 'application_approved'],
+                    userIds: [$application->user->id],
+                )->onConnection('database')->afterCommit(),
+                $application,
+                'approved',
+            );
         }
 
         if ($capacityReached) {
             if ($newlyDeniedIds !== []) {
-                NotifyClosedApplicantsJob::dispatch($newlyDeniedIds, (int) $settings->fresh()->approved_applicant_limit)->afterCommit();
+                $limit = (int) $settings->fresh()->approved_applicant_limit;
+                $this->queueStatusNotification(
+                    fn () => NotifyClosedApplicantsJob::dispatch($newlyDeniedIds, $limit)
+                        ->onConnection('database')
+                        ->afterCommit(),
+                    $application,
+                    'approval_limit_reached',
+                );
             }
-            return back()
-                ->with('success', "Application for {$application->full_name} has been approved. The approved-applicant limit has now been reached.")
-                ->with('approval_limit_notice', 'The approved-applicant limit has been reached. New submissions and approvals are closed. Remaining pending applicants are being notified in the background.');
+            return $this->decisionResponse(
+                $request,
+                $application,
+                true,
+                "Application for {$application->full_name} has been approved. The approved-applicant limit has now been reached.",
+                200,
+                ['capacity_reached' => true, 'auto_denied_ids' => $newlyDeniedIds],
+                ['approval_limit_notice' => 'The approved-applicant limit has been reached. New submissions and approvals are closed. Remaining pending applicants are being notified in the background.'],
+            );
         }
 
-        return back()->with('success', "Application for {$application->full_name} has been approved.");
+        return $this->decisionResponse(
+            $request,
+            $application,
+            true,
+            "Application for {$application->full_name} has been approved.",
+        );
     }
 
     /**
@@ -943,46 +1000,126 @@ class ApplicationController extends Controller
             'admin_comment.required' => __('Enter a specific reason before declining this application.'),
         ]);
         $document = $validated['admin_comment_document'] ?? null;
-        if ($document !== null && (! filled($application->{$document}) || ! Storage::disk('local')->exists($application->{$document}))) {
-            throw ValidationException::withMessages([
-                'admin_comment_document' => __('Choose a document that is uploaded for this application.'),
+        $denied = false;
+        $invalidTransition = false;
+        DB::transaction(function () use ($application, $auditLogger, $validated, $document, &$denied, &$invalidTransition): void {
+            $lockedApplication = Application::query()->lockForUpdate()->with('user')->findOrFail($application->id);
+            if ($lockedApplication->status !== 'pending') {
+                $invalidTransition = true;
+
+                return;
+            }
+            if ($document !== null && (! filled($lockedApplication->{$document}) || ! Storage::disk('local')->exists($lockedApplication->{$document}))) {
+                throw ValidationException::withMessages([
+                    'admin_comment_document' => __('Choose a document that is uploaded for this application.'),
+                ]);
+            }
+
+            $oldStatus = $lockedApplication->status;
+            $lockedApplication->update([
+                'status' => 'denied',
+                'admin_comment' => $validated['admin_comment'],
+                'admin_comment_document' => $document,
+            ]);
+            $auditLogger->record(
+                AuditAction::APPLICATION_REJECTED,
+                'Application',
+                Auth::user(),
+                $lockedApplication->user,
+                $lockedApplication,
+                [
+                    'field_name' => 'status',
+                    'old_value' => $oldStatus,
+                    'new_value' => 'denied',
+                    'description' => $validated['admin_comment'],
+                ],
+            );
+            $application->setRawAttributes($lockedApplication->getAttributes(), true);
+            $application->setRelation('user', $lockedApplication->user);
+            $denied = true;
+        });
+
+        if ($invalidTransition) {
+            return $this->decisionResponse(
+                $request,
+                $application,
+                false,
+                'Only pending applications can be denied. This application has already been decided.',
+                409,
+            );
+        }
+
+        if ($denied) {
+            $this->queueStatusNotification(
+                fn () => NotifyApplicantsJob::dispatch(
+                    'users',
+                    "application:{$application->id}:denied:{$application->updated_at?->getTimestamp()}",
+                    'notify_documents',
+                    'Application denied',
+                    'Your SPES application was not approved. Review the remarks in your application status for more information.',
+                    ['application_id' => $application->id, 'status' => 'denied', 'event' => 'application_denied'],
+                    userIds: [$application->user->id],
+                )->onConnection('database')->afterCommit(),
+                $application,
+                'denied',
+            );
+        }
+
+        return $this->decisionResponse(
+            $request,
+            $application,
+            true,
+            "Application for {$application->full_name} has been declined.",
+        );
+    }
+
+    private function decisionResponse(
+        Request $request,
+        Application $application,
+        bool $success,
+        string $message,
+        int $statusCode = 200,
+        array $data = [],
+        array $flash = [],
+    ): RedirectResponse|\Illuminate\Http\JsonResponse {
+        $application->refresh();
+        if ($request->expectsJson()) {
+            return response()->json(array_merge([
+                'success' => $success,
+                'message' => $message,
+                'application' => [
+                    'id' => $application->id,
+                    'status' => $application->status,
+                    'status_label' => $application->statusLabel(),
+                ],
+                'stats' => [
+                    'total' => Application::count(),
+                    'pending' => Application::where('status', 'pending')->count(),
+                    'approved' => Application::where('status', 'approved')->count(),
+                    'denied' => Application::where('status', 'denied')->count(),
+                ],
+            ], $data), $statusCode);
+        }
+
+        $redirect = back()->with($success ? 'success' : 'error', $message);
+        foreach ($flash as $key => $value) {
+            $redirect->with($key, $value);
+        }
+
+        return $redirect;
+    }
+
+    private function queueStatusNotification(callable $dispatch, Application $application, string $event): void
+    {
+        try {
+            $dispatch();
+        } catch (Throwable $exception) {
+            Log::error('Application status was saved, but its notification could not be queued.', [
+                'application_id' => $application->id,
+                'event' => $event,
+                'exception' => class_basename($exception),
             ]);
         }
-
-        if ($application->status !== 'denied') {
-            DB::transaction(function () use ($application, $auditLogger, $validated, $document): void {
-                $oldStatus = $application->status;
-                $application->update([
-                    'status' => 'denied',
-                    'admin_comment' => $validated['admin_comment'],
-                    'admin_comment_document' => $document,
-                ]);
-                $auditLogger->record(
-                    AuditAction::APPLICATION_REJECTED,
-                    'Application',
-                    Auth::user(),
-                    $application->user,
-                    $application,
-                    [
-                        'field_name' => 'status',
-                        'old_value' => $oldStatus,
-                        'new_value' => 'denied',
-                        'description' => $validated['admin_comment'],
-                    ],
-                );
-            });
-            NotifyApplicantsJob::dispatch(
-                'users',
-                "application:{$application->id}:denied:{$application->updated_at?->getTimestamp()}",
-                'notify_documents',
-                'Application denied',
-                'Your SPES application was not approved. Review the remarks in your application status for more information.',
-                ['application_id' => $application->id, 'status' => 'denied', 'event' => 'application_denied'],
-                userIds: [$application->user->id],
-            )->afterCommit();
-        }
-
-        return back()->with('success', "Application for {$application->full_name} has been declined.");
     }
 
     /**

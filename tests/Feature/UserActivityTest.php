@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\Application;
 use App\Models\User;
 use App\Models\News;
+use App\Jobs\NotifyApplicantsJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class UserActivityTest extends TestCase
@@ -562,10 +564,16 @@ class UserActivityTest extends TestCase
 
     public function test_application_status_notifications_remain_in_the_notification_overview(): void
     {
+        Queue::fake();
         $admin = User::factory()->admin()->create();
         $applicant = User::factory()->create([]);
         $application = \App\Models\Application::factory()->create([
             'user_id' => $applicant->id,
+            'status' => 'pending',
+        ]);
+        $deniedApplicant = User::factory()->create([]);
+        $deniedApplication = \App\Models\Application::factory()->create([
+            'user_id' => $deniedApplicant->id,
             'status' => 'pending',
         ]);
 
@@ -573,6 +581,12 @@ class UserActivityTest extends TestCase
             ->post(route('admin.applications.approve', $application))
             ->assertRedirect();
 
+        Queue::assertPushed(NotifyApplicantsJob::class, fn (NotifyApplicantsJob $job): bool =>
+            $job->userIds === [$applicant->id] && $job->connection === 'database'
+        );
+        Queue::pushed(NotifyApplicantsJob::class)
+            ->first(fn (NotifyApplicantsJob $job): bool => $job->userIds === [$applicant->id])
+            ->handle(app(\App\Services\ApplicantNotificationService::class));
         $approvedNotification = $applicant->notifications()->latest()->firstOrFail();
         $this->assertSame('approved', $approvedNotification->data['status']);
 
@@ -607,22 +621,26 @@ class UserActivityTest extends TestCase
             ->assertDontSee('data-notification-id="' . $approvedNotification->id . '"', false);
 
         $this->actingAs($admin)
-            ->post(route('admin.applications.deny', $application), [
+            ->post(route('admin.applications.deny', $deniedApplication), [
                 'admin_comment' => 'The application does not meet the eligibility requirements.',
             ])
             ->assertRedirect();
-        $this->assertSame('denied', $application->fresh()->status);
-        $this->assertSame(2, $applicant->notifications()->where('type', \App\Notifications\ApplicantPortalUpdate::class)->count());
+        $this->assertSame('denied', $deniedApplication->fresh()->status);
+        Queue::assertPushed(NotifyApplicantsJob::class, fn (NotifyApplicantsJob $job): bool =>
+            $job->userIds === [$deniedApplicant->id] && $job->connection === 'database'
+        );
+        Queue::pushed(NotifyApplicantsJob::class)
+            ->first(fn (NotifyApplicantsJob $job): bool => $job->userIds === [$deniedApplicant->id])
+            ->handle(app(\App\Services\ApplicantNotificationService::class));
+        $this->assertSame(1, $deniedApplicant->notifications()->where('type', \App\Notifications\ApplicantPortalUpdate::class)->count());
 
-        $deniedNotification = $applicant->notifications()
+        $deniedNotification = $deniedApplicant->notifications()
             ->whereJsonContains('data->status', 'denied')
             ->firstOrFail();
 
-        $this->actingAs($applicant)
+        $this->actingAs($deniedApplicant)
             ->get(route('applicant.notifications.overview'))
             ->assertOk()
-            ->assertSee('Application approved')
-            ->assertSee('Read ')
             ->assertSee('Application denied')
             ->assertDontSee('data-notification-id="' . $deniedNotification->id . '"', false);
 
@@ -630,26 +648,26 @@ class UserActivityTest extends TestCase
 
         $this->post(route('logout'))->assertRedirect('/');
         $this->post(route('login'), [
-            'email' => $applicant->email,
+            'email' => $deniedApplicant->email,
             'password' => 'password',
         ])->assertRedirect(route('dashboard'));
 
         $this->get(route('dashboard'))
             ->assertOk()
             ->assertSee('data-application-status-toast', false)
+            ->assertSee('data-status="denied"', false)
             ->assertSee('data-notification-id="' . $deniedNotification->id . '"', false);
 
         $this->actingAs($admin)
-            ->post(route('admin.applications.deny', $application), [
+            ->post(route('admin.applications.deny', $deniedApplication), [
                 'admin_comment' => 'The application does not meet the eligibility requirements.',
             ])
             ->assertRedirect();
-        $this->assertSame(2, $applicant->notifications()->where('type', \App\Notifications\ApplicantPortalUpdate::class)->count());
+        $this->assertSame(1, $deniedApplicant->notifications()->where('type', \App\Notifications\ApplicantPortalUpdate::class)->count());
 
-        $this->actingAs($applicant)
+        $this->actingAs($deniedApplicant)
             ->get(route('applicant.notifications.overview'))
             ->assertOk()
-            ->assertSee('Application approved')
             ->assertSee('Application denied')
             ->assertSee('Unread — delivered in-app');
     }

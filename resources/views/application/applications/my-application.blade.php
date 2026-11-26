@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('My Application') }} — SPES</title>
+    <link rel="stylesheet" href="{{ asset('css/document-panel.css') }}?v={{ filemtime(public_path('css/document-panel.css')) }}">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -186,17 +187,17 @@
 <div class="page-content">
 
     @if(session('success'))
-        <div style="background:#e8f5e9;color:#2e7d32;border-left:4px solid #43a047;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
+        <div data-spes-alert="success" style="background:#e8f5e9;color:#2e7d32;border-left:4px solid #43a047;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
             <x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}
         </div>
     @endif
     @if(session('info'))
-        <div style="background:#e3f2fd;color:#1565c0;border-left:4px solid #1e88e5;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
+        <div data-spes-alert="info" style="background:#e3f2fd;color:#1565c0;border-left:4px solid #1e88e5;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
             <x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}
         </div>
     @endif
     @if(session('error'))
-        <div style="background:#ffebee;color:#c62828;border-left:4px solid #e53935;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
+        <div data-spes-alert="error" style="background:#ffebee;color:#c62828;border-left:4px solid #e53935;padding:13px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:.875rem;">
             <x-icon class="fa-solid fa-triangle-exclamation" /> {{ session('error') }}
         </div>
     @endif
@@ -240,6 +241,11 @@
                 <a href="{{ route('applications.edit') }}" class="btn-apply" style="margin-top:14px;">
                     <x-icon class="fa-solid fa-pen-to-square" aria-hidden="true" /> {{ __('Update and resubmit application') }}
                 </a>
+            @endif
+            @if($application->status === 'denied' && $application->admin_comment)
+                <div class="comment-box" role="note" style="margin-top:12px;">
+                    <strong>{{ __('Reason for Decline') }}:</strong> {{ $application->admin_comment }}
+                </div>
             @endif
         </div>
     </div>
@@ -289,24 +295,54 @@
                 </div>
             </div>
 
+            @php
+                $myDocumentPanelItems = collect($applicationDocuments)->map(function (array $doc) use ($application, $canEdit): array {
+                    $path = $application->{$doc['key']};
+                    $available = filled($path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($path);
+
+                    return [
+                        'category' => __($doc['label']),
+                        'filename' => $available ? ($application->document_original_names[$doc['key']] ?? basename($path)) : null,
+                        'available' => $available,
+                        'status_label' => $available ? __('On file') : (filled($path) ? __('File missing from private storage') : __('Not uploaded')),
+                        'url' => $available ? route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) : null,
+                        'download_url' => $available ? route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) : null,
+                        'upload_url' => $canEdit ? route('applications.edit') : null,
+                    ];
+                })->values();
+                $myAvailableDocumentCount = $myDocumentPanelItems->where('available', true)->count();
+            @endphp
             <div class="card">
-                <div class="card-header"><h2 class="text-section">{{ __('Uploaded Documents') }}</h2></div>
+                <div class="card-header">
+                    <h2 class="text-section">{{ __('Uploaded Documents') }}</h2>
+                    <button type="button" class="document-panel-trigger" data-document-panel data-no-request-loading
+                            data-document-title="{{ __('My Application Documents') }}"
+                            data-document-applicant="{{ $application->full_name }}"
+                            data-document-items="{{ json_encode($myDocumentPanelItems, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_TAG) }}">
+                        {{ __('View Documents (:count)', ['count' => $myAvailableDocumentCount]) }}
+                    </button>
+                </div>
                 <div class="card-body">
                     <div class="doc-grid">
                         @foreach($applicationDocuments as $doc)
                         <div class="doc-item">
                             <div class="label">{{ __($doc['label']) }}</div>
-                            @if($application->{$doc['key']})
+                            @if($application->{$doc['key']} && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->{$doc['key']}))
+                                <span class="document-status"><x-icon class="fa-solid fa-check" aria-hidden="true" /> {{ __('On file') }}</span>
+                                <span style="display:block;margin:6px 0;font-size:.78rem;overflow-wrap:anywhere;">
+                                    {{ $application->document_original_names[$doc['key']] ?? basename($application->{$doc['key']}) }}
+                                </span>
                                 <a href="{{ route('applications.document.preview', ['application' => $application->id, 'document' => $doc['key']]) }}" target="_blank" rel="noopener" aria-label="{{ __('View') }} {{ __($doc['label']) }}" style="display:inline-flex;align-items:center;gap:6px;justify-content:center;min-width:110px;padding:8px 16px;border:0;border-radius:8px;background:#0d47a1;color:#fff;text-decoration:none;font-size:.72rem;font-weight:600;line-height:1.2;">
                                     {{ __('View') }}
                                 </a>
-                                @if($application->status === 'denied' && $application->admin_comment_document === $doc['key'] && $application->admin_comment)
-                                    <p class="comment-box" style="margin-top:12px;text-align:left;">{{ $application->admin_comment }}</p>
-                                @endif
+                            @elseif($application->{$doc['key']})
+                                <span class="document-status required" role="status">{{ __('File missing from private storage') }}</span>
                             @elseif($canEdit)
                                 <a href="{{ route('applications.edit') }}" style="display:inline-flex;align-items:center;gap:6px;justify-content:center;min-width:110px;padding:8px 16px;border-radius:8px;background:#1976d2;color:#fff;text-decoration:none;font-size:.72rem;font-weight:600;line-height:1.2;">
                                     {{ __('Upload') }}
                                 </a>
+                            @else
+                                <span class="document-status required">{{ __('Not uploaded') }}</span>
                             @endif
                         </div>
                         @endforeach
@@ -324,7 +360,7 @@
                 </div>
             </div>
 
-            @if($application->admin_comment && !($application->status === 'denied' && $application->admin_comment_document))
+            @if($application->admin_comment && $application->status !== 'denied')
             <div class="card">
                 <div class="card-header"><h2 class="text-section"><x-icon class="fa-solid fa-comment-dots" aria-hidden="true" /> {{ $application->status === 'denied' ? __('Reason for Decline') : __('Admin Feedback') }}</h2></div>
                 <div class="card-body">
@@ -348,5 +384,6 @@
     </span>
 </footer>
 <x-portal-help-chat />
+    <script src="{{ asset('js/document-panel.js') }}?v={{ filemtime(public_path('js/document-panel.js')) }}"></script>
 </body>
 </html>

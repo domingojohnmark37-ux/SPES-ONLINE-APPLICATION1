@@ -121,9 +121,18 @@
     <div class="card-header"><h2><x-icon class="fa-solid fa-envelope-circle-check" /> Email delivery test</h2></div>
     <div class="card-body" style="padding:20px;">
         <p>Send a real test email to your registered administrator address ({{ auth()->user()->email }}) using the configured mail provider.</p>
+        <p>Selected mail transport: <strong>{{ $mailConfiguration['mailer'] }}</strong></p>
+        <p role="status">
+            Required configuration:
+            @if ($mailConfiguration['ready'])
+                <strong>Present</strong>
+            @else
+                <strong>Incomplete</strong> — {{ implode(', ', $mailConfiguration['missing']) }}
+            @endif
+        </p>
         <form method="POST" action="{{ route('admin.settings.email-test') }}" style="margin-top:14px;">
             @csrf
-            <button type="submit" class="btn btn-primary"><x-icon class="fa-solid fa-paper-plane" /> Send test email</button>
+            <button type="submit" class="btn btn-primary" @disabled(! $mailConfiguration['ready'])><x-icon class="fa-solid fa-paper-plane" /> Send test email</button>
         </form>
     </div>
 </section>

@@ -1,0 +1,281 @@
+/* Keep the existing SPES colors; refine shared component rhythm and surfaces. */
+.spes-admin {
+    text-rendering: optimizeLegibility;
+}
+
+.spes-admin .page-content {
+    width: 100%;
+    max-width: 1600px;
+    min-width: 0;
+    margin-inline: auto;
+}
+
+.spes-admin .topbar {
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+}
+
+.spes-admin :is(.card, .panel-card, .dashboard-card) {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 3px 14px rgba(17, 24, 39, .055);
+}
+
+.spes-admin .card-header {
+    padding: 16px 20px;
+}
+
+.spes-admin .card-body {
+    padding: 20px;
+}
+
+.spes-admin .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 158px), 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.spes-admin .stat-card {
+    min-width: 0;
+    gap: 13px;
+    padding: 16px 18px;
+}
+
+.spes-admin .stat-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    font-size: 1.2rem;
+}
+
+.spes-admin .stat-num {
+    font-size: 1.75rem;
+}
+
+.spes-admin .dashboard-cards {
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.spes-admin .dashboard-card {
+    gap: 13px;
+    padding: 17px 18px;
+}
+
+.spes-admin .dashboard-card .stat-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+}
+
+.spes-admin .dashboard-card .stat-value {
+    font-size: 1.8rem;
+}
+
+.spes-admin .panel-header {
+    padding: 18px 20px;
+}
+
+.spes-admin .activity-item {
+    padding: 15px 20px;
+}
+
+.spes-admin .table-wrap {
+    border-radius: 10px;
+}
+
+.spes-admin table {
+    font-size: .84rem;
+}
+
+.spes-admin th {
+    padding: 11px 14px;
+}
+
+.spes-admin td {
+    padding: 11px 14px;
+}
+
+.spes-admin tbody tr {
+    transition: background-color .15s ease;
+}
+
+.spes-admin .badge {
+    padding: 4px 9px;
+    font-size: .74rem;
+    line-height: 1.35;
+}
+
+.spes-admin .btn {
+    min-height: 34px;
+    border-radius: 8px;
+    transition: box-shadow .15s ease, opacity .15s ease, transform .15s ease;
+}
+
+.spes-admin :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+    min-height: 40px;
+    border-radius: 8px;
+}
+
+.spes-admin textarea {
+    min-height: 88px;
+}
+
+.spes-admin :is(input, select, textarea, button, a):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.spes-admin .pagination {
+    gap: 5px;
+    margin-top: 16px;
+}
+
+.spes-admin .pagination :is(a, span) {
+    min-width: 36px;
+    text-align: center;
+}
+
+.spes-admin :is(.admin-confirm-dialog, .modal-content, [role="dialog"] > section) {
+    border-radius: 14px;
+}
+
+.min-h-screen.bg-gray-100 > main .max-w-7xl > .bg-white.overflow-hidden {
+    overflow-x: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    box-shadow: 0 3px 14px rgba(17, 24, 39, .055);
+}
+
+.min-h-screen.bg-gray-100 > main .max-w-7xl > .bg-white.overflow-hidden > .p-6 {
+    padding: clamp(16px, 2.2vw, 24px);
+}
+
+.min-h-screen.bg-gray-100 > main .max-w-7xl table {
+    min-width: 560px;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.admin-container .header,
+.admin-container .content-wrapper,
+.admin-container .applicants-list {
+    border-radius: 12px;
+    box-shadow: 0 3px 14px rgba(17, 24, 39, .055);
+}
+
+.admin-container :is(.files-table, .applicants-table) {
+    font-size: .875rem;
+}
+
+.admin-container :is(.files-table, .applicants-table) :is(th, td) {
+    padding: 11px 14px;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] {
+    min-width: 0;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(
+    .card, .form-card, .settings-card, .profile-card, .profile-page-card,
+    .contact-card, .guide-card, .notifications-card, .update-card, .table-card,
+    .panel, .empty, .empty-state-card
+) {
+    border-radius: 12px;
+    box-shadow: 0 3px 14px rgba(17, 24, 39, .055);
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.card-header, .form-card-header, .panel-header) {
+    padding-block: 15px;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.card-body, .form-card-body) {
+    padding: 20px;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    select, textarea
+) {
+    min-height: 40px;
+    border-radius: 8px;
+    font: inherit;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] textarea {
+    min-height: 88px;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(input, select, textarea):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.btn, .btn-apply, .btn-form, .btn-submit, .action, .portal-button) {
+    min-height: 36px;
+    border-radius: 8px;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.status, .badge, .category-badge) {
+    line-height: 1.35;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(table:not(.calendar-grid), .requirements-table) {
+    font-size: .875rem;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.requirements-table, table:not(.calendar-grid)) :is(th, td) {
+    padding-block: 11px;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.table-wrap, .settings-table-wrap) {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+}
+
+:is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.btn, .btn-apply, .btn-form, .btn-submit, .action, .portal-button):disabled {
+    cursor: not-allowed;
+    opacity: .58;
+}
+
+@media (hover: hover) {
+    .spes-admin .btn:hover:not(:disabled),
+    :is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.btn, .btn-apply, .btn-form, .btn-submit, .action, .portal-button):hover:not(:disabled) {
+        box-shadow: 0 3px 10px rgba(17, 24, 39, .12);
+    }
+}
+
+@media (max-width: 600px) {
+    .spes-admin .page-content {
+        padding: 16px 14px 22px;
+    }
+
+    .spes-admin .stats-grid {
+        gap: 10px;
+    }
+
+    .spes-admin .dashboard-card {
+        padding: 14px;
+    }
+
+    .spes-admin .card-body,
+    :is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.card-body, .form-card-body) {
+        padding: 15px;
+    }
+
+    :is(.page-wrapper, .peso-wrapper)[data-app-theme] :is(.requirements-table, table:not(.calendar-grid)) {
+        min-width: 560px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spes-admin *,
+    :is(.page-wrapper, .peso-wrapper)[data-app-theme] * {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

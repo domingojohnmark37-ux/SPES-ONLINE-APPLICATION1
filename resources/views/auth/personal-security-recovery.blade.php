@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('Recover account access') }} - {{ config('app.name', 'PESO LAL-LO') }}</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+    @vite('resources/js/alerts.js')
     <style>
         :root { color-scheme: light dark; --maroon:#750016; --gold:#e4b63f; --surface:#fff; --text:#262626; --muted:#5b6470; --border:#d1d5db; --page:#f5f3ef; }
         @media (prefers-color-scheme: dark) { :root { --surface:#1f2937; --text:#f9fafb; --muted:#cbd5e1; --border:#4b5563; --page:#111827; } }
@@ -29,8 +30,8 @@
 <main>
     <h1>{{ __('Recover account access') }}</h1>
     <p>{{ __('If you can’t answer your question, verify access to your registered email. You will need to set a new security question before using the portal.') }}</p>
-    @if(session('status'))<div class="success" role="status">{{ session('status') }}</div>@endif
-    @if($errors->any())<div class="error" role="alert">{{ $errors->first() }}</div>@endif
+    @if(session('status'))<div class="success" data-spes-alert="success" role="status">{{ session('status') }}</div>@endif
+    @if($errors->any())<div class="error" data-spes-alert="error" role="alert">{{ $errors->first() }}</div>@endif
     <form method="POST" action="{{ route('login.personal-security.recovery.send') }}" data-loading-label="{{ __('Sending...') }}">
         @csrf
         <button type="submit" data-loading-button>{{ __('Send recovery code to my email') }}</button>

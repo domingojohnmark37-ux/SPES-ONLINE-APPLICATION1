@@ -7,6 +7,7 @@
     <title>{{ config('app.name', 'PESO LAL-LO') }} - Login</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/auth.css') }}?v={{ filemtime(public_path('css/auth.css')) }}">
+    @vite('resources/js/alerts.js')
 </head>
 <body>
     <div class="auth-container">
@@ -35,7 +36,7 @@
 
                 <!-- Session Status -->
                 @if ($errors->any())
-                    <div class="alert alert-danger" style="background-color: #f8d7da; color: #721c24; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
+                    <div class="alert alert-danger" data-spes-alert="error" style="background-color: #f8d7da; color: #721c24; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #f5c6cb;">
                         <strong>Login Failed!</strong>
                         @foreach ($errors->all() as $error)
                             <div>{{ $error }}</div>
@@ -44,7 +45,7 @@
                 @endif
 
                 @if (session('status'))
-                    <div class="alert alert-success" style="background-color: #d4edda; color: #155724; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
+                    <div class="alert alert-success" data-spes-alert="success" style="background-color: #d4edda; color: #155724; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
                         {{ session('status') }}
                     </div>
                 @endif

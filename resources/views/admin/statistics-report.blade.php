@@ -185,7 +185,7 @@
 
     @if(session('success'))
         <div class="report-card" role="status" style="padding:12px 16px;">
-            {{ session('success') }}
+            <span data-spes-alert="success">{{ session('success') }}</span>
             @if($report = $archivedReports->firstWhere('id', session('generated_demographic_report_id')))
                 <a class="btn btn-primary btn-sm" href="{{ route('admin.demographic-reports.download', [$report, 'pdf']) }}">Download PDF</a>
             @endif

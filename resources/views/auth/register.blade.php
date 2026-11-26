@@ -7,6 +7,7 @@
     <title>{{ config('app.name', 'PESO LAL-LO') }} - Register</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/auth.css') }}?v={{ filemtime(public_path('css/auth.css')) }}">
+    @vite('resources/js/alerts.js')
 </head>
 <body>
     <div class="auth-container">
@@ -29,7 +30,7 @@
                 <h2>Create <span>Account</span></h2>
                 <p class="subtitle">Join us and start your employment journey</p>
                 @if (session('status'))
-                    <p class="success-message" role="status">{{ session('status') }}</p>
+                    <p class="success-message" data-spes-alert="success" role="status">{{ session('status') }}</p>
                 @endif
 
                 <form method="POST" action="{{ route('register') }}" data-auth-form="register" data-loading-label="Creating account..." data-loading-message="Creating your account request... Please wait while we prepare your email verification." data-network-error="We couldn't reach the server. Check your connection and try again. If your signup was received, we'll check for an existing verification request before suggesting another submission." data-server-error="We couldn't create your account request right now. Please try again." data-validation-error="Please review the information and try again." data-success-message="Your signup request was accepted. Follow the next steps to verify your email." data-recovery-url="{{ route('registration.verify') }}" data-recovery-success-url="{{ route('registration.verify') }}">

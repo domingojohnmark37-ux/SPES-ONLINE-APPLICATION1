@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Mockery;
 use Tests\TestCase;
 
@@ -49,6 +50,12 @@ class ApplicationTest extends TestCase
         Storage::disk('local')->assertExists($application->birth_certificate);
         $this->assertSame('birth-certificate.pdf', $application->document_original_names['birth_certificate']);
         $this->assertSame('certificate-of-enrollment.pdf', $application->document_original_names['certificate_enrollment']);
+        $this->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee('On file')
+            ->assertSee('birth-certificate.pdf')
+            ->assertSee('certificate-of-enrollment.pdf')
+            ->assertSee(route('applications.document.preview', ['application' => $application, 'document' => 'birth_certificate']), false);
         Queue::assertPushed(NotifyApplicantsJob::class, fn (NotifyApplicantsJob $job): bool =>
             $job->eventKey === "application:{$application->id}:submitted:{$application->created_at->getTimestamp()}"
             && $job->userIds === [$user->id]
@@ -198,6 +205,235 @@ class ApplicationTest extends TestCase
             ->assertSee('Birth Certificate')
             ->assertSee($reason)
             ->assertSee('Update and resubmit application');
+    }
+
+    public function test_applicants_list_denial_modal_requires_reason_and_keeps_it_after_validation_failure(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create();
+        $documentPath = 'applications/birth_certificates/list-document.pdf';
+        Storage::disk('local')->put($documentPath, 'document');
+        $application = Application::factory()->for($applicant)->create([
+            'birth_certificate' => $documentPath,
+            'document_original_names' => ['birth_certificate' => 'list-document.pdf'],
+        ]);
+        $reason = 'The birth certificate is missing a required page.';
+
+        $this->actingAs($admin)
+            ->get(route('admin.applications.index'))
+            ->assertOk()
+            ->assertSee('js-deny-application', false)
+            ->assertSee('list-document.pdf')
+            ->assertSee('Confirm Denial')
+            ->assertSee('name="_token"', false);
+
+        $this->from(route('admin.applications.index'))
+            ->post(route('admin.applications.deny', $application), [
+                'denial_application_id' => $application->id,
+            ])
+            ->assertSessionHasErrors('admin_comment');
+
+        $this->get(route('admin.applications.index'))
+            ->assertOk()
+            ->assertSee('Enter a specific reason before declining this application.')
+            ->assertSee($application->full_name);
+
+        $this->from(route('admin.applications.index'))
+            ->post(route('admin.applications.deny', $application), [
+                'denial_application_id' => $application->id,
+                'admin_comment' => $reason,
+                'admin_comment_document' => 'application_letter',
+            ])
+            ->assertSessionHasErrors('admin_comment_document');
+
+        $this->get(route('admin.applications.index'))
+            ->assertOk()
+            ->assertSee($reason)
+            ->assertSee('Choose a document that is uploaded for this application.');
+
+        $this->post(route('admin.applications.deny', $application), [
+            'denial_application_id' => $application->id,
+            'admin_comment' => $reason,
+            'admin_comment_document' => 'birth_certificate',
+        ])->assertSessionHas('success');
+
+        $this->assertSame('denied', $application->fresh()->status);
+        $this->actingAs($applicant)
+            ->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee($reason);
+    }
+
+    public function test_admin_can_approve_pending_and_under_review_applications_and_applicant_sees_status(): void
+    {
+        Queue::fake();
+        $admin = User::factory()->admin()->create();
+        $pendingApplicant = User::factory()->create();
+        $reviewingApplicant = User::factory()->create();
+        $pendingApplication = Application::factory()->for($pendingApplicant)->create(['status' => 'pending']);
+        $reviewingApplication = Application::factory()->for($reviewingApplicant)->create([
+            'status' => 'pending',
+            'review_started_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.applications.approve', $pendingApplication))
+            ->assertSessionHas('success');
+        $this->post(route('admin.applications.approve', $reviewingApplication))
+            ->assertSessionHas('success');
+
+        $this->assertSame('approved', $pendingApplication->fresh()->status);
+        $this->assertSame('approved', $reviewingApplication->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'application_id' => $pendingApplication->id,
+            'action' => AuditAction::APPLICATION_APPROVED,
+            'old_value' => 'pending',
+            'new_value' => 'approved',
+        ]);
+        $this->actingAs($pendingApplicant)
+            ->get(route('applications.myApplication'))
+            ->assertOk()
+            ->assertSee('Approved');
+    }
+
+    public function test_json_decisions_return_committed_status_and_queue_notifications(): void
+    {
+        Queue::fake();
+        Storage::fake('local');
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create();
+        $application = Application::factory()->for($applicant)->create([
+            'birth_certificate' => 'applications/birth_certificates/birth.pdf',
+        ]);
+        Storage::disk('local')->put($application->birth_certificate, 'document');
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.applications.deny', $application), [
+                'admin_comment' => 'The birth certificate is incomplete.',
+                'admin_comment_document' => 'birth_certificate',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('application.status', 'denied')
+            ->assertJsonPath('stats.denied', 1);
+
+        $this->assertDatabaseHas('applications', [
+            'id' => $application->id,
+            'status' => 'denied',
+            'admin_comment' => 'The birth certificate is incomplete.',
+            'admin_comment_document' => 'birth_certificate',
+        ]);
+        Queue::assertPushed(NotifyApplicantsJob::class);
+        $statusNotificationJob = Queue::pushed(NotifyApplicantsJob::class)->first();
+        $this->assertSame('database', $statusNotificationJob->connection);
+        $this->assertSame([$applicant->id], $statusNotificationJob->userIds);
+        $this->assertTrue($statusNotificationJob->afterCommit);
+
+        $this->postJson(route('admin.applications.approve', $application))
+            ->assertStatus(409)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('application.status', 'denied');
+
+        $approvedApplicant = User::factory()->create();
+        $pendingApplication = Application::factory()->for($approvedApplicant)->create(['status' => 'pending']);
+        $this->postJson(route('admin.applications.approve', $pendingApplication))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('application.status', 'approved')
+            ->assertJsonPath('stats.approved', 1);
+        $this->assertSame('approved', $pendingApplication->fresh()->status);
+    }
+
+    public function test_notification_queue_failure_does_not_reverse_a_saved_denial(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $application = Application::factory()->create(['status' => 'pending']);
+        $dispatcher = Mockery::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')
+            ->once()
+            ->andThrow(new \RuntimeException('Simulated queue outage'));
+        $this->app->instance(Dispatcher::class, $dispatcher);
+
+        $this->actingAs($admin)
+            ->postJson(route('admin.applications.deny', $application), [
+                'admin_comment' => 'The application is incomplete.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('application.status', 'denied');
+
+        $this->assertDatabaseHas('applications', [
+            'id' => $application->id,
+            'status' => 'denied',
+            'admin_comment' => 'The application is incomplete.',
+        ]);
+    }
+
+    public function test_approved_and_denied_applications_cannot_be_approved_or_denied_again(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $approvedApplication = Application::factory()->create(['status' => 'approved']);
+        $deniedApplication = Application::factory()->create(['status' => 'denied']);
+
+        $this->actingAs($admin)
+            ->post(route('admin.applications.approve', $approvedApplication))
+            ->assertSessionHas('error');
+        $this->post(route('admin.applications.approve', $deniedApplication))
+            ->assertSessionHas('error');
+        $this->post(route('admin.applications.deny', $approvedApplication), [
+            'admin_comment' => 'Conflicting decision.',
+        ])->assertSessionHas('error');
+        $this->post(route('admin.applications.deny', $deniedApplication), [
+            'admin_comment' => 'Duplicate decision.',
+        ])->assertSessionHas('error');
+
+        $this->assertSame('approved', $approvedApplication->fresh()->status);
+        $this->assertSame('denied', $deniedApplication->fresh()->status);
+    }
+
+    public function test_non_admin_cannot_approve_or_deny_applications(): void
+    {
+        $applicant = User::factory()->create();
+        $application = Application::factory()->create(['status' => 'pending']);
+
+        $this->actingAs($applicant)
+            ->post(route('admin.applications.approve', $application))
+            ->assertForbidden();
+        $this->post(route('admin.applications.deny', $application), [
+            'admin_comment' => 'Not authorized.',
+        ])->assertForbidden();
+        $this->assertSame('pending', $application->fresh()->status);
+    }
+
+    public function test_pending_application_edit_recognizes_existing_private_documents(): void
+    {
+        Storage::fake('local');
+        $applicant = User::factory()->create();
+        $birthPath = 'applications/birth_certificates/pending-birth.pdf';
+        $enrollmentPath = 'applications/enrollment/pending-enrollment.pdf';
+        Storage::disk('local')->put($birthPath, 'birth');
+        Storage::disk('local')->put($enrollmentPath, 'enrollment');
+        Application::factory()->for($applicant)->create([
+            'status' => 'pending',
+            'birth_certificate' => $birthPath,
+            'certificate_enrollment' => $enrollmentPath,
+            'document_original_names' => [
+                'birth_certificate' => 'pending-birth.pdf',
+                'certificate_enrollment' => 'pending-enrollment.pdf',
+            ],
+        ]);
+
+        $response = $this->actingAs($applicant)->get(route('applications.edit'));
+        $response->assertOk()
+            ->assertSee('pending-birth.pdf')
+            ->assertSee('pending-enrollment.pdf')
+            ->assertSee('Choose a replacement PDF (optional)');
+        preg_match('/<input[^>]*name="birth_certificate"[^>]*>/', $response->getContent(), $birthInput);
+        preg_match('/<input[^>]*name="certificate_enrollment"[^>]*>/', $response->getContent(), $enrollmentInput);
+        $this->assertStringNotContainsString('required', $birthInput[0]);
+        $this->assertStringNotContainsString('required', $enrollmentInput[0]);
     }
 
     public function test_admin_can_mark_pending_application_under_review_and_applicant_sees_it(): void
@@ -780,7 +1016,8 @@ class ApplicationTest extends TestCase
             ->assertOk()
             ->assertSee('Birth Certificate')
             ->assertSee('View')
-            ->assertSee('Download');
+            ->assertSee('data-document-panel')
+            ->assertSee('download_url');
 
         $this->get(route('applications.document.preview', ['application' => $application, 'document' => 'birth_certificate']))
             ->assertOk()
@@ -790,6 +1027,35 @@ class ApplicationTest extends TestCase
             ->assertOk()
             ->assertHeader('content-disposition', 'inline; filename=birth-certificate.pdf')
             ->assertHeader('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function test_admin_application_list_uses_private_stream_urls_for_document_modal(): void
+    {
+        Storage::fake('local');
+        $admin = User::factory()->admin()->create();
+        $applicant = User::factory()->create();
+        $path = 'applications/birth_certificates/list-preview.pdf';
+        Storage::disk('local')->put($path, "%PDF-1.4\nBirth Certificate");
+        $application = Application::factory()->for($applicant)->create([
+            'birth_certificate' => $path,
+            'document_original_names' => ['birth_certificate' => 'birth-certificate.pdf'],
+        ]);
+        $streamUrl = route('applications.document.stream', [
+            'application' => $application,
+            'document' => 'birth_certificate',
+        ]);
+        $previewUrl = route('applications.document.preview', [
+            'application' => $application,
+            'document' => 'birth_certificate',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.applications.index'))
+            ->assertOk()
+            ->assertSee(str_replace('/', '\\/', $streamUrl), false)
+            ->assertDontSee(str_replace('/', '\\/', $previewUrl), false)
+            ->assertSee('data-document-applicant="'.$application->full_name.'"', false)
+            ->assertSee('download_url', false);
     }
 
     public function test_application_documents_are_private_and_accessible_only_to_the_owner_or_admin(): void
@@ -852,11 +1118,12 @@ class ApplicationTest extends TestCase
             ->assertRedirect();
         $this->assertEquals('approved', $application->fresh()->status);
 
-        $this->post(route('admin.applications.deny', $application), [
+        $deniedApplication = Application::factory()->create(['status' => 'pending']);
+        $this->post(route('admin.applications.deny', $deniedApplication), [
             'admin_comment' => 'The application does not meet the eligibility requirements.',
         ])
             ->assertRedirect();
-        $this->assertEquals('denied', $application->fresh()->status);
+        $this->assertEquals('denied', $deniedApplication->fresh()->status);
     }
 
     private function validApplicationPayload(array $overrides = []): array

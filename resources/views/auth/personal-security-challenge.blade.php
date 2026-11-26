@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('Verify your identity') }} - {{ config('app.name', 'PESO LAL-LO') }}</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+    @vite('resources/js/alerts.js')
     <style>
         :root { color-scheme: light dark; --maroon:#750016; --gold:#e4b63f; --surface:#fff; --text:#262626; --muted:#5b6470; --border:#d1d5db; --page:#f5f3ef; }
         @media (prefers-color-scheme: dark) { :root { --surface:#1f2937; --text:#f9fafb; --muted:#cbd5e1; --border:#4b5563; --page:#111827; } }
@@ -29,7 +30,7 @@
     <h1>{{ __('Verify your identity') }}</h1>
     <p>{{ __('Answer your personal security question to continue signing in.') }}</p>
     @if($errors->any())
-        <div class="error" role="alert">{{ __('The answer could not be verified. Check it and try again, or use account recovery.') }}</div>
+        <div class="error" data-spes-alert="error" role="alert">{{ __('The answer could not be verified. Check it and try again, or use account recovery.') }}</div>
     @endif
     <form method="POST" action="{{ route('login.personal-security.verify') }}" data-loading-label="{{ __('Verifying...') }}">
         @csrf

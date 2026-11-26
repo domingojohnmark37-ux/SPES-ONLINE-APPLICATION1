@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ __('Additional Requirements') }} — {{ __('SPES Portal') }}</title>
+    <link rel="stylesheet" href="{{ asset('css/document-panel.css') }}?v={{ filemtime(public_path('css/document-panel.css')) }}">
     <x-applicant-text-styles />
     <style>
         :root {
@@ -123,7 +124,7 @@
                 </aside>
             @endif
             @if(session('success'))
-                <p class="empty-state" role="status"><x-icon class="fa-solid fa-circle-check" aria-hidden="true" /><span>{{ session('success') }}</span></p>
+                <p class="empty-state" role="status" data-spes-alert="success"><x-icon class="fa-solid fa-circle-check" aria-hidden="true" /><span>{{ session('success') }}</span></p>
             @endif
             <section class="panel" aria-labelledby="requirements-heading">
                 <div class="panel-header">
@@ -163,6 +164,22 @@
                                 @php
                                     $expectedSubmissionCount = $requirement->expectedSubmissionCount($requirement->submissions->max('file_number'));
                                     $submissionsBySlot = $requirement->submissions->keyBy('file_number');
+                                    $requirementDocumentItems = $submissionsBySlot->map(function ($submission) use ($application, $requirement): array {
+                                        $available = \Illuminate\Support\Facades\Storage::disk('local')->exists($submission->file_path);
+
+                                        return [
+                                            'category' => $requirement->name.' — '.__('File :number', ['number' => $submission->file_number]),
+                                            'filename' => $submission->original_name,
+                                            'available' => $available,
+                                            'status_label' => $available ? __('On file') : __('File missing from private storage'),
+                                            'url' => $available ? route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $requirement->id, 'submission' => $submission->id]) : null,
+                                            'download_url' => $available ? route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $requirement->id, 'submission' => $submission->id]) : null,
+                                        ];
+                                    })->values();
+                                    $validSubmissionSlots = $requirement->submissions
+                                        ->filter(fn ($submission) => \Illuminate\Support\Facades\Storage::disk('local')->exists($submission->file_path))
+                                        ->keys()
+                                        ->map(fn ($slot) => (int) $slot);
                                     $templateLabels = collect();
                                     if ($requirement->template_path) {
                                         $templateLabels->push($requirement->template_original_name ?: $requirement->name);
@@ -173,7 +190,7 @@
                                     if ($templateLabels->isEmpty()) {
                                         $templateLabels->push($requirement->name);
                                     }
-                                    $missingSlots = array_values(array_diff(range(1, $expectedSubmissionCount), $submissionsBySlot->keys()->map(fn ($slot) => (int) $slot)->all()));
+                                    $missingSlots = array_values(array_diff(range(1, $expectedSubmissionCount), $validSubmissionSlots->all()));
                                 @endphp
                                 <tr>
                                     <td>
@@ -192,12 +209,12 @@
                                         @else
                                             <p class="document-deadline">{{ __('Submit as soon as possible; follow any deadline announced by PESO.') }}</p>
                                         @endif
-                                        <p class="document-description">{{ __(':submitted of :total files submitted', ['submitted' => $submissionsBySlot->count(), 'total' => $expectedSubmissionCount]) }}</p>
+                                        <p class="document-description">{{ __(':submitted of :total files submitted', ['submitted' => $validSubmissionSlots->count(), 'total' => $expectedSubmissionCount]) }}</p>
                                     </td>
                                     <td>
-                                        @if($submissionsBySlot->count() >= $expectedSubmissionCount)
+                                        @if($validSubmissionSlots->count() >= $expectedSubmissionCount)
                                             <span class="status status-submitted"><x-icon class="fa-solid fa-circle-check" aria-hidden="true" /> {{ __('Submitted') }}</span>
-                                        @elseif($submissionsBySlot->isNotEmpty())
+                                        @elseif($validSubmissionSlots->isNotEmpty())
                                             <span class="status status-required"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ __(':count files remaining', ['count' => count($missingSlots)]) }}</span>
                                         @elseif($requirement->is_required)
                                             <span class="status status-required"><x-icon class="fa-solid fa-circle-exclamation" aria-hidden="true" /> {{ __('Required') }}</span>
@@ -228,16 +245,26 @@
                                         @if($submissionsBySlot->isNotEmpty())
                                             <div style="display:grid;gap:6px;margin-bottom:8px;">
                                                 @foreach($submissionsBySlot as $slot => $submission)
-                                                    <a class="action action-view" href="{{ route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $requirement->id, 'submission' => $submission->id]) }}" target="_blank" rel="noopener">
-                                                        <x-icon class="fa-solid fa-eye" aria-hidden="true" /> {{ __('View file :number', ['number' => $slot]) }}: {{ $submission->original_name }}
-                                                    </a>
+                                                    @if(\Illuminate\Support\Facades\Storage::disk('local')->exists($submission->file_path))
+                                                        <a class="action action-view" href="{{ route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $requirement->id, 'submission' => $submission->id]) }}" target="_blank" rel="noopener">
+                                                            <x-icon class="fa-solid fa-eye" aria-hidden="true" /> {{ __('View file :number', ['number' => $slot]) }}: {{ $submission->original_name }}
+                                                        </a>
+                                                    @else
+                                                        <span class="status status-required" role="status">{{ __('File :number (:filename) is missing from private storage', ['number' => $slot, 'filename' => $submission->original_name]) }}</span>
+                                                    @endif
                                                 @endforeach
                                             </div>
                                         @endif
+                                        <button type="button" class="document-panel-trigger" data-document-panel data-no-request-loading
+                                                data-document-title="{{ $requirement->name }}"
+                                                data-document-applicant="{{ $application?->full_name }}"
+                                                data-document-items="{{ json_encode($requirementDocumentItems, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_TAG) }}">
+                                            {{ __('View submitted files (:count)', ['count' => $requirementDocumentItems->where('available', true)->count()]) }}
+                                        </button>
                                         @if($application && $approvalCapacityClosed && $application->status !== 'approved')
                                             <span class="template-locked"><x-icon class="fa-solid fa-lock" aria-hidden="true" /> {{ __('Uploads closed for this SPES season') }}</span>
                                         @elseif($application && $requirement->is_active && $requirement->isAvailableTo($application) && $missingSlots !== [])
-                                            <form method="POST" action="{{ route('applicant.requirements.upload', $requirement) }}" enctype="multipart/form-data">
+                                            <form method="POST" action="{{ route('applicant.requirements.upload', $requirement) }}" enctype="multipart/form-data" data-swal-loading="{{ __('Uploading documents...') }}">
                                                 @csrf
                                                 <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
                                                 @foreach($missingSlots as $slot)
@@ -295,5 +322,6 @@
             });
         </script>
     @endif
+    <script src="{{ asset('js/document-panel.js') }}?v={{ filemtime(public_path('js/document-panel.js')) }}"></script>
 </body>
 </html>

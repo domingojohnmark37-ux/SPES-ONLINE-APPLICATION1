@@ -37,7 +37,9 @@ class ApplicantRequirementsController extends Controller
             ->get()
             ->filter(fn (AdditionalRequirement $requirement) => $requirement->isAvailableTo($application))
             ->values();
-        $submittedFiles = $additionalRequirements->sum(fn ($requirement) => $requirement->submissions->count());
+        $submittedFiles = $additionalRequirements->sum(fn ($requirement) => $requirement->submissions
+            ->filter(fn (ApplicationAdditionalRequirement $submission): bool => Storage::disk('local')->exists($submission->file_path))
+            ->count());
         $requiredFiles = $additionalRequirements->sum(fn ($requirement) => $requirement->expectedSubmissionCount(
             $requirement->submissions->max('file_number'),
         ));
@@ -110,13 +112,16 @@ class ApplicantRequirementsController extends Controller
                     ->whereKey($additionalRequirement->id)
                     ->lockForUpdate()
                     ->firstOrFail();
-                $existingSlots = ApplicationAdditionalRequirement::query()
+                $existingSubmissions = ApplicationAdditionalRequirement::query()
                     ->where('application_id', $application->id)
                     ->where('additional_requirement_id', $requirement->id)
+                    ->get();
+                $lastSubmittedFileNumber = $existingSubmissions->max('file_number');
+                $existingSlots = $existingSubmissions
+                    ->filter(fn (ApplicationAdditionalRequirement $submission): bool => Storage::disk('local')->exists($submission->file_path))
                     ->pluck('file_number')
                     ->map(fn ($number): int => (int) $number)
                     ->all();
-                $lastSubmittedFileNumber = $existingSlots === [] ? null : max($existingSlots);
                 $missingSlots = array_values(array_diff(
                     range(1, $requirement->expectedSubmissionCount($lastSubmittedFileNumber)),
                     $existingSlots,
@@ -145,18 +150,30 @@ class ApplicantRequirementsController extends Controller
                 foreach ($missingSlots as $slot) {
                     $file = $validated['documents'][$slot];
                     $path = $file->store("applications/{$application->id}/additional-requirements", 'local');
-                    if (!is_string($path)) {
+                    if (! is_string($path) || $path === '' || ! Storage::disk('local')->exists($path)) {
+                        if (is_string($path) && $path !== '') {
+                            Application::deleteLocalFiles([$path], $application->id);
+                        }
+
                         throw new RuntimeException('Unable to store an uploaded application requirement.');
                     }
                     $storedPaths[] = $path;
 
-                    ApplicationAdditionalRequirement::create([
-                        'application_id' => $application->id,
-                        'additional_requirement_id' => $requirement->id,
-                        'file_number' => $slot,
-                        'file_path' => $path,
-                        'original_name' => $file->getClientOriginalName(),
-                    ]);
+                    $existingSubmission = $existingSubmissions->firstWhere('file_number', $slot);
+                    if ($existingSubmission) {
+                        $existingSubmission->update([
+                            'file_path' => $path,
+                            'original_name' => $file->getClientOriginalName(),
+                        ]);
+                    } else {
+                        ApplicationAdditionalRequirement::create([
+                            'application_id' => $application->id,
+                            'additional_requirement_id' => $requirement->id,
+                            'file_number' => $slot,
+                            'file_path' => $path,
+                            'original_name' => $file->getClientOriginalName(),
+                        ]);
+                    }
                 }
 
                 $auditLogger->record(
@@ -170,7 +187,7 @@ class ApplicantRequirementsController extends Controller
             });
         } catch (Throwable $exception) {
             if ($storedPaths !== []) {
-                Storage::disk('local')->delete($storedPaths);
+                Application::deleteLocalFiles($storedPaths, $application->id);
             }
             throw $exception;
         }

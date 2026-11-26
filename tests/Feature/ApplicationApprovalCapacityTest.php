@@ -7,8 +7,10 @@ use App\Models\Application;
 use App\Models\AuditAction;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Jobs\NotifyClosedApplicantsJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -18,6 +20,7 @@ class ApplicationApprovalCapacityTest extends TestCase
 
     public function test_filling_the_approval_limit_closes_submissions_and_notifies_pending_applicants(): void
     {
+        Queue::fake();
         $admin = User::factory()->admin()->create();
         $selectedApplicant = User::factory()->create();
         $pendingApplicant = User::factory()->create();
@@ -41,6 +44,13 @@ class ApplicationApprovalCapacityTest extends TestCase
             'new_value' => 'denied',
         ]);
 
+        Queue::assertPushed(NotifyClosedApplicantsJob::class, fn (NotifyClosedApplicantsJob $job): bool =>
+            $job->connection === 'database'
+            && $job->applicationIds === [$pendingApplication->id]
+            && $job->limit === 1
+            && $job->afterCommit
+        );
+        (new NotifyClosedApplicantsJob([$pendingApplication->id], 1))->handle(app(\App\Services\ApplicantNotificationService::class));
         $notification = $pendingApplicant->notifications()->firstOrFail();
         $this->assertSame('SPES application period closed', $notification->data['title']);
         $this->assertSame('approval_limit_reached', $notification->data['event']);

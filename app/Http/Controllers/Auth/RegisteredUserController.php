@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Mail\RegistrationVerificationCode;
 use App\Models\PendingRegistration;
+use App\Support\MailDeliveryDiagnostics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,7 +57,15 @@ class RegisteredUserController extends Controller
             ->first();
 
         if (! $pending) {
-            if (! $this->verificationMailerIsSafe()) {
+            $mailConfiguration = MailDeliveryDiagnostics::configurationStatus();
+            if (! $this->verificationMailerIsSafe()
+                || (! app()->environment('testing') && ! $mailConfiguration['ready'])) {
+                Log::error('Registration verification email configuration is incomplete.', [
+                    'flow' => 'registration',
+                    'mailer' => $mailConfiguration['mailer'],
+                    'missing_settings' => $mailConfiguration['missing'],
+                ]);
+
                 if ($request->expectsJson()) {
                     return response()->json([
                         'errors' => [
@@ -88,11 +97,9 @@ class RegisteredUserController extends Controller
                     return $pending;
                 });
             } catch (\Throwable $e) {
-                report($e);
                 Log::error('Registration verification email delivery failed.', [
-                    'mailer' => config('mail.default'),
                     'flow' => 'registration',
-                    'exception' => $e::class,
+                    ...MailDeliveryDiagnostics::exceptionContext($e, $validated['email'], $pin),
                 ]);
                 $request->session()->forget([
                     'pending_registration_token',

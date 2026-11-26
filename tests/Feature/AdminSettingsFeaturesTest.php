@@ -628,7 +628,8 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertSee('Restore from Backup')
             ->assertSee('name="current_password"', false)
             ->assertSee('This existing restore adds missing records and files only', false)
-            ->assertSee('onsubmit="return confirm(', false);
+            ->assertSee('data-swal-confirm=', false)
+            ->assertDontSee('onsubmit="return confirm(', false);
 
         $this->post(route('admin.backup.restore'), [])
             ->assertSessionHasErrors(['backup', 'current_password']);

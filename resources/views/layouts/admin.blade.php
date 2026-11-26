@@ -13,6 +13,15 @@
     <title>@yield('title', __('Admin')) — {{ __('SPES Management System') }}</title>
     <link rel="stylesheet" href="{{ asset('css/personal-security-question.css') }}?v={{ filemtime(public_path('css/personal-security-question.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/document-panel.css') }}?v={{ filemtime(public_path('css/document-panel.css')) }}">
+    @vite('resources/js/alerts.js')
+    <style>
+        .application-decision-toast { position:fixed; right:20px; bottom:20px; z-index:10001; max-width:min(440px,calc(100vw - 32px)); padding:12px 16px; border:1px solid #9bd0a5; border-left:4px solid #237a36; border-radius:9px; background:#edf9f0; color:#1f5c2d; box-shadow:0 8px 28px rgba(0,0,0,.18); font-weight:650; }
+        .application-decision-toast[data-kind="error"] { border-color:#e5a2a2; border-left-color:#b42318; background:#fff1f0; color:#7a271a; }
+        .application-decision-toast[hidden] { display:none; }
+        [data-decision-feedback] { margin-top:6px; color:#b42318; font-size:.78rem; }
+        [data-decision-spinner][hidden] { display:none; }
+    </style>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -87,30 +96,33 @@
         /* ── Sidebar ─────────────────────────────────────── */
         .sidebar {
             position: fixed; top: 0; left: 0; width: var(--sidebar-w);
-            height: 100vh; background: var(--primary-dark);
+            height: 100vh; height: 100dvh; background: var(--primary-dark);
             display: flex; flex-direction: column; z-index: 100;
-            overflow-y: auto;
+            overflow: hidden;
         }
         .sidebar-brand {
-            padding: 22px 20px 18px;
+            flex: 0 0 auto;
+            padding: 18px 16px 16px;
             border-bottom: 1px solid rgba(255,255,255,.1);
             display: flex; align-items: center; gap: 12px;
         }
-        .sidebar-brand img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+        .sidebar-brand img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; }
         .sidebar-brand span { font-size: 1rem; font-weight: 700; color: #fff; line-height: 1.2; }
         .sidebar-brand small { display: block; font-size: .72rem; color: rgba(255,255,255,.55); font-weight: 400; }
 
-        .sidebar-nav { padding: 16px 12px; flex: 1; }
+        .sidebar-nav { min-height: 0; padding: 12px 12px; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
         .nav-section { font-size: .68rem; font-weight: 700; color: rgba(255,255,255,.4);
-            letter-spacing: .08em; padding: 14px 8px 6px; text-transform: uppercase; }
+            letter-spacing: .08em; padding: 13px 8px 6px; text-transform: uppercase; }
         .nav-link {
             display: flex; align-items: center; gap: 12px;
             color: rgba(255,255,255,.75); text-decoration: none;
-            padding: 11px 12px; border-radius: 8px; font-size: .9rem;
+            min-height: 42px; padding: 9px 11px; border-radius: 9px; font-size: .88rem;
             transition: background .2s, color .2s; margin-bottom: 2px;
         }
-        .nav-link svg.icon { width: 18px; text-align: center; font-size: .95rem; }
+        .nav-link svg.icon { width: 20px; flex: 0 0 20px; text-align: center; font-size: .95rem; }
         .nav-link:hover { background: rgba(255,255,255,.1); color: #fff; }
+        .sidebar :is(.nav-link, .btn-logout):focus-visible,
+        .hamburger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
         .nav-link.active { background: var(--accent); color: var(--primary-dark); font-weight: 600; }
         .nav-link.active svg.icon { color: var(--primary-dark); }
         .nav-group { display:flex; flex-direction:column; }
@@ -124,12 +136,26 @@
         }
         .nav-group-toggle .nav-chevron { width:auto; margin-left:auto; transition:transform .18s ease; }
         .nav-group-toggle[aria-expanded="true"] .nav-chevron { transform:rotate(180deg); }
-        .nav-group-toggle.is-active { background:rgba(255,255,255,.08); color:#fff; }
-        .nav-submenu { display:none; flex-direction:column; gap:2px; padding:3px 0 5px 14px; }
-        .nav-group.is-open .nav-submenu { display:flex; }
-        .nav-submenu .nav-link { min-height:36px; padding:9px 10px; font-size:.84rem; }
+        .nav-group-toggle.is-active { background:rgba(255,215,0,.13); box-shadow:inset 3px 0 var(--accent); color:#fff; }
+        .nav-submenu {
+            display:flex;
+            max-height:0;
+            flex-direction:column;
+            gap:3px;
+            overflow:hidden;
+            padding:0 0 0 14px;
+            border-left:1px solid rgba(255,255,255,.16);
+            margin-left:12px;
+            opacity:0;
+            visibility:hidden;
+            transform:translateY(-3px);
+            transition:max-height .2s ease, padding .2s ease, opacity .16s ease, transform .16s ease, visibility .16s;
+        }
+        .nav-group.is-open .nav-submenu { max-height:32rem; padding-top:4px; padding-bottom:6px; opacity:1; visibility:visible; transform:none; }
+        .nav-submenu .nav-link { min-height:38px; padding:8px 10px; font-size:.83rem; }
 
         .sidebar-footer {
+            flex: 0 0 auto;
             padding: 14px 12px;
             border-top: 1px solid rgba(255,255,255,.1);
         }
@@ -270,7 +296,10 @@
         .admin-confirm-dialog[data-kind="leave"] .admin-confirm-actions [data-admin-confirm] { border-color:var(--danger); background:var(--danger); }
         .admin-confirm-dialog[data-kind="delete"] .admin-confirm-actions [data-admin-confirm] { border-color:var(--danger); background:var(--danger); }
         @keyframes admin-confirm-in { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
-        @media(prefers-reduced-motion:reduce) { .admin-confirm-dialog { animation:none; } }
+        @media(prefers-reduced-motion:reduce) {
+            .admin-confirm-dialog { animation:none; }
+            .sidebar, .nav-submenu, .nav-chevron { transition-duration:.01ms; }
+        }
         .approval-limit-toast { position:fixed; right:24px; bottom:24px; z-index:1450; display:flex; width:min(460px,calc(100vw - 32px)); align-items:flex-start; gap:13px; padding:17px 18px; border:1px solid rgba(198,40,40,.2); border-left:5px solid var(--danger); border-radius:12px; background:var(--white); color:var(--text); box-shadow:0 16px 45px rgba(17,24,39,.22); animation:admin-confirm-in .2s ease-out; }
         .approval-limit-toast[hidden] { display:none; }
         .approval-limit-toast > svg.icon { margin-top:2px; color:var(--danger); font-size:1.1rem; }
@@ -299,13 +328,23 @@
 
         /* ── Responsive ───────────────────────────────────── */
         @media (max-width: 900px) {
-            .sidebar { transform: translateX(-100%); transition: transform .3s; }
+            .sidebar { transform: translateX(-100%); transition: transform .24s ease; }
             .sidebar.open { transform: translateX(0); }
             .topbar, .page-wrapper { left: 0; margin-left: 0; }
             .topbar { left: 0; }
             .hamburger { display: block !important; }
+            .sidebar-backdrop:not([hidden]) {
+                position: fixed;
+                inset: 0;
+                z-index: 95;
+                display: block;
+                border: 0;
+                background: rgba(17,24,39,.48);
+                cursor: pointer;
+            }
         }
         .hamburger { display: none; background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--primary); }
+        .sidebar-backdrop { display: none; }
 
         /* ── Detail view ──────────────────────────────────── */
         .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
@@ -350,11 +389,40 @@
         }
     </style>
     @yield('styles')
+    <link rel="stylesheet" href="{{ asset('css/portal-refinement.css') }}?v={{ filemtime(public_path('css/portal-refinement.css')) }}">
 </head>
-<body>
+<body class="spes-admin">
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.querySelector('[data-admin-sidebar-toggle]');
+    const sidebarBackdrop = document.querySelector('[data-admin-sidebar-backdrop]');
+    function setAdminSidebarOpen(isOpen) {
+        sidebar?.classList.toggle('open', isOpen);
+        sidebarToggle?.setAttribute('aria-expanded', String(isOpen));
+        sidebarToggle?.setAttribute('aria-label', isOpen
+            ? @json(__('Close admin navigation'))
+            : @json(__('Open admin navigation')));
+        sidebarBackdrop?.toggleAttribute('hidden', !isOpen);
+    }
+    sidebarToggle?.addEventListener('click', function(){
+        setAdminSidebarOpen(!sidebar?.classList.contains('open'));
+    });
+    sidebarBackdrop?.addEventListener('click', function(){
+        setAdminSidebarOpen(false);
+        sidebarToggle?.focus();
+    });
+    document.addEventListener('keydown', function(event){
+        if (event.key === 'Escape' && sidebar?.classList.contains('open')) {
+            setAdminSidebarOpen(false);
+            sidebarToggle?.focus();
+        }
+    });
+    window.matchMedia('(min-width: 901px)').addEventListener('change', function(event){
+        if (event.matches) setAdminSidebarOpen(false);
+    });
+
     document.querySelectorAll('[data-admin-nav-toggle]').forEach(function(toggle){
         toggle.addEventListener('click', function(){
             const group = toggle.closest('[data-admin-nav-group]');
@@ -394,8 +462,12 @@ document.addEventListener('DOMContentLoaded', function(){
                 emptyMessage.className = 'notif-empty';
                 emptyMessage.textContent = @json(__('No new notifications'));
                 dd.replaceChildren(emptyMessage);
+                window.spesAlerts?.toast.success(@json(__('Notifications marked as read.')));
             })
-            .catch((error)=>console.error(error));
+            .catch((error)=> {
+                console.error(error);
+                window.spesAlerts?.toast.error(@json(__('Could not mark notifications as read.')));
+            });
         });
     }
     // mark single notification when clicked
@@ -409,8 +481,12 @@ document.addEventListener('DOMContentLoaded', function(){
             item.remove();
             const cnt = document.getElementById('notifCount');
             if (cnt) { let v = parseInt(cnt.innerText)-1; if (v<=0) cnt.remove(); else cnt.innerText = v; }
+            window.spesAlerts?.toast.success(@json(__('Notification marked as read.')));
         })
-        .catch((error)=>console.error(error));
+        .catch((error)=> {
+            console.error(error);
+            window.spesAlerts?.toast.error(@json(__('Could not mark notification as read.')));
+        });
     });
 });
 </script>
@@ -541,7 +617,12 @@ document.addEventListener('DOMContentLoaded', function(){
     </nav>
 
     <div class="sidebar-footer">
-        <form method="POST" action="{{ route('logout') }}">
+        <form method="POST" action="{{ route('logout') }}"
+              data-swal-confirm="{{ __('Are you sure you want to log out of your account?') }}"
+              data-swal-title="{{ __('Confirm Logout') }}"
+              data-swal-confirm-action="{{ __('Yes, Log Out') }}"
+              data-swal-cancel-action="{{ __('Cancel') }}"
+              data-no-request-loading>
             @csrf
             <button type="submit" class="btn-logout" style="width:100%; justify-content:center;">
                 <x-icon class="fa-solid fa-right-from-bracket" /> {{ __('Log Out') }}
@@ -549,11 +630,12 @@ document.addEventListener('DOMContentLoaded', function(){
         </form>
     </div>
 </aside>
+<button class="sidebar-backdrop" type="button" data-admin-sidebar-backdrop aria-label="{{ __('Close admin navigation') }}" hidden></button>
 
 <!-- ── Top Bar ────────────────────────────────────────────── -->
 <header class="topbar">
     <div style="display:flex;align-items:center;gap:14px;">
-        <button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <button class="hamburger" type="button" data-admin-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="{{ __('Open admin navigation') }}">
             <x-icon class="fa-solid fa-bars" />
         </button>
         <div class="topbar-left">
@@ -603,13 +685,13 @@ document.addEventListener('DOMContentLoaded', function(){
 <div class="page-wrapper">
     <div class="page-content">
         @if(session('success'))
-            <div class="alert alert-success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
+            <div class="alert alert-success" data-spes-alert="success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
         @endif
         @if(session('error'))
-            <div class="alert alert-danger"><x-icon class="fa-solid fa-circle-xmark" /> {{ session('error') }}</div>
+            <div class="alert alert-danger" data-spes-alert="error"><x-icon class="fa-solid fa-circle-xmark" /> {{ session('error') }}</div>
         @endif
         @if(session('info'))
-            <div class="alert alert-info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
+            <div class="alert alert-info" data-spes-alert="info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
         @endif
 
         @yield('content')
@@ -748,6 +830,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 approvedForms.delete(form);
                 return;
             }
+            if (form.dataset.swalConfirm || event.submitter?.dataset.swalConfirm) return;
 
             if (form.dataset.adminConfirmMessage) {
                 event.preventDefault();
@@ -853,6 +936,8 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     })();
 </script>
+<script src="{{ asset('js/document-panel.js') }}?v={{ filemtime(public_path('js/document-panel.js')) }}"></script>
+<script src="{{ asset('js/admin-application-decisions.js') }}?v={{ filemtime(public_path('js/admin-application-decisions.js')) }}"></script>
 <script src="{{ asset('js/request-loading.js') }}?v={{ filemtime(public_path('js/request-loading.js')) }}"></script>
 </body>
 </html>

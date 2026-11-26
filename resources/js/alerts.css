@@ -1,0 +1,156 @@
+.spes-swal-popup.swal2-popup {
+    width: min(28rem, calc(100vw - 2rem));
+    padding: 1.5rem;
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 14px;
+    background: var(--white, #fff);
+    color: var(--text, #212121);
+    box-shadow: 0 20px 60px rgba(17, 24, 39, .2);
+}
+
+.spes-swal-title.swal2-title {
+    padding: .2rem 0 0;
+    color: var(--text, #212121);
+    font-family: inherit;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.spes-swal-popup .swal2-html-container {
+    margin: .65rem 0 0;
+    color: var(--text-muted, #6b7280);
+    font-family: inherit;
+    font-size: .9rem;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.spes-swal-popup .swal2-actions {
+    gap: .55rem;
+    margin-top: 1.35rem;
+}
+
+.spes-swal-confirm.swal2-styled,
+.spes-swal-cancel.swal2-styled {
+    min-height: 40px;
+    margin: 0;
+    padding: .65rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+.spes-swal-confirm.swal2-styled {
+    background: var(--primary, var(--primary-color, #8b0000));
+    color: #fff;
+}
+
+.spes-swal-cancel.swal2-styled {
+    border-color: var(--border, #e0e0e0);
+    background: var(--bg, #f0f2f5);
+    color: var(--text, #212121);
+}
+
+.spes-swal-popup :is(.swal2-confirm, .swal2-cancel):focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--primary, var(--primary-color, #8b0000)) 28%, transparent);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+.spes-swal-popup .swal2-icon.swal2-success {
+    border-color: var(--theme-success, var(--success, #2e7d32));
+    color: var(--theme-success, var(--success, #2e7d32));
+}
+
+.spes-swal-popup .swal2-icon.swal2-success .swal2-success-ring {
+    border-color: var(--theme-success, var(--success, #2e7d32));
+}
+
+.spes-swal-popup .swal2-icon.swal2-success [class^="swal2-success-line"] {
+    background-color: var(--theme-success, var(--success, #2e7d32));
+}
+
+.spes-swal-popup .swal2-icon.swal2-error {
+    border-color: var(--theme-danger, var(--danger, #c62828));
+    color: var(--theme-danger, var(--danger, #c62828));
+}
+
+.spes-swal-popup .swal2-icon.swal2-error [class^="swal2-x-mark-line"] {
+    background-color: var(--theme-danger, var(--danger, #c62828));
+}
+
+.spes-swal-popup .swal2-icon.swal2-warning {
+    border-color: var(--accent2, var(--accent, var(--primary-color, #ffa500)));
+    color: var(--accent2, var(--accent, var(--primary-color, #ffa500)));
+}
+
+.spes-swal-popup .swal2-icon.swal2-info,
+.spes-swal-popup .swal2-icon.swal2-question {
+    border-color: var(--primary, var(--primary-color, #8b0000));
+    color: var(--primary, var(--primary-color, #8b0000));
+}
+
+.spes-swal-toast.swal2-popup {
+    width: min(26rem, calc(100vw - 1.5rem));
+    padding: .85rem 1rem;
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 10px;
+    background: var(--white, #fff);
+    color: var(--text, #212121);
+    box-shadow: 0 8px 26px rgba(17, 24, 39, .16);
+}
+
+.spes-swal-toast .swal2-html-container {
+    margin: 0;
+    color: var(--text, #212121);
+    font-family: inherit;
+    font-size: .86rem;
+    line-height: 1.45;
+    text-align: left;
+}
+
+.spes-swal-popup .swal2-timer-progress-bar {
+    background: var(--accent, var(--primary-color, #ffd700));
+}
+
+.spes-swal-enter {
+    animation: spes-swal-in .18s ease-out;
+}
+
+.spes-swal-leave {
+    animation: spes-swal-out .12s ease-in;
+}
+
+@keyframes spes-swal-in {
+    from { opacity: 0; transform: translateY(7px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes spes-swal-out {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(5px) scale(.98); }
+}
+
+@media (max-width: 480px) {
+    .spes-swal-popup.swal2-popup {
+        padding: 1.15rem;
+    }
+
+    .spes-swal-popup .swal2-actions {
+        width: 100%;
+        flex-direction: column-reverse;
+    }
+
+    .spes-swal-popup .swal2-actions button {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spes-swal-enter,
+    .spes-swal-leave {
+        animation: none;
+    }
+}

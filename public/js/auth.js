@@ -318,6 +318,9 @@ function restoreAuthForm(form, message = '', messageType = '') {
         requestStatus.classList.toggle('is-error', messageType === 'error');
         requestStatus.classList.toggle('is-success', messageType === 'success');
     }
+    if (message && (messageType === 'error' || messageType === 'success')) {
+        window.spesAlerts?.toast?.[messageType]?.(message);
+    }
 }
 
 // Validate individual field

@@ -53,7 +53,7 @@
         <div class="card" style="margin-bottom:20px;">
             <div class="card-header">
                 <h2><x-icon class="fa-solid fa-id-card" /> Personal Information</h2>
-                <span class="badge badge-{{ $application->statusBadgeClass() }}">{{ $application->statusLabel() }}</span>
+                <span class="badge {{ $application->statusBadgeClass() }}" data-application-status-label>{{ $application->statusLabel() }}</span>
             </div>
             <div class="detail-grid">
                 <div class="detail-item"><div class="detail-label">Full Name</div><div class="detail-value">{{ $application->full_name }}</div></div>
@@ -84,44 +84,65 @@
 
         {{-- Uploaded Documents --}}
         <div class="card" style="margin-bottom:20px;">
+            @php
+                $detailDocumentItems = collect([
+                    ['label' => 'Birth Certificate', 'key' => 'birth_certificate'],
+                    ['label' => 'Certificate of Enrollment', 'key' => 'certificate_enrollment'],
+                    ['label' => 'Certificate of Grades', 'key' => 'certificate_grade'],
+                    ['label' => 'Application Letter', 'key' => 'application_letter'],
+                    ['label' => 'Certificate of Indigency', 'key' => 'indigency'],
+                ])->map(function (array $doc) use ($application): array {
+                    $path = $application->{$doc['key']};
+                    $available = filled($path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($path);
+
+                    return [
+                        'category' => __($doc['label']),
+                        'filename' => $available ? ($application->document_original_names[$doc['key']] ?? basename($path)) : null,
+                        'available' => $available,
+                        'status_label' => $available ? __('On file') : (filled($path) ? __('File missing from private storage') : __('Not uploaded')),
+                        'url' => $available ? route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) : null,
+                        'download_url' => $available ? route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) : null,
+                    ];
+                })->concat($application->additionalRequirementSubmissions->sortBy('file_number')->map(function ($submission) use ($application): array {
+                    $available = \Illuminate\Support\Facades\Storage::disk('local')->exists($submission->file_path);
+
+                    return [
+                        'category' => $submission->requirement->name.' — '.__('File :number', ['number' => $submission->file_number]),
+                        'filename' => $submission->original_name,
+                        'submitted_by' => $application->full_name,
+                        'available' => $available,
+                        'status_label' => $available ? __('On file') : __('File missing from private storage'),
+                        'url' => $available ? route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $submission->additional_requirement_id, 'submission' => $submission->id]) : null,
+                        'download_url' => $available ? route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $submission->additional_requirement_id, 'submission' => $submission->id]) : null,
+                    ];
+                }))->values();
+                $availableDetailDocumentCount = $detailDocumentItems->where('available', true)->count();
+            @endphp
             <div class="card-header"><h2>Uploaded Documents</h2></div>
             <div class="card-body">
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-                    @foreach([
-                        ['label'=>'Birth Certificate','key'=>'birth_certificate'],
-                        ['label'=>'Certificate of Enrollment','key'=>'certificate_enrollment']
-                    ] as $doc)
-                        <div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-                            <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;">{{ $doc['label'] }}</div>
-                            @if($application->{$doc['key']})
-                                @if($application->document_original_names[$doc['key']] ?? false)
-                                    <div style="margin-bottom:8px;color:var(--text-muted);font-size:.75rem;overflow-wrap:anywhere;">
-                                        {{ $application->document_original_names[$doc['key']] }}
-                                    </div>
-                                @endif
-                                <button type="button" data-no-request-loading onclick="openDocumentModal('{{ route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) }}', '{{ $doc['label'] }}', this)"
-                                   class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-                                    View
-                                </button>
-                                <a href="{{ route('applications.document.stream', ['application' => $application->id, 'document' => $doc['key']]) }}"
-                                   download class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-                                    Download
-                                </a>
-                            @else
-                                <span style="font-size:.78rem;color:var(--text-muted);">Not uploaded</span>
-                            @endif
-                        </div>
-                    @endforeach
-                    @foreach($application->additionalRequirementSubmissions->sortBy('file_number') as $submission)
-                        <div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
-                            <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;">{{ $submission->requirement->name }} — {{ __('File :number', ['number' => $submission->file_number]) }}</div>
-                            <div style="margin-bottom:8px;color:var(--text-muted);font-size:.75rem;">{{ $submission->original_name }}</div>
-                            <a href="{{ route('applications.additional-requirements.submission', ['application' => $application->id, 'additionalRequirement' => $submission->additional_requirement_id, 'submission' => $submission->id]) }}"
-                               target="_blank" rel="noopener" class="btn btn-primary btn-sm">
-                                {{ __('View file :number', ['number' => $submission->file_number]) }}
-                            </a>
-                        </div>
-                    @endforeach
+                <div class="document-summary">
+                    <div class="document-summary-chips">
+                        @foreach($detailDocumentItems->where('available', true)->take(3) as $documentItem)
+                            @php
+                                $extension = strtolower(pathinfo($documentItem['filename'], PATHINFO_EXTENSION));
+                            @endphp
+                            <span class="document-chip" title="{{ $documentItem['category'] }} — {{ $documentItem['filename'] }}">
+                                <span class="document-file-icon">{{ $extension === 'pdf' ? 'PDF' : 'FILE' }}</span>
+                                <span class="document-chip-label">{{ $documentItem['category'] }}</span>
+                            </span>
+                        @endforeach
+                        @if($availableDetailDocumentCount > 3)
+                            <span class="document-chip">+{{ $availableDetailDocumentCount - 3 }} {{ __('more') }}</span>
+                        @elseif($availableDetailDocumentCount === 0)
+                            <span class="document-chip">{{ __('No files available') }}</span>
+                        @endif
+                    </div>
+                    <button type="button" class="document-panel-trigger" data-document-panel data-no-request-loading
+                            data-document-title="{{ $application->full_name }} — {{ __('Documents') }}"
+                            data-document-applicant="{{ $application->full_name }}"
+                            data-document-items="{{ json_encode($detailDocumentItems, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_TAG) }}">
+                        {{ __('View Documents (:count)', ['count' => $availableDetailDocumentCount]) }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -197,7 +218,7 @@
     {{-- Right: Actions & Comments --}}
     <div>
         {{-- Submission info --}}
-        <div class="card" style="margin-bottom:16px;">
+        <div class="card" style="margin-bottom:16px;" data-application-decision-actions>
             <div class="card-header"><h2><x-icon class="fa-solid fa-info-circle" /> Submission Info</h2></div>
             <div class="card-body" style="font-size:.875rem;">
                 <p><strong>Reference ID:</strong><br><code>{{ $application->ref_id }}</code></p>
@@ -232,19 +253,25 @@
                     </div>
                 @endif
                 @if(!$approvalCapacity['full'])
-                    <form method="POST" action="{{ route('admin.applications.approve', $application) }}">
+                    <form method="POST" action="{{ route('admin.applications.approve', $application) }}"
+                          data-application-decision data-no-request-loading data-unsaved-guard="off">
                         @csrf
-                        <button type="submit" class="btn btn-success" style="width:100%;" onclick="return confirm('Approve this application?')">
+                        <button type="submit" class="btn btn-success" style="width:100%;" data-swal-confirm="{{ __('Approve this application?') }}">
                             <x-icon class="fa-solid fa-circle-check" /> Approve Application
+                            <span data-decision-spinner hidden class="request-loading-spinner" aria-hidden="true"></span>
                         </button>
+                        <div data-decision-feedback role="alert" hidden></div>
                     </form>
                 @else
                     <button type="button" class="btn btn-success" style="width:100%;" disabled aria-disabled="true">
                         <x-icon class="fa-solid fa-lock" aria-hidden="true" /> Approval limit reached
                     </button>
                 @endif
-                <form method="POST" action="{{ route('admin.applications.deny', $application) }}">
+                <form method="POST" action="{{ route('admin.applications.deny', $application) }}"
+                      data-application-decision data-no-request-loading data-unsaved-guard="off"
+                      data-swal-confirm="{{ __('Deny this application?') }}">
                     @csrf
+                    <input type="hidden" name="denial_application_id" value="{{ $application->id }}">
                     <label for="decline_reason" style="display:block;margin-bottom:6px;font-size:.82rem;font-weight:600;">{{ __('Specific reason for declining') }}</label>
                     <textarea id="decline_reason" name="admin_comment" rows="3" maxlength="2000" required
                         placeholder="{{ __('Explain why this application is being declined.') }}"
@@ -262,7 +289,7 @@
                             'application_letter' => 'Application Letter',
                             'indigency' => 'Certificate of Indigency',
                         ] as $documentKey => $documentLabel)
-                            @if(filled($application->{$documentKey}))
+                            @if(filled($application->{$documentKey}) && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->{$documentKey}))
                                 <option value="{{ $documentKey }}" @selected(old('admin_comment_document') === $documentKey)>{{ __($documentLabel) }}</option>
                             @endif
                         @endforeach
@@ -270,9 +297,11 @@
                     @error('admin_comment_document')
                         <div style="color:var(--danger);font-size:.78rem;margin-top:4px;">{{ $message }}</div>
                     @enderror
-                    <button type="submit" class="btn btn-danger" style="width:100%;" onclick="return confirm('Deny this application?')">
+                    <button type="submit" class="btn btn-danger" style="width:100%;">
                         <x-icon class="fa-solid fa-circle-xmark" /> {{ __('Decline Application') }}
+                        <span data-decision-spinner hidden class="request-loading-spinner" aria-hidden="true"></span>
                     </button>
+                    <div data-decision-feedback role="alert" hidden></div>
                 </form>
             </div>
         </div>

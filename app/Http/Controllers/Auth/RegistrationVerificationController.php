@@ -8,6 +8,7 @@ use App\Models\PendingRegistration;
 use App\Models\AuditAction;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Support\MailDeliveryDiagnostics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -149,7 +150,15 @@ class RegistrationVerificationController extends Controller
 
     public function resend(Request $request): RedirectResponse|JsonResponse
     {
-        if (! $this->verificationMailerIsSafe()) {
+        $mailConfiguration = MailDeliveryDiagnostics::configurationStatus();
+        if (! $this->verificationMailerIsSafe()
+            || (! app()->environment('testing') && ! $mailConfiguration['ready'])) {
+            Log::error('Registration verification resend configuration is incomplete.', [
+                'flow' => 'registration_resend',
+                'mailer' => $mailConfiguration['mailer'],
+                'missing_settings' => $mailConfiguration['missing'],
+            ]);
+
             return back()->withErrors([
                 'pin' => 'Email verification is unavailable. Please try again later.',
             ]);
@@ -189,11 +198,9 @@ class RegistrationVerificationController extends Controller
                 return ['resent', $pending];
             });
         } catch (\Throwable $e) {
-            report($e);
             Log::error('Registration verification resend failed.', [
-                'mailer' => config('mail.default'),
                 'flow' => 'registration',
-                'exception' => $e::class,
+                ...MailDeliveryDiagnostics::exceptionContext($e, null, $pin),
             ]);
 
             if ($request->expectsJson()) {

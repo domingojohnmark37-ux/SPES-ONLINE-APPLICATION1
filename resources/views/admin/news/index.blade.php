@@ -74,7 +74,7 @@
                                 <form method="POST" action="{{ route('admin.news.destroy', $item) }}" style="display: inline;">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this news? This action cannot be undone.')">
+                                    <button type="submit" class="btn btn-danger btn-sm" data-swal-confirm="{{ __('Delete this news? This action cannot be undone.') }}">
                                         <x-icon class="fa-solid fa-trash" /> Delete
                                     </button>
                                 </form>

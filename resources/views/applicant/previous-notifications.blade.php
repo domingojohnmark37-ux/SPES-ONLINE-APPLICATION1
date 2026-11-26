@@ -232,7 +232,7 @@
                                                     </button>
                                                 </form>
                                             @endif
-                                            <form method="POST" action="{{ route('notifications.dismiss', $notification['id']) }}" onsubmit="return confirm('{{ __('Dismiss this notification?') }}')" data-notification-dismiss-form data-no-request-loading>
+                                            <form method="POST" action="{{ route('notifications.dismiss', $notification['id']) }}" data-swal-confirm="{{ __('Dismiss this notification?') }}" data-notification-dismiss-form data-no-request-loading>
                                                 @csrf
                                                 @method('DELETE')
                                                 <button class="history-action compact dismiss" type="submit" data-loading-label="{{ __('Dismissing...') }}" aria-label="{{ __('Dismiss :title', ['title' => $notification['title']]) }}">

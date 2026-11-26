@@ -7,6 +7,7 @@
     <title>Confirm password change — {{ config('app.name', 'SPES') }}</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/auth.css') }}">
+    @vite('resources/js/alerts.js')
 </head>
 <body>
     <main class="auth-container">
@@ -15,7 +16,7 @@
             <p class="subtitle">Enter the 6-digit code sent to <strong>{{ $email }}</strong>. Your password will change after the code is verified.</p>
 
             @if (session('status'))
-                <p class="success-message" role="status">{{ session('status') }}</p>
+                <p class="success-message" data-spes-alert="success" role="status">{{ session('status') }}</p>
             @endif
 
             <form method="POST" action="{{ route('password.verify.submit') }}">

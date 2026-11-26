@@ -675,7 +675,7 @@
         </div>
 
         @if (session('status') === 'profile-updated')
-            <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+            <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700" data-spes-alert="success">
                 {{ __('Profile updated successfully.') }}
             </div>
         @endif
@@ -699,14 +699,14 @@
 
                 // Validate file is an image
                 if (!file.type.startsWith('image/')) {
-                    alert('Please select a valid image file.');
+                    window.spesAlerts?.error('Please select a valid image file.');
                     fileInput.value = '';
                     return;
                 }
 
                 // Validate file size (5MB max)
                 if (file.size > 5120 * 1024) {
-                    alert('File size must be less than 5MB.');
+                    window.spesAlerts?.error('File size must be less than 5MB.');
                     fileInput.value = '';
                     return;
                 }
@@ -722,7 +722,7 @@
                     }
                 };
                 reader.onerror = function () {
-                    alert('Error reading file. Please try again.');
+                    window.spesAlerts?.error('Error reading file. Please try again.');
                     fileInput.value = '';
                 };
                 reader.readAsDataURL(file);

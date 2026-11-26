@@ -184,8 +184,8 @@
         $defaults = $defaults ?? [];
         $getDefault = fn ($field, $fallback = '') => old($field, $application->{$field} ?? $defaults[$field] ?? $fallback);
         $documentOriginalNames = $application?->document_original_names ?? [];
-        $hasCurrentBirthCertificate = $reapplying && $application->birth_certificate && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->birth_certificate);
-        $hasCurrentEnrollmentCertificate = $reapplying && $application->certificate_enrollment && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->certificate_enrollment);
+        $hasCurrentBirthCertificate = $editing && $application->birth_certificate && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->birth_certificate);
+        $hasCurrentEnrollmentCertificate = $editing && $application->certificate_enrollment && \Illuminate\Support\Facades\Storage::disk('local')->exists($application->certificate_enrollment);
     @endphp
 
     @if($errors->any())
@@ -199,7 +199,7 @@
         </div>
     @endif
     @if(session('success'))
-        <div class="alert alert-success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
+        <div class="alert alert-success" data-spes-alert="success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
     @endif
     @if(session('info'))
         <div class="alert alert-info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
@@ -218,7 +218,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ $editing ? route('applications.update') : route('applications.store') }}" enctype="multipart/form-data" id="appForm">
+    <form method="POST" action="{{ $editing ? route('applications.update') : route('applications.store') }}" enctype="multipart/form-data" id="appForm" data-swal-loading="{{ __('Submitting your application...') }}">
         @csrf
         <input type="hidden" name="_idempotency_token" value="{{ old('_idempotency_token', \Illuminate\Support\Str::random(40)) }}">
         @if($editing)
@@ -511,7 +511,7 @@ function validateDocument(input, nameId) {
     const isPdf = file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
 
     if (file && (!isPdf || file.size > maxSize)) {
-        alert(!isPdf ? 'Only PDF files are accepted.' : 'Each PDF file must be 5 MB or smaller.');
+        window.spesAlerts?.error(!isPdf ? 'Only PDF files are accepted.' : 'Each PDF file must be 5 MB or smaller.');
         input.value = '';
         document.getElementById(nameId).textContent = '';
         return;

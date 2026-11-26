@@ -6,6 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'PESO LAL-LO') }} - Applicant Docs</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/portal-refinement.css') }}?v={{ filemtime(public_path('css/portal-refinement.css')) }}">
+    @vite('resources/js/alerts.js')
     <style>
         * {
             margin: 0;
@@ -370,7 +372,12 @@
                 </div>
                 <div class="user-info">
                     <span>{{ Auth::user()->email }}</span>
-                    <form method="POST" action="{{ route('logout') }}" style="display: inline;">
+                    <form method="POST" action="{{ route('logout') }}" style="display: inline;"
+                          data-swal-confirm="{{ __('Are you sure you want to log out of your account?') }}"
+                          data-swal-title="{{ __('Confirm Logout') }}"
+                          data-swal-confirm-action="{{ __('Yes, Log Out') }}"
+                          data-swal-cancel-action="{{ __('Cancel') }}"
+                          data-no-request-loading>
                         @csrf
                         <button type="submit" class="logout-btn"><x-icon class="fa-solid fa-sign-out-alt" /> Logout</button>
                     </form>

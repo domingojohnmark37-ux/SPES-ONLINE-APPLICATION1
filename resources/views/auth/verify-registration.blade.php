@@ -7,6 +7,7 @@
     <title>Verify your email — {{ config('app.name', 'SPES') }}</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/auth.css') }}">
+    @vite('resources/js/alerts.js')
 </head>
 <body>
     <main class="auth-container">
@@ -15,7 +16,7 @@
             <p class="subtitle">If this email is eligible, a 6-digit code has been sent to <strong>{{ $email }}</strong>. The code expires in 10 minutes.</p>
 
             @if (session('status'))
-                <p class="success-message" role="status">{{ session('status') }}</p>
+                <p class="success-message" data-spes-alert="success" role="status">{{ session('status') }}</p>
             @endif
 
             <form method="POST" action="{{ route('registration.verify.submit') }}">

@@ -523,7 +523,12 @@
             <div class="profile-dropdown" id="userProfileDropdown">
                 <a href="{{ route('profile.edit') }}"><x-icon class="fa-solid fa-user-pen" aria-hidden="true" /> {{ __('Profile') }}</a>
                 <a href="{{ route('settings.index') }}"><x-icon class="fa-solid fa-gear" aria-hidden="true" /> {{ __('Settings') }}</a>
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('logout') }}"
+                      data-swal-confirm="{{ __('Are you sure you want to log out of your account?') }}"
+                      data-swal-title="{{ __('Confirm Logout') }}"
+                      data-swal-confirm-action="{{ __('Yes, Log Out') }}"
+                      data-swal-cancel-action="{{ __('Cancel') }}"
+                      data-no-request-loading>
                     @csrf
                     <button type="submit"><x-icon class="fa-solid fa-right-from-bracket" aria-hidden="true" /> {{ __('Log Out') }}</button>
                 </form>
@@ -573,9 +578,9 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     }
     if (markAllU) {
-        markAllU.addEventListener('click', function(){ fetch('{{ route('notifications.readAll') }}', { method: 'POST', headers: {'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(response=>{ if (!response.ok) throw new Error('Could not mark notifications as read.'); document.getElementById('notifCountUser')?.remove(); ddU.innerHTML = '<div class="notif-empty">' + @json(__('No new notifications')) + '</div>'; }).catch(error=>console.error(error)); });
+        markAllU.addEventListener('click', function(){ fetch('{{ route('notifications.readAll') }}', { method: 'POST', headers: {'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(response=>{ if (!response.ok) throw new Error('Could not mark notifications as read.'); document.getElementById('notifCountUser')?.remove(); ddU.innerHTML = '<div class="notif-empty">' + @json(__('No new notifications')) + '</div>'; window.spesAlerts?.toast.success(@json(__('Notifications marked as read.'))); }).catch(error=>{ console.error(error); window.spesAlerts?.toast.error(@json(__('Could not mark notifications as read.'))); }); });
     }
-    ddU?.addEventListener('click', function(e){ let item = e.target.closest('.notif-item'); if (!item) return; const id = item.getAttribute('data-id'); fetch('/notifications/'+id+'/read', { method:'POST', headers:{'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(response=> { if (!response.ok) throw new Error('Could not mark notification as read.'); item.remove(); const cnt = document.getElementById('notifCountUser'); if (cnt) { let v = parseInt(cnt.innerText)-1; if (v<=0) cnt.remove(); else cnt.innerText = v; } }).catch(error=>console.error(error)); });
+    ddU?.addEventListener('click', function(e){ let item = e.target.closest('.notif-item'); if (!item) return; const id = item.getAttribute('data-id'); fetch('/notifications/'+id+'/read', { method:'POST', headers:{'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content') } }).then(response=> { if (!response.ok) throw new Error('Could not mark notification as read.'); item.remove(); const cnt = document.getElementById('notifCountUser'); if (cnt) { let v = parseInt(cnt.innerText)-1; if (v<=0) cnt.remove(); else cnt.innerText = v; } window.spesAlerts?.toast.success(@json(__('Notification marked as read.'))); }).catch(error=>{ console.error(error); window.spesAlerts?.toast.error(@json(__('Could not mark notification as read.'))); }); });
 });
 </script>
 </header>
@@ -584,13 +589,13 @@ document.addEventListener('DOMContentLoaded', function(){
 <div class="page-content">
 
     @if(session('success'))
-        <div class="alert alert-success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
+        <div class="alert alert-success" data-spes-alert="success"><x-icon class="fa-solid fa-circle-check" /> {{ session('success') }}</div>
     @endif
     @if(session('info'))
-        <div class="alert alert-info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
+        <div class="alert alert-info" data-spes-alert="info"><x-icon class="fa-solid fa-circle-info" /> {{ session('info') }}</div>
     @endif
     @if(session('error'))
-        <div class="alert alert-warning"><x-icon class="fa-solid fa-triangle-exclamation" /> {{ session('error') }}</div>
+        <div class="alert alert-warning" data-spes-alert="error"><x-icon class="fa-solid fa-triangle-exclamation" /> {{ session('error') }}</div>
     @endif
 
     @php

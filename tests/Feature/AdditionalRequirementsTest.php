@@ -6,10 +6,12 @@ use App\Models\AdditionalRequirement;
 use App\Models\Application;
 use App\Models\ApplicationAdditionalRequirement;
 use App\Models\User;
+use App\Services\AuditLogger;
 use Database\Seeders\SpesRequirementSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class AdditionalRequirementsTest extends TestCase
@@ -311,6 +313,72 @@ class AdditionalRequirementsTest extends TestCase
         ]))->assertOk();
     }
 
+    public function test_failed_additional_requirement_transaction_removes_new_file_and_submission_record(): void
+    {
+        Storage::fake('local');
+        $applicant = User::factory()->create();
+        $application = Application::factory()->for($applicant)->create();
+        $requirement = AdditionalRequirement::create([
+            'name' => 'Transaction Failure Requirement',
+            'is_required' => true,
+            'is_active' => true,
+            'audience' => 'all_applicants',
+        ]);
+        $auditLogger = Mockery::mock(AuditLogger::class);
+        $auditLogger->shouldReceive('record')
+            ->once()
+            ->andThrow(new \RuntimeException('Simulated audit failure'));
+        $this->app->instance(AuditLogger::class, $auditLogger);
+
+        $this->actingAs($applicant)
+            ->post(route('applicant.requirements.upload', $requirement), [
+                'documents' => [1 => UploadedFile::fake()->create('new-proof.pdf', 20, 'application/pdf')],
+            ])
+            ->assertServerError();
+
+        $this->assertDatabaseMissing('application_additional_requirements', [
+            'application_id' => $application->id,
+            'additional_requirement_id' => $requirement->id,
+        ]);
+        $this->assertSame([], Storage::disk('local')->allFiles('applications'));
+    }
+
+    public function test_missing_additional_requirement_file_can_be_replaced_without_creating_a_duplicate_slot(): void
+    {
+        Storage::fake('local');
+        $applicant = User::factory()->create();
+        $application = Application::factory()->for($applicant)->create();
+        $requirement = AdditionalRequirement::create([
+            'name' => 'Restore Missing Requirement',
+            'is_required' => true,
+            'is_active' => true,
+            'audience' => 'all_applicants',
+        ]);
+        $submission = ApplicationAdditionalRequirement::create([
+            'application_id' => $application->id,
+            'additional_requirement_id' => $requirement->id,
+            'file_number' => 1,
+            'file_path' => 'applications/missing/old-proof.pdf',
+            'original_name' => 'old-proof.pdf',
+        ]);
+
+        $this->actingAs($applicant)
+            ->post(route('applicant.requirements.upload', $requirement), [
+                'documents' => [1 => UploadedFile::fake()->create('replacement-proof.pdf', 20, 'application/pdf')],
+            ])
+            ->assertRedirect(route('applicant.requirements'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseCount('application_additional_requirements', 1);
+        $submission->refresh();
+        $this->assertSame('replacement-proof.pdf', $submission->original_name);
+        Storage::disk('local')->assertExists($submission->file_path);
+        $this->get(route('applicant.requirements'))
+            ->assertOk()
+            ->assertSee('replacement-proof.pdf')
+            ->assertSee('View file 1: replacement-proof.pdf');
+    }
+
     public function test_applicant_submits_one_file_for_each_requirement_template_and_can_view_each_separately(): void
     {
         Storage::fake('local');
@@ -479,6 +547,7 @@ class AdditionalRequirementsTest extends TestCase
 
     public function test_inactive_requirements_are_hidden_until_the_applicant_has_submitted_them(): void
     {
+        Storage::fake('local');
         $applicant = User::factory()->create();
         $application = Application::factory()->for($applicant)->create();
         $requirement = AdditionalRequirement::create([
@@ -493,6 +562,7 @@ class AdditionalRequirementsTest extends TestCase
             ->assertOk()
             ->assertDontSee('Archived Requirement');
 
+        Storage::disk('local')->put('requirements/archived.png', 'archived document');
         ApplicationAdditionalRequirement::create([
             'application_id' => $application->id,
             'additional_requirement_id' => $requirement->id,

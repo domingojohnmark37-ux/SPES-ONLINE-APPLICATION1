@@ -12,6 +12,7 @@ use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
@@ -76,7 +77,22 @@ class RegistrationTest extends TestCase
     public function test_registration_mail_failure_returns_validation_error_and_removes_pending_record(): void
     {
         $this->mockUncompromisedVerifier(true);
-        Mail::shouldReceive('to')->once()->andThrow(new TransportException('SMTP down'));
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => 'smtp.gmail.com',
+            'mail.mailers.smtp.port' => 587,
+            'mail.mailers.smtp.username' => 'sender@example.test',
+            'mail.mailers.smtp.password' => 'smtp-test-password',
+            'mail.from.address' => 'sender@example.test',
+        ]);
+        Mail::shouldReceive('to')->once()->andThrow(new TransportException('Connection timed out'));
+        Log::shouldReceive('error')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                $this->assertSame('SMTP connection failure', $context['failure_type']);
+
+                return $message === 'Registration verification email delivery failed.';
+            });
 
         $this->postJson('/register', [
             'email' => 'jane.doe@example.com',
@@ -91,6 +107,55 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseCount('pending_registrations', 0);
         $this->assertFalse(session()->has('pending_registration_token'));
         $this->assertFalse(session()->has('pending_registration_email'));
+    }
+
+    public function test_registration_logs_sanitized_smtp_authentication_diagnostics(): void
+    {
+        $this->mockUncompromisedVerifier(true);
+        $secret = 'smtp-private-password';
+        config([
+            'mail.default' => 'smtp',
+            'mail.mailers.smtp.host' => 'smtp.gmail.com',
+            'mail.mailers.smtp.port' => 587,
+            'mail.mailers.smtp.username' => 'sender@example.test',
+            'mail.mailers.smtp.password' => $secret,
+            'mail.mailers.smtp.scheme' => 'smtp',
+            'mail.mailers.smtp.require_tls' => true,
+            'mail.from.address' => 'sender@example.test',
+        ]);
+        $mailer = \Mockery::mock();
+        $mailer->shouldReceive('send')
+            ->once()
+            ->with(\Mockery::type(RegistrationVerificationCode::class))
+            ->andReturnUsing(function (RegistrationVerificationCode $mail) use ($secret): never {
+                throw new TransportException("Authentication failed with {$secret} and code {$mail->pin}");
+            });
+        Mail::shouldReceive('to')
+            ->once()
+            ->with('jane.doe@example.com')
+            ->andReturn($mailer);
+
+        Log::shouldReceive('error')
+            ->once()
+            ->withArgs(function (string $message, array $context) use ($secret): bool {
+                $this->assertSame('SMTP authentication failure', $context['failure_type']);
+                $this->assertSame(TransportException::class, $context['exception_class']);
+                $this->assertStringNotContainsString($secret, $context['diagnostic']);
+                $this->assertMatchesRegularExpression('/code \\[redacted\\]/', $context['diagnostic']);
+
+                return $message === 'Registration verification email delivery failed.';
+            });
+
+        $this->postJson('/register', [
+            'email' => 'jane.doe@example.com',
+            'password' => 'Strong passphrase 123!',
+            'password_confirmation' => 'Strong passphrase 123!',
+            'terms_accepted' => '1',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.email.0', 'We could not send the verification email. Please try again later.');
+
+        $this->assertDatabaseCount('pending_registrations', 0);
     }
 
     public function test_registration_google_apps_script_failure_returns_friendly_error_and_removes_pending_record(): void
@@ -173,6 +238,31 @@ class RegistrationTest extends TestCase
         $this->assertSame(1, $pending->resend_count);
         $this->assertSame(2, $pending->failed_attempts);
         $this->assertSame($pinHash, $pending->pin_hash);
+    }
+
+    public function test_duplicate_pending_registration_reuses_the_existing_code_and_password(): void
+    {
+        Mail::fake();
+        $verifier = \Mockery::mock(UncompromisedVerifier::class);
+        $verifier->shouldReceive('verify')->twice()->andReturn(true);
+        $this->app->instance(UncompromisedVerifier::class, $verifier);
+        $pin = $this->beginRegistration();
+        $pending = PendingRegistration::firstOrFail();
+        $originalHash = $pending->pin_hash;
+        $originalPasswordHash = $pending->password_hash;
+
+        $this->post('/register', [
+            'email' => 'jane.doe@example.com',
+            'password' => 'Different passphrase 456!',
+            'password_confirmation' => 'Different passphrase 456!',
+            'terms_accepted' => '1',
+        ])->assertRedirect(route('registration.verify'));
+
+        $pending->refresh();
+        $this->assertSame($originalHash, $pending->pin_hash);
+        $this->assertSame($originalPasswordHash, $pending->password_hash);
+        Mail::assertSent(RegistrationVerificationCode::class, 1);
+        $this->assertTrue(Hash::check($pin, $pending->pin_hash));
     }
 
     public function test_registration_requires_terms_acceptance(): void

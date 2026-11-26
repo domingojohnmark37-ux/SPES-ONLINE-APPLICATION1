@@ -7,6 +7,7 @@
     <title>{{ __('Secure your account') }} - {{ config('app.name', 'PESO LAL-LO') }}</title>
     <link rel="stylesheet" href="{{ asset('css/request-loading.css') }}?v={{ filemtime(public_path('css/request-loading.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/personal-security-question.css') }}?v={{ filemtime(public_path('css/personal-security-question.css')) }}">
+    @vite('resources/js/alerts.js')
     <style>
         :root { color-scheme: light dark; --maroon:#750016; --gold:#e4b63f; --surface:#fff; --text:#262626; --muted:#5b6470; --border:#d1d5db; --page:#f5f3ef; }
         @media (prefers-color-scheme: dark) { :root { --surface:#1f2937; --text:#f9fafb; --muted:#cbd5e1; --border:#4b5563; --page:#111827; } }
@@ -30,8 +31,8 @@
 <main>
     <h1>{{ __('Secure your account') }}</h1>
     <p>{{ __('Your previous security question was cleared after account recovery. Set a new one to continue. This knowledge-based check is not an independent second factor like a passkey or authenticator app.') }}</p>
-    @if(session('status'))<p role="status">{{ session('status') }}</p>@endif
-    @if($errors->any())<div class="error" role="alert">{{ $errors->first() }}</div>@endif
+    @if(session('status'))<p data-spes-alert="success" role="status">{{ session('status') }}</p>@endif
+    @if($errors->any())<div class="error" data-spes-alert="error" role="alert">{{ $errors->first() }}</div>@endif
     @php($isAdmin = auth()->user()->role === 'admin')
     <form method="POST" action="{{ $isAdmin ? route('admin.personal-security.configuration.update') : route('personal-security.configuration.update') }}" data-loading-label="{{ __('Saving...') }}">
         @csrf

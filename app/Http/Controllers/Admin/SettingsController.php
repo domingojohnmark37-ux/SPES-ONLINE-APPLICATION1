@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\SystemSetting;
 use App\Services\ApplicationApprovalCapacity;
 use App\Services\AuditLogger;
+use App\Support\MailDeliveryDiagnostics;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ class SettingsController extends Controller
         $applicationPeriodStatistics = $this->applicationPeriodStatistics();
         $approvedApplicantCount = $capacity->approvedCount($settings);
         $approvalLimitReached = $capacity->isFull($settings);
+        $mailConfiguration = MailDeliveryDiagnostics::configurationStatus();
 
         return view('admin.settings', compact(
             'settings',
@@ -41,6 +43,7 @@ class SettingsController extends Controller
             'applicationPeriodStatistics',
             'approvedApplicantCount',
             'approvalLimitReached',
+            'mailConfiguration',
         ));
     }
 
@@ -161,27 +164,10 @@ class SettingsController extends Controller
 
     public function sendTestEmail(Request $request)
     {
-        $mailer = config('mail.default');
-        $sender = config('mail.from.address');
-        $smtpHost = config('mail.mailers.smtp.host');
-        $smtpPort = config('mail.mailers.smtp.port');
-        $smtpUsername = config('mail.mailers.smtp.username');
-        $smtpPassword = config('mail.mailers.smtp.password');
-
-        if (
-            ! is_string($sender)
-            || ! filter_var($sender, FILTER_VALIDATE_EMAIL)
-            || ! is_string($mailer)
-            || in_array($mailer, ['log', 'array'], true)
-            || ($mailer === 'smtp' && (
-                ! filled($smtpHost)
-                || ! is_numeric($smtpPort)
-                || ! filled($smtpUsername)
-                || ! filled($smtpPassword)
-            ))
-        ) {
+        $mailConfiguration = MailDeliveryDiagnostics::configurationStatus();
+        if (! $mailConfiguration['ready']) {
             return back()->withErrors([
-                'email_test' => 'Email delivery is not configured. Set a valid MAIL_FROM_ADDRESS and SMTP mailer credentials in the server environment.',
+                'email_test' => 'Email delivery is not configured for '.$mailConfiguration['mailer'].'. Missing or invalid settings: '.implode(', ', $mailConfiguration['missing']).'.',
             ]);
         }
 
@@ -192,12 +178,11 @@ class SettingsController extends Controller
         } catch (Throwable $exception) {
             Log::error('SPES administrator mail configuration test failed.', [
                 'admin_id' => $request->user()->id,
-                'mailer' => $mailer,
-                'exception' => class_basename($exception),
+                ...MailDeliveryDiagnostics::exceptionContext($exception, $request->user()->email),
             ]);
 
             return back()->withErrors([
-                'email_test' => 'The test email could not be delivered. Check the mail server logs and SMTP provider settings.',
+                'email_test' => 'The test email could not be delivered ('.MailDeliveryDiagnostics::exceptionContext($exception, $request->user()->email)['failure_type'].'). Check the mail server logs and provider settings.',
             ]);
         }
 

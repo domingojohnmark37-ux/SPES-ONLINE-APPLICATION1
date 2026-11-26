@@ -308,7 +308,7 @@
                                         <button class="btn btn-outline btn-sm" type="button" data-requirement-edit aria-expanded="false"><x-icon class="fa-solid fa-pen" aria-hidden="true" /> Edit</button>
                                         <button form="requirement-update-{{ $requirement->id }}" class="btn btn-primary btn-sm" type="submit" data-requirement-save hidden><x-icon class="fa-solid fa-check" aria-hidden="true" /> Save</button>
                                         <button class="btn btn-cancel btn-sm" type="button" data-requirement-cancel data-unsaved-cancel="requirement-update-{{ $requirement->id }}" hidden>Cancel</button>
-                                        <form method="POST" action="{{ route('admin.additional-requirements.destroy', $requirement) }}" style="display:inline;" onsubmit="return confirm('Delete this requirement, all its downloadable files, and all applicant uploads? This cannot be undone.')">
+                                        <form method="POST" action="{{ route('admin.additional-requirements.destroy', $requirement) }}" style="display:inline;" data-swal-confirm="{{ __('Delete this requirement, all its downloadable files, and all applicant uploads? This cannot be undone.') }}">
                                             @csrf
                                             @method('DELETE')
                                             <button class="btn btn-danger btn-sm" type="submit"><x-icon class="fa-regular fa-trash-can" aria-hidden="true" /> Delete</button>
