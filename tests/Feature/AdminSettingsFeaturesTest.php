@@ -37,6 +37,14 @@ class AdminSettingsFeaturesTest extends TestCase
             ->get(route('admin.preferences'))
             ->assertOk()
             ->assertSee('Settings sections', false)
+            ->assertSee('role="tablist"', false)
+            ->assertSee('id="settings-tab-backup"', false)
+            ->assertSee('aria-selected="true"', false)
+            ->assertSee('data-settings-panel', false)
+            ->assertSee('class="settings-faq-panel"', false)
+            ->assertSee('data-backup-settings-form', false)
+            ->assertSee('data-confirm-enable=', false)
+            ->assertSee('settings-summary-grid', false)
             ->assertSee('Preferences')
             ->assertSee('Personalized Security Verification')
             ->assertSee('class="personal-security-grid"', false)
@@ -140,6 +148,37 @@ class AdminSettingsFeaturesTest extends TestCase
             ->assertSee('Unverified')
             ->assertSee('Mga Aplikasyon')
             ->assertSee('Mga Setting');
+    }
+
+    public function test_admin_can_save_light_and_system_appearance_without_losing_other_preferences(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        foreach (['light', 'system'] as $appearance) {
+            $this->actingAs($admin)
+                ->put(route('admin.preferences.update'), [
+                    'appearance' => $appearance,
+                    'language' => 'fil',
+                    'sidebar_behavior' => 'collapsed',
+                    'font_size' => 'large',
+                ])
+                ->assertRedirect(route('admin.preferences').'#preferences');
+
+            $this->assertDatabaseHas('admin_preferences', [
+                'user_id' => $admin->id,
+                'theme' => $appearance,
+                'language' => 'fil',
+                'sidebar_behavior' => 'collapsed',
+                'font_size' => 'large',
+            ]);
+
+            $this->get(route('admin.dashboard'))
+                ->assertOk()
+                ->assertSee('data-admin-theme="'.$appearance.'"', false)
+                ->assertSee('data-admin-sidebar="collapsed"', false)
+                ->assertSee('data-admin-font-size="large"', false)
+                ->assertSee('<html lang="fil"', false);
+        }
     }
 
     public function test_admin_preference_save_reports_pending_columns_without_throwing_a_server_error(): void

@@ -6,37 +6,72 @@
 
 @section('styles')
 <style>
-    .admin-settings-layout { width:min(1080px,100%); margin:0 auto; }
-    .settings-intro { margin-bottom:20px; }
-    .settings-intro h2 { margin-bottom:5px; color:var(--text); font-size:1.25rem; }
+    .admin-settings-layout { width:min(1160px,100%); margin:0 auto; }
+    .settings-intro { margin-bottom:8px; }
     .settings-intro p,.settings-description { color:var(--text-muted); line-height:1.55; }
-    .settings-sections { position:sticky; top:72px; z-index:20; display:flex; gap:8px; overflow:auto; padding:10px 0 14px; background:var(--bg); }
-    .settings-sections a { flex:0 0 auto; padding:9px 13px; border:1px solid var(--border); border-radius:999px; background:var(--white); color:var(--text); font-size:.84rem; text-decoration:none; }
-    .settings-sections a:hover,.settings-sections a:focus { border-color:var(--primary); background:var(--primary); color:#fff; }
-    .settings-section { scroll-margin-top:135px; margin-bottom:18px; overflow:hidden; border:1px solid var(--border); border-radius:14px; background:var(--white); box-shadow:var(--shadow); }
+    .settings-sections { position:sticky; top:72px; z-index:20; display:flex; gap:6px; overflow-x:auto; padding:10px; border:1px solid var(--border); border-radius:12px; background:var(--white); box-shadow:var(--shadow); scrollbar-width:thin; }
+    .settings-sections a { display:inline-flex; min-height:40px; flex:0 0 auto; align-items:center; justify-content:center; padding:8px 13px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--text-muted); font-size:.82rem; font-weight:700; text-decoration:none; white-space:nowrap; transition:background .15s,border-color .15s,color .15s; }
+    .settings-sections a:hover,.settings-sections a:focus-visible { border-color:var(--border); background:var(--bg); color:var(--primary); outline:none; }
+    .settings-sections a[aria-selected="true"] { border-color:var(--primary); background:var(--primary); color:#fff; }
+    .settings-section { scroll-margin-top:140px; margin-top:16px; overflow:hidden; border:1px solid var(--border); border-radius:14px; background:var(--white); box-shadow:var(--shadow); }
+    .settings-section[hidden] { display:none !important; }
+    .settings-section .card-header { padding:17px 22px; }
     .settings-section .card-body { padding:22px; }
     .settings-section-intro { margin-bottom:18px; }
     .settings-section-intro h2 { margin-bottom:5px; color:var(--primary); font-size:1rem; }
     .settings-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:end; }
     .settings-form-grid .form-group { margin:0; }
+    .settings-form-grid .form-group > label { display:block; margin-bottom:6px; color:var(--text); font-size:.78rem; font-weight:700; }
+    .settings-form-grid select,.settings-form-grid input:not([type="checkbox"]) { width:100%; min-height:42px; padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:var(--white); color:var(--text); font:inherit; font-size:.84rem; }
+    .settings-form-grid select:focus,.settings-form-grid input:focus { border-color:var(--primary); outline:0; box-shadow:0 0 0 3px rgba(139,0,0,.12); }
     .settings-form-grid small { display:block; margin-top:5px; color:var(--text-muted); line-height:1.45; }
     .settings-save { margin-top:16px; }
-    .settings-card-subsection { margin-top:20px; padding-top:18px; border-top:1px solid var(--border); }
-    .settings-card-subsection h3 { margin-bottom:5px; color:var(--text); font-size:.9rem; }
+    .settings-card-subsection { margin-top:16px; padding:18px; border:1px solid var(--border); border-radius:12px; background:var(--white); }
+    .settings-card-subsection h3 { margin-bottom:6px; color:var(--text); font-size:.92rem; }
     .settings-card-subsection > p { margin-bottom:12px; color:var(--text-muted); font-size:.8rem; line-height:1.5; }
     .settings-faq { display:grid; gap:9px; }
-    .settings-faq details { padding:12px 14px; border:1px solid var(--border); border-radius:9px; }
-    .settings-faq summary { cursor:pointer; color:var(--text); font-weight:600; }
-    .settings-faq details p { margin:8px 0 0; color:var(--text-muted); line-height:1.55; }
-    .settings-table-wrap { overflow:auto; }
-    .settings-table { width:100%; border-collapse:collapse; font-size:.8rem; }
-    .settings-table th,.settings-table td { padding:10px 9px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
-    .settings-table th { color:var(--text-muted); font-weight:650; }
+    .settings-faq details { overflow:hidden; border:1px solid var(--border); border-radius:9px; background:var(--white); }
+    .settings-faq summary { position:relative; padding:13px 40px 13px 14px; cursor:pointer; color:var(--text); font-size:.84rem; font-weight:700; list-style:none; }
+    .settings-faq summary::-webkit-details-marker { display:none; }
+    .settings-faq summary::after { position:absolute; top:50%; right:16px; width:8px; height:8px; border-right:2px solid currentColor; border-bottom:2px solid currentColor; content:""; transform:translateY(-70%) rotate(45deg); transition:transform .18s; }
+    .settings-faq details[open] summary { color:var(--primary); }
+    .settings-faq details[open] summary::after { transform:translateY(-25%) rotate(225deg); }
+    .settings-faq details p { margin:0; color:var(--text-muted); line-height:1.55; }
+    .settings-faq-panel { display:grid; grid-template-rows:0fr; transition:grid-template-rows .18s ease; }
+    .settings-faq details[open] .settings-faq-panel { grid-template-rows:1fr; }
+    .settings-faq-panel > div { min-height:0; overflow:hidden; padding:0 14px; }
+    .settings-faq details[open] .settings-faq-panel > div { padding:0 14px 14px; }
+    .settings-table-wrap { overflow:auto; border:1px solid var(--border); border-radius:9px; }
+    .settings-table { width:100%; border-collapse:collapse; font-size:.79rem; }
+    .settings-table th,.settings-table td { padding:11px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+    .settings-table th { color:var(--text-muted); background:var(--bg); font-size:.7rem; font-weight:750; letter-spacing:.035em; text-transform:uppercase; }
+    .settings-table tbody tr:last-child td { border-bottom:0; }
+    .settings-table tbody tr:hover { background:var(--bg); }
+    #admin-audit .settings-table { min-width:920px; }
     #admin-audit .settings-table-wrap { max-height:min(60vh,520px); overscroll-behavior:contain; scrollbar-gutter:stable; }
     #admin-audit .settings-table thead th { position:sticky; top:0; z-index:1; background:var(--white); }
-    .admin-audit-filters { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-bottom:16px; padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--white); }
+    .admin-audit-filters { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-bottom:16px; padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--bg); }
     .admin-audit-filters label { display:grid; min-width:160px; gap:5px; color:var(--text-muted); font-size:.75rem; font-weight:700; }
     .admin-audit-filters select,.admin-audit-filters input { min-height:38px; padding:8px 10px; border:1px solid var(--border); border-radius:7px; background:var(--white); color:var(--text); font:inherit; font-size:.82rem; }
+    .settings-status { display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:var(--bg); color:var(--text-muted); font-size:.7rem; font-weight:750; white-space:nowrap; }
+    .settings-status.is-success { border-color:rgba(46,125,50,.25); background:rgba(46,125,50,.09); color:var(--success); }
+    .settings-status.is-danger { border-color:rgba(198,40,40,.25); background:rgba(198,40,40,.08); color:var(--danger); }
+    .settings-status.is-warning { border-color:rgba(255,215,0,.45); background:rgba(255,215,0,.18); color:var(--primary); }
+    .settings-status.is-info { border-color:rgba(21,101,192,.22); background:rgba(21,101,192,.08); color:var(--info); }
+    .settings-status.is-enabled { border-color:rgba(46,125,50,.25); background:rgba(46,125,50,.09); color:var(--success); }
+    .settings-status.is-disabled { border-color:var(--border); background:var(--bg); color:var(--text-muted); }
+    .settings-summary-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+    .settings-summary-item { display:flex; min-width:0; align-items:flex-start; justify-content:space-between; gap:14px; padding:11px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg); }
+    .settings-summary-item dt { color:var(--text-muted); font-size:.75rem; font-weight:650; }
+    .settings-summary-item dd { margin:0; color:var(--text); font-size:.78rem; font-weight:700; text-align:right; overflow-wrap:anywhere; }
+    .settings-audit-details { display:inline-flex; min-height:30px; align-items:center; padding:5px 9px; border:1px solid var(--primary); border-radius:6px; color:var(--primary); font-size:.73rem; font-weight:700; text-decoration:none; white-space:nowrap; }
+    .settings-audit-details:hover,.settings-audit-details:focus-visible { background:var(--primary); color:#fff; outline:none; }
+    .settings-backup-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    .settings-backup-history { min-width:860px; }
+    .settings-backup-history td:last-child { min-width:120px; }
+    .settings-restore-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0; }
+    .settings-restore-fields label { display:grid; min-width:0; gap:6px; color:var(--text); font-size:.78rem; font-weight:700; }
+    .settings-restore-fields input { width:100%; min-width:0; min-height:40px; padding:8px 10px; border:1px solid var(--border); border-radius:7px; background:var(--white); color:var(--text); font:inherit; font-size:.8rem; }
     #personal-security .card-header h2 { color:var(--primary); }
     .personal-security-content { display:grid; gap:18px; }
     .personal-security-description { max-width:850px; color:var(--text-muted); font-size:.86rem; line-height:1.6; }
@@ -66,9 +101,16 @@
         .settings-sections { top:64px; }
         .settings-section { scroll-margin-top:120px; }
         .settings-section .card-body { padding:16px; }
+        .settings-section .card-header { padding:14px 16px; }
         .settings-form-grid { grid-template-columns:1fr; }
         .personal-security-grid { grid-template-columns:minmax(0,1fr); gap:13px; }
         .personal-security-submit { width:100%; justify-content:center; }
+        .settings-card-subsection { padding:14px; }
+        .settings-summary-grid { grid-template-columns:1fr; }
+        .settings-summary-item { align-items:flex-start; }
+        .settings-backup-actions > .btn { flex:1 1 100%; justify-content:center; }
+        .settings-sections a { min-height:38px; padding:7px 11px; }
+        .settings-restore-fields { grid-template-columns:1fr; }
     }
     @media(prefers-color-scheme:dark) {
         html[data-admin-theme="system"] #personal-security .card-header h2 { color:#f2c94c; }
@@ -77,6 +119,28 @@
 @endsection
 
 @section('content')
+@php
+    $settingsSectionIds = ['preferences', 'personal-security', 'manual', 'admin-audit', 'backup'];
+    $settingsInitialSection = null;
+    if (! in_array($settingsInitialSection, $settingsSectionIds, true)) {
+        $settingsInitialSection = 'preferences';
+
+        if (request()->query('date_range') !== null
+            || request()->query('user_id') !== null
+            || request()->query('date_from') !== null
+            || request()->query('date_to') !== null) {
+            $settingsInitialSection = 'admin-audit';
+        } elseif ($errors->hasAny(['security_answer', 'security_answer_confirmation', 'disable_confirmation', 'question'])
+            || old('question') !== null
+            || old('disable_confirmation') !== null) {
+            $settingsInitialSection = 'personal-security';
+        } elseif ($errors->hasAny(['backup_settings', 'backup_enabled', 'backup_frequency', 'backup_time', 'backup_retention_days', 'backup', 'current_password'])) {
+            $settingsInitialSection = 'backup';
+        } elseif ($errors->hasAny(['appearance', 'language', 'sidebar_behavior', 'font_size', 'preferences'])) {
+            $settingsInitialSection = 'preferences';
+        }
+    }
+@endphp
 <main class="admin-settings-layout">
     <div class="settings-intro">
         <h2>{{ __('Settings') }}</h2>
@@ -95,19 +159,23 @@
         </div>
     @endif
 
-    <nav class="settings-sections" aria-label="Settings sections">
-        <a href="#preferences">{{ __('Preferences') }}</a>
-        <a href="#personal-security">{{ __('Personal Security') }}</a>
-        <a href="#manual">{{ __('Manual') }}</a>
-        <a href="#admin-audit">{{ __('Admin Audit Logs') }}</a>
-        <a href="#backup">{{ __('Backup') }}</a>
+    <nav class="settings-sections" aria-label="{{ __('Settings sections') }}" role="tablist" data-settings-tabs data-initial-section="{{ $settingsInitialSection }}">
+        <a id="settings-tab-preferences" href="#preferences" role="tab" aria-controls="preferences" aria-selected="{{ $settingsInitialSection === 'preferences' ? 'true' : 'false' }}" tabindex="{{ $settingsInitialSection === 'preferences' ? '0' : '-1' }}" data-settings-tab>{{ __('Preferences') }}</a>
+        <a id="settings-tab-personal-security" href="#personal-security" role="tab" aria-controls="personal-security" aria-selected="{{ $settingsInitialSection === 'personal-security' ? 'true' : 'false' }}" tabindex="{{ $settingsInitialSection === 'personal-security' ? '0' : '-1' }}" data-settings-tab>{{ __('Personal Security') }}</a>
+        <a id="settings-tab-manual" href="#manual" role="tab" aria-controls="manual" aria-selected="{{ $settingsInitialSection === 'manual' ? 'true' : 'false' }}" tabindex="{{ $settingsInitialSection === 'manual' ? '0' : '-1' }}" data-settings-tab>{{ __('Admin Guide') }}</a>
+        <a id="settings-tab-admin-audit" href="#admin-audit" role="tab" aria-controls="admin-audit" aria-selected="{{ $settingsInitialSection === 'admin-audit' ? 'true' : 'false' }}" tabindex="{{ $settingsInitialSection === 'admin-audit' ? '0' : '-1' }}" data-settings-tab>{{ __('Admin Audit Logs') }}</a>
+        <a id="settings-tab-backup" href="#backup" role="tab" aria-controls="backup" aria-selected="{{ $settingsInitialSection === 'backup' ? 'true' : 'false' }}" tabindex="{{ $settingsInitialSection === 'backup' ? '0' : '-1' }}" data-settings-tab>{{ __('Backup Management') }}</a>
     </nav>
 
-    <section class="settings-section" id="preferences" aria-labelledby="preferences-heading">
+    <section class="settings-section" id="preferences" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-preferences" data-settings-panel>
         <div class="card-header"><h2 id="preferences-heading"><x-icon class="fa-solid fa-sliders" aria-hidden="true" /> {{ __('Preferences') }}</h2></div>
         <div class="card-body">
             <p class="settings-description" style="margin-bottom:16px;">{{ __('Choose how the admin portal looks and behaves on this account.') }}</p>
-            <form method="POST" action="{{ route('admin.preferences.update') }}">
+            <form method="POST" action="{{ route('admin.preferences.update') }}"
+                  data-swal-confirm="{{ __('Save these admin preferences?') }}"
+                  data-swal-title="{{ __('Save Preferences') }}"
+                  data-swal-confirm-action="{{ __('Save Preferences') }}"
+                  data-swal-cancel-action="{{ __('Cancel') }}">
                 @csrf
                 @method('PUT')
                 <div class="settings-form-grid">
@@ -118,6 +186,7 @@
                             <option value="dark" @selected(old('appearance', $preference->theme ?? 'system') === 'dark')>{{ __('Dark') }}</option>
                             <option value="system" @selected(old('appearance', $preference->theme ?? 'system') === 'system')>{{ __('System Default') }}</option>
                         </select>
+                        <small>{{ __('Choose the appearance used for your admin pages.') }}</small>
                         @error('appearance')<p style="color:var(--danger);margin-top:5px;">{{ $message }}</p>@enderror
                     </div>
                     <div class="form-group">
@@ -126,6 +195,7 @@
                             <option value="en" @selected(old('language', $preference->language ?? 'en') === 'en')>{{ __('English') }}</option>
                             <option value="fil" @selected(old('language', $preference->language ?? 'en') === 'fil')>{{ __('Filipino') }}</option>
                         </select>
+                        <small>{{ __('Set the display language for the admin portal.') }}</small>
                         @error('language')<p style="color:var(--danger);margin-top:5px;">{{ $message }}</p>@enderror
                     </div>
                     <div class="form-group">
@@ -135,6 +205,7 @@
                             <option value="expanded" @selected(old('sidebar_behavior', $preference->sidebar_behavior ?? 'auto') === 'expanded')>{{ __('Expanded') }}</option>
                             <option value="collapsed" @selected(old('sidebar_behavior', $preference->sidebar_behavior ?? 'auto') === 'collapsed')>{{ __('Collapsed (icons only)') }}</option>
                         </select>
+                        <small>{{ __('Choose how the admin navigation behaves across screen sizes.') }}</small>
                         @error('sidebar_behavior')<p style="color:var(--danger);margin-top:5px;">{{ $message }}</p>@enderror
                     </div>
                     <div class="form-group">
@@ -144,6 +215,7 @@
                             <option value="medium" @selected(old('font_size', $preference->font_size ?? 'medium') === 'medium')>{{ __('Medium') }}</option>
                             <option value="large" @selected(old('font_size', $preference->font_size ?? 'medium') === 'large')>{{ __('Large') }}</option>
                         </select>
+                        <small>{{ __('Adjust the size of text throughout the admin interface.') }}</small>
                         @error('font_size')<p style="color:var(--danger);margin-top:5px;">{{ $message }}</p>@enderror
                     </div>
                 </div>
@@ -152,7 +224,7 @@
         </div>
     </section>
 
-    <section class="settings-section" id="personal-security" aria-labelledby="personal-security-heading" style="border-top:4px solid var(--accent);">
+    <section class="settings-section" id="personal-security" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-personal-security" data-settings-panel style="border-top:4px solid var(--accent);">
         <div class="card-header"><h2 id="personal-security-heading"><x-icon class="fa-solid fa-shield-halved" aria-hidden="true" /> {{ __('Personalized Security Verification') }}</h2></div>
         <div class="card-body personal-security-content">
             <p class="personal-security-description">{{ __('Add a personal question after your password at sign-in. This knowledge-based check is not an independent second factor like a passkey or authenticator app.') }}</p>
@@ -170,7 +242,11 @@
                 <x-icon class="fa-solid fa-circle-info" aria-hidden="true" />
                 <p>{{ __('Choose an answer that is memorable to you and difficult for other people to guess. Answers are case-insensitive and repeated whitespace is ignored.') }}</p>
             </div>
-            <form method="POST" action="{{ route('admin.personal-security.configuration.update') }}" class="personal-security-form" data-loading-label="{{ __('Saving...') }}">
+            <form method="POST" action="{{ route('admin.personal-security.configuration.update') }}" class="personal-security-form" data-loading-label="{{ __('Saving...') }}"
+                  data-swal-confirm="{{ $personalSecurityVerification ? __('Replace the saved security question and answer?') : __('Enable personalized security verification for your administrator sign-in?') }}"
+                  data-swal-title="{{ __('Confirm security change') }}"
+                  data-swal-confirm-action="{{ __('Continue') }}"
+                  data-swal-cancel-action="{{ __('Cancel') }}">
                 @csrf
                 @method('PUT')
                 <div class="personal-security-grid">
@@ -193,7 +269,11 @@
                 <button class="btn btn-primary personal-security-submit" type="submit">{{ $personalSecurityVerification ? __('Replace Question and Answer') : __('Enable Personalized Verification') }}</button>
             </form>
             @if($personalSecurityVerification)
-                <form method="POST" action="{{ route('admin.personal-security.configuration.disable') }}" class="personal-security-disable">
+                <form method="POST" action="{{ route('admin.personal-security.configuration.disable') }}" class="personal-security-disable"
+                      data-swal-confirm="{{ __('Disable personalized verification for your administrator sign-in?') }}"
+                      data-swal-title="{{ __('Confirm security change') }}"
+                      data-swal-confirm-action="{{ __('Disable') }}"
+                      data-swal-cancel-action="{{ __('Cancel') }}">
                     @csrf
                     @method('DELETE')
                     <h3>{{ __('Disable personalized verification') }}</h3>
@@ -214,41 +294,47 @@
         </div>
     </section>
 
-    <section class="settings-section" id="manual" aria-labelledby="manual-heading">
+    <section class="settings-section" id="manual" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-manual" data-settings-panel>
         <div class="card-header"><h2 id="manual-heading"><x-icon class="fa-solid fa-book-open" aria-hidden="true" /> {{ __('Admin Guide') }}</h2></div>
-        <div class="card-body" style="display:grid;gap:18px;line-height:1.65;">
-            <section>
-                <h3>{{ __('Applications') }}</h3>
-                <p>{{ __('Review submitted applications, open an applicant record to check its information and documents, and use the available actions to approve or reject an application. Record remarks through the application review controls.') }}</p>
-            </section>
-            <section>
-                <h3>{{ __('Applicant requirements') }}</h3>
-                <p>{{ __('Open Management → Applications → Requirements to add the extra documents applicants must submit. Set the requirement name, applicant instructions, required/optional status, and visibility. Applicants can upload PDF, Word, or image files for visible requirements.') }}</p>
-            </section>
-            <section>
-                <h3>{{ __('Announcements and schedule') }}</h3>
-                <p>{{ __('Use the Announcements menu to manage appointments and news. Schedule controls the application start and end dates.') }}</p>
-            </section>
-            <section>
-                <h3>{{ __('Settings') }}</h3>
-                <p>{{ __('Preferences controls your display theme, language, sidebar, and display size. Admin Audit Logs shows recorded administrator actions and can be filtered by administrator or date. Backup creates archives and can merge missing records or files, but it does not replace the live database.') }}</p>
-            </section>
-            <section>
-                <h3>{{ __('Annual backup schedule') }}</h3>
-                <p>{{ __('Automatic backups use the saved daily or weekly schedule in :timezone. The annual archive is created on December 31 at 11:59 PM. Deployment staff must configure Windows Task Scheduler, cron, or an equivalent host scheduler once; without that service, automatic backups cannot run. Small installations use synchronous backup processing by default.', ['timezone' => config('backup.timezone', 'Asia/Manila')]) }}</p>
-                <p>{{ __('A server operator can run :command from the project directory to merge missing records and files from an annual archive. This is not a full database replacement restore.', ['command' => 'php artisan backup:restore-annual YYYY']) }}</p>
-            </section>
-            <section>
-                <h3>{{ __('Protect applicant data') }}</h3>
-                <p>{{ __('Applicant records and backup archives contain private information. Access them only for official PESO work, and store downloaded backups in an approved secure location. Never share login credentials or backup files.') }}</p>
-            </section>
+        <div class="card-body">
+            <div class="settings-faq">
+                <details open>
+                    <summary>{{ __('Applications') }}</summary>
+                    <div class="settings-faq-panel"><div><p>{{ __('Review submitted applications, open an applicant record to check its information and documents, and use the available actions to approve or reject an application. Record remarks through the application review controls.') }}</p></div></div>
+                </details>
+                <details>
+                    <summary>{{ __('Applicant requirements') }}</summary>
+                    <div class="settings-faq-panel"><div><p>{{ __('Open Management → Applications → Requirements to add the extra documents applicants must submit. Set the requirement name, applicant instructions, required/optional status, and visibility. Applicants can upload PDF, Word, or image files for visible requirements.') }}</p></div></div>
+                </details>
+                <details>
+                    <summary>{{ __('Announcements and schedule') }}</summary>
+                    <div class="settings-faq-panel"><div><p>{{ __('Use the Announcements menu to manage appointments and news. Schedule controls the application start and end dates.') }}</p></div></div>
+                </details>
+                <details>
+                    <summary>{{ __('Settings') }}</summary>
+                    <div class="settings-faq-panel"><div><p>{{ __('Preferences controls your display theme, language, sidebar, and display size. Admin Audit Logs shows recorded administrator actions and can be filtered by administrator or date. Backup creates archives and can merge missing records or files, but it does not replace the live database.') }}</p></div></div>
+                </details>
+                <details>
+                    <summary>{{ __('Annual backup schedule') }}</summary>
+                    <div class="settings-faq-panel">
+                        <div>
+                            <p>{{ __('Automatic backups use the saved daily or weekly schedule in :timezone. The annual archive is created on December 31 at 11:59 PM. Deployment staff must configure Windows Task Scheduler, cron, or an equivalent host scheduler once; without that service, automatic backups cannot run. Small installations use synchronous backup processing by default.', ['timezone' => config('backup.timezone', 'Asia/Manila')]) }}</p>
+                            <p>{{ __('A server operator can run :command from the project directory to merge missing records and files from an annual archive. This is not a full database replacement restore.', ['command' => 'php artisan backup:restore-annual YYYY']) }}</p>
+                        </div>
+                    </div>
+                </details>
+                <details>
+                    <summary>{{ __('Protect applicant data') }}</summary>
+                    <div class="settings-faq-panel"><div><p>{{ __('Applicant records and backup archives contain private information. Access them only for official PESO work, and store downloaded backups in an approved secure location. Never share login credentials or backup files.') }}</p></div></div>
+                </details>
+            </div>
         </div>
     </section>
 
-    <section class="settings-section" id="admin-audit" aria-labelledby="admin-audit-heading">
+    <section class="settings-section" id="admin-audit" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-admin-audit" data-settings-panel>
         <div class="card-header"><h2 id="admin-audit-heading"><x-icon class="fa-solid fa-user-shield" aria-hidden="true" /> {{ __('Admin Audit Logs') }}</h2></div>
         <div class="card-body">
-            <form method="GET" action="{{ route('admin.preferences') }}#admin-audit" class="admin-audit-filters">
+            <form method="GET" action="{{ route('admin.preferences') }}#admin-audit" class="admin-audit-filters" aria-label="{{ __('Filter administrator audit logs') }}">
                 <label>{{ __('Administrator') }}
                     <select name="user_id">
                         <option value="">{{ __('All administrators') }}</option>
@@ -264,8 +350,8 @@
                         @endforeach
                     </select>
                 </label>
-                <label>{{ __('From') }} <input type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}"></label>
-                <label>{{ __('To') }} <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}"></label>
+                <label>{{ __('From Date') }} <input type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}"></label>
+                <label>{{ __('To Date') }} <input type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}"></label>
                 <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-filter" aria-hidden="true" /> {{ __('Apply') }}</button>
                 <a class="btn btn-outline" href="{{ route('admin.preferences') }}#admin-audit">{{ __('Reset') }}</a>
             </form>
@@ -277,14 +363,22 @@
                         <thead><tr><th>{{ __('Date and time') }}</th><th>{{ __('Administrator') }}</th><th>{{ __('Event') }}</th><th>{{ __('Related applicant') }}</th><th>{{ __('Result') }}</th><th>{{ __('IP address') }}</th><th>{{ __('Details') }}</th></tr></thead>
                         <tbody>
                         @foreach($adminAuditLogs as $event)
+                            @php
+                                $resultBadgeClass = match (strtolower($event->result)) {
+                                    'successful', 'success' => 'is-success',
+                                    'failed', 'failure' => 'is-danger',
+                                    'warning' => 'is-warning',
+                                    default => '',
+                                };
+                            @endphp
                             <tr>
                                 <td>@adminDate($event->created_at, true)</td>
                                 <td>{{ $event->actor_name }}</td>
                                 <td>{{ __($event->action) }}</td>
                                 <td>{{ $event->applicant?->name ?? $event->application?->full_name ?? '—' }}</td>
-                                <td>{{ __(ucfirst($event->result)) }}</td>
+                                <td><span class="settings-status {{ $resultBadgeClass }}">{{ __(ucfirst($event->result)) }}</span></td>
                                 <td>{{ $event->ip_address ?: __('Not recorded') }}</td>
-                                <td><a href="{{ route('admin.applicant-audit.event', $event) }}">{{ __('Details') }}</a></td>
+                                <td><a class="settings-audit-details" href="{{ route('admin.applicant-audit.event', $event) }}">{{ __('Details') }}</a></td>
                             </tr>
                         @endforeach
                         </tbody>
@@ -294,7 +388,7 @@
         </div>
     </section>
 
-    <section class="settings-section" id="backup" aria-labelledby="backup-heading">
+    <section class="settings-section" id="backup" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-backup" data-settings-panel>
         <div class="card-header"><h2 id="backup-heading"><x-icon class="fa-solid fa-database" aria-hidden="true" /> {{ __('Backup') }}</h2></div>
         <div class="card-body">
             @if($backupOperation)
@@ -328,13 +422,20 @@
                     @endif
                 </div>
             @endif
-            <section aria-labelledby="manual-backup-heading">
+            <section class="settings-card-subsection settings-backup-card" aria-labelledby="manual-backup-heading">
                 <h3 id="manual-backup-heading" style="margin-bottom:8px;">{{ __('Manual Backup') }}</h3>
                 <p style="line-height:1.6;margin-bottom:16px;">{{ __('Create a verified ZIP backup of the database, private and public stored files, and application logs. Backup archives contain confidential applicant information.') }}</p>
-                <form method="POST" action="{{ route('admin.backup.download') }}" data-backup-create-form>
+                <form method="POST" action="{{ route('admin.backup.download') }}" data-backup-create-form
+                      data-swal-confirm="{{ __('Create a new verified backup containing confidential application data?') }}"
+                      data-swal-title="{{ __('Create Backup') }}"
+                      data-swal-confirm-action="{{ __('Create Backup') }}"
+                      data-swal-cancel-action="{{ __('Cancel') }}">
                     @csrf
                     <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
-                    <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-database" aria-hidden="true" /> {{ __('Create Backup') }}</button>
+                    <div class="settings-backup-actions">
+                        <button class="btn btn-primary" type="submit"><x-icon class="fa-solid fa-database" aria-hidden="true" /> {{ __('Create Backup') }}</button>
+                        <span class="settings-description">{{ __('A verified archive will appear in Backup History when ready.') }}</span>
+                    </div>
                     <p data-backup-submit-progress role="status" aria-live="polite" hidden style="margin-top:10px;color:var(--text-muted);">
                         {{ __('Creating and verifying your backup. This may take a few minutes.') }}
                         <progress aria-label="{{ __('Backup creation progress') }}" style="display:block;width:100%;height:8px;margin-top:8px;"></progress>
@@ -349,28 +450,60 @@
                 @endif
             </section>
 
-            <section class="settings-card-subsection" aria-labelledby="automatic-backup-heading">
+            <section class="settings-card-subsection settings-backup-card" aria-labelledby="automatic-backup-heading">
                 <h3 id="automatic-backup-heading">{{ __('Automatic Backup') }}</h3>
-                <div class="settings-table-wrap">
-                    <table class="settings-table">
-                        <tbody>
-                            <tr><th>{{ __('Automatic Backup') }}</th><td>{{ __($automaticBackupStatus['enabled'] ? 'Enabled' : 'Disabled') }}</td></tr>
-                            <tr><th>{{ __('Backup status') }}</th><td>{{ __(match ($automaticBackupStatus['status']) {
-                                'completed' => 'Completed',
-                                'processing' => 'Processing',
-                                'failed' => 'Failed',
-                                default => 'Unverified',
-                            }) }}</td></tr>
-                            <tr><th>{{ __('Last successful backup') }}</th><td>{{ $automaticBackupStatus['last_successful_at'] ? \Illuminate\Support\Carbon::parse($automaticBackupStatus['last_successful_at'])->timezone($automaticBackupStatus['timezone'])->translatedFormat('M j, Y g:i A') : __('Not available') }}</td></tr>
-                            <tr><th>{{ __('Next scheduled backup') }}</th><td>{{ $automaticBackupStatus['next_daily_at']?->translatedFormat('M j, Y g:i A') ?? __('Disabled') }}</td></tr>
-                            <tr><th>{{ __('Backup size') }}</th><td>{{ $automaticBackupStatus['size'] ? number_format($automaticBackupStatus['size'] / 1048576, 2).' MB' : '—' }}</td></tr>
-                            <tr><th>{{ __('Verification') }}</th><td>{{ __($automaticBackupStatus['verification'] === 'verified' ? 'Verified' : 'Unverified') }}</td></tr>
-                            <tr><th>{{ __('Annual safety archive') }}</th><td>{{ __('December 31 at 11:59 PM (:timezone)', ['timezone' => $automaticBackupStatus['timezone']]) }} · {{ __('Next: :date', ['date' => $automaticBackupStatus['next_annual_at']->translatedFormat('M j, Y g:i A')]) }}</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                @php
+                    $automaticStatusClass = match ($automaticBackupStatus['status']) {
+                        'completed' => 'is-success',
+                        'processing' => 'is-info',
+                        'failed' => 'is-danger',
+                        default => '',
+                    };
+                @endphp
+                <dl class="settings-summary-grid">
+                    <div class="settings-summary-item">
+                        <dt>{{ __('Automatic Backup') }}</dt>
+                        <dd><span class="settings-status {{ $automaticBackupStatus['enabled'] ? 'is-enabled' : 'is-disabled' }}">{{ __($automaticBackupStatus['enabled'] ? 'Enabled' : 'Disabled') }}</span></dd>
+                    </div>
+                    <div class="settings-summary-item">
+                        <dt>{{ __('Backup status') }}</dt>
+                        <dd><span class="settings-status {{ $automaticStatusClass }}">{{ __(match ($automaticBackupStatus['status']) {
+                            'completed' => 'Completed',
+                            'processing' => 'Processing',
+                            'failed' => 'Failed',
+                            default => 'Unverified',
+                        }) }}</span></dd>
+                    </div>
+                    <div class="settings-summary-item">
+                        <dt>{{ __('Last successful backup') }}</dt>
+                        <dd>{{ $automaticBackupStatus['last_successful_at'] ? \Illuminate\Support\Carbon::parse($automaticBackupStatus['last_successful_at'])->timezone($automaticBackupStatus['timezone'])->translatedFormat('M j, Y g:i A') : __('Not available') }}</dd>
+                    </div>
+                    <div class="settings-summary-item">
+                        <dt>{{ __('Next scheduled backup') }}</dt>
+                        <dd>{{ $automaticBackupStatus['next_daily_at']?->translatedFormat('M j, Y g:i A') ?? __('Disabled') }}</dd>
+                    </div>
+                    <div class="settings-summary-item">
+                        <dt>{{ __('Backup size') }}</dt>
+                        <dd>{{ $automaticBackupStatus['size'] ? number_format($automaticBackupStatus['size'] / 1048576, 2).' MB' : '—' }}</dd>
+                    </div>
+                    <div class="settings-summary-item">
+                        <dt>{{ __('Verification') }}</dt>
+                        <dd><span class="settings-status {{ $automaticBackupStatus['verification'] === 'verified' ? 'is-success' : '' }}">{{ __($automaticBackupStatus['verification'] === 'verified' ? 'Verified' : 'Unverified') }}</span></dd>
+                    </div>
+                    <div class="settings-summary-item">
+                        <dt>{{ __('Annual safety archive') }}</dt>
+                        <dd>{{ __('December 31 at 11:59 PM (:timezone)', ['timezone' => $automaticBackupStatus['timezone']]) }} · {{ __('Next: :date', ['date' => $automaticBackupStatus['next_annual_at']->translatedFormat('M j, Y g:i A')]) }}</dd>
+                    </div>
+                </dl>
                 <p style="margin:12px 0 0;color:var(--text-muted);">{{ __('Weekly backups run on Monday at the selected time. Annual safety archives are separate and are never removed by retention cleanup.') }}</p>
-                <form method="POST" action="{{ route('admin.backup.settings.update') }}" style="margin-top:16px;">
+                <form method="POST" action="{{ route('admin.backup.settings.update') }}" style="margin-top:16px;"
+                      data-backup-settings-form
+                      data-swal-confirm="{{ (bool) old('backup_enabled', $backupSettings->backup_enabled) ? __('Enable automatic backups with the selected schedule?') : __('Disable scheduled automatic backups?') }}"
+                      data-confirm-enable="{{ __('Enable automatic backups with the selected schedule?') }}"
+                      data-confirm-disable="{{ __('Disable scheduled automatic backups?') }}"
+                      data-swal-title="{{ __('Confirm Backup Settings') }}"
+                      data-swal-confirm-action="{{ __('Save Settings') }}"
+                      data-swal-cancel-action="{{ __('Cancel') }}">
                     @csrf
                     @method('PUT')
                     <div class="settings-form-grid">
@@ -419,26 +552,35 @@
                 @endif
             </section>
 
-            <section class="settings-card-subsection" aria-labelledby="backup-history-heading">
+            <section class="settings-card-subsection settings-backup-card" aria-labelledby="backup-history-heading">
                 <h3 id="backup-history-heading">{{ __('Backup History') }}</h3>
                 <div class="settings-table-wrap" role="region" aria-label="{{ __('Backup History') }}" tabindex="0">
-                    <table class="settings-table">
+                    <table class="settings-table settings-backup-history">
                         <thead><tr><th>{{ __('Backup name') }}</th><th>{{ __('Type') }}</th><th>{{ __('Created') }}</th><th>{{ __('Size') }}</th><th>{{ __('Verification') }}</th><th>{{ __('Status') }}</th><th>{{ __('Actions') }}</th></tr></thead>
                         <tbody>
                         @forelse($backupHistory as $historyItem)
+                            @php
+                                $historyStatusClass = match ($historyItem['status']) {
+                                    'completed' => 'is-success',
+                                    'failed' => 'is-danger',
+                                    'expired' => 'is-warning',
+                                    'queued', 'processing', 'verifying' => 'is-info',
+                                    default => '',
+                                };
+                            @endphp
                             <tr>
                                 <td>{{ $historyItem['name'] }}</td>
                                 <td>{{ __(ucfirst($historyItem['type'])) }}</td>
                                 <td>{{ $historyItem['created_at']->translatedFormat('M j, Y g:i A') }}</td>
                                 <td>{{ $historyItem['size'] ? number_format($historyItem['size'] / 1048576, 2).' MB' : '—' }}</td>
-                                <td>{{ __($historyItem['verified'] ? 'Verified' : 'Unverified') }}</td>
-                                <td>{{ __(match ($historyItem['status']) {
+                                <td><span class="settings-status {{ $historyItem['verified'] ? 'is-success' : '' }}">{{ __($historyItem['verified'] ? 'Verified' : 'Unverified') }}</span></td>
+                                <td><span class="settings-status {{ $historyStatusClass }}">{{ __(match ($historyItem['status']) {
                                     'queued', 'processing', 'verifying' => 'Processing',
                                     'completed' => 'Completed',
                                     'failed' => 'Failed',
                                     'expired' => 'Expired',
                                     default => 'Unverified',
-                                }) }}</td>
+                                }) }}</span></td>
                                 <td>
                                     @if($historyItem['download_url'])
                                         <a class="btn btn-outline btn-sm" href="{{ $historyItem['download_url'] }}">{{ __('Download') }}</a>
@@ -464,7 +606,7 @@
                 </div>
             </section>
 
-            <section class="settings-card-subsection" aria-labelledby="restore-backup-heading">
+            <section class="settings-card-subsection settings-backup-card" aria-labelledby="restore-backup-heading">
                 <h3 id="restore-backup-heading">{{ __('Restore from Backup') }}</h3>
                 <div class="alert alert-warning" role="alert">
                     <strong>{{ __('Important:') }}</strong>
@@ -473,7 +615,7 @@
                 <form method="POST" action="{{ route('admin.backup.restore') }}" enctype="multipart/form-data" data-swal-confirm="{{ __('Only missing records and files will be added; existing data will not be replaced. A verified safety backup will be created first. Continue?') }}">
                 @csrf
                 <input type="hidden" name="_idempotency_token" value="{{ \Illuminate\Support\Str::random(40) }}">
-                <div class="admin-audit-filters" style="align-items:end;margin:14px 0;">
+                <div class="settings-restore-fields">
                     <label for="backup">{{ __('Backup ZIP') }}<input id="backup" name="backup" type="file" accept=".zip,application/zip" required></label>
                     <label for="restore_current_password">{{ __('Current password') }}<input id="restore_current_password" name="current_password" type="password" autocomplete="current-password" required></label>
                 </div>
@@ -484,6 +626,72 @@
     </section>
 </main>
 <script>
+    const backupSettingsForm = document.querySelector('[data-backup-settings-form]');
+    const backupEnabledInput = backupSettingsForm?.querySelector('[name="backup_enabled"][type="checkbox"]');
+    if (backupSettingsForm && backupEnabledInput) {
+        const updateBackupConfirmation = () => {
+            backupSettingsForm.dataset.swalConfirm = backupEnabledInput.checked
+                ? backupSettingsForm.dataset.confirmEnable
+                : backupSettingsForm.dataset.confirmDisable;
+        };
+        backupEnabledInput.addEventListener('change', updateBackupConfirmation);
+        updateBackupConfirmation();
+    }
+
+    (() => {
+        const tablist = document.querySelector('[data-settings-tabs]');
+        if (!tablist) return;
+
+        const tabs = Array.from(tablist.querySelectorAll('[data-settings-tab]'));
+        const panels = tabs
+            .map((tab) => document.getElementById(tab.getAttribute('aria-controls')))
+            .filter(Boolean);
+        const sectionIds = new Set(panels.map((panel) => panel.id));
+
+        const activate = (sectionId, focusTab = false) => {
+            if (!sectionIds.has(sectionId)) return;
+
+            tabs.forEach((tab) => {
+                const active = tab.getAttribute('aria-controls') === sectionId;
+                tab.setAttribute('aria-selected', String(active));
+                tab.tabIndex = active ? 0 : -1;
+                if (active && focusTab) tab.focus();
+            });
+            panels.forEach((panel) => {
+                const active = panel.id === sectionId;
+                panel.hidden = !active;
+                panel.setAttribute('aria-hidden', String(!active));
+            });
+        };
+
+        tablist.addEventListener('click', (event) => {
+            const tab = event.target.closest('[data-settings-tab]');
+            if (tab) activate(tab.getAttribute('aria-controls'));
+        });
+        tablist.addEventListener('keydown', (event) => {
+            const currentIndex = tabs.indexOf(event.target.closest('[data-settings-tab]'));
+            if (currentIndex < 0) return;
+
+            let nextIndex = currentIndex;
+            if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+            else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+            else if (event.key === 'Home') nextIndex = 0;
+            else if (event.key === 'End') nextIndex = tabs.length - 1;
+            else return;
+
+            event.preventDefault();
+            tabs[nextIndex].focus();
+            tabs[nextIndex].click();
+        });
+
+        const hashSection = window.location.hash.slice(1);
+        activate(sectionIds.has(hashSection) ? hashSection : tablist.dataset.initialSection);
+        window.addEventListener('hashchange', () => {
+            const sectionId = window.location.hash.slice(1);
+            if (sectionIds.has(sectionId)) activate(sectionId);
+        });
+    })();
+
     document.getElementById('appearance')?.addEventListener('change', function () {
         document.documentElement.dataset.adminTheme = this.value;
     });

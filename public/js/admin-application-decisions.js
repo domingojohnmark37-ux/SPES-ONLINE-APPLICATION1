@@ -83,7 +83,12 @@
 
         if (response.status === 403) return { body, message: 'Your admin session is not authorized to make this decision.' };
         if (response.status === 404) return { body, message: 'This application or one of its records no longer exists. Refresh the page.' };
-        if (response.status === 419) return { body, message: 'Your session expired. Refresh the page and submit the decision again.' };
+        const destination = response.redirected ? new URL(response.url, window.location.href) : null;
+        const redirectedToLogin = destination?.origin === window.location.origin
+            && (destination.pathname === '/login' || destination.pathname.startsWith('/login/'));
+        if (response.status === 401 || response.status === 419 || redirectedToLogin) {
+            return { body, message: 'Your session expired. Refresh the page and submit the decision again.' };
+        }
         if (response.status === 422) {
             const validationErrors = Object.values(body.errors || {}).flat();
             return { body, message: validationErrors.join(' ') || body.message || 'Please correct the decision form and try again.' };
@@ -153,8 +158,6 @@
             return;
         }
         const originalButtonContent = submitButton?.innerHTML;
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 45000);
 
         form.dataset.decisionState = 'submitting';
         form.setAttribute('aria-busy', 'true');
@@ -178,7 +181,6 @@
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                signal: controller.signal,
             });
             const result = await responseMessage(response);
             if (!response.ok || !result.body.success) {
@@ -194,8 +196,8 @@
             }
             showToast(result.message, true);
         } catch (error) {
-            const message = controller.signal.aborted
-                ? 'The request timed out. Refresh the page to verify the decision before retrying.'
+            const message = error instanceof TypeError
+                ? 'The connection was interrupted. Refresh the page to verify the decision before retrying.'
                 : error.message || 'The request could not be completed. Check your connection and try again.';
             if (feedback) {
                 feedback.textContent = message;
@@ -203,7 +205,6 @@
             }
             showToast(message, false);
         } finally {
-            window.clearTimeout(timeout);
             delete form.dataset.decisionState;
             form.removeAttribute('aria-busy');
             if (spinner) spinner.hidden = true;

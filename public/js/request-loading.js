@@ -4,6 +4,7 @@
     const loadingWords = /\b(save|saving|update|updating|send|sending|delete|deleting|remove|removing|submit|submitting|apply|applying|approve|approving|reject|den(y|ying)|upload|uploading|import|importing|export|exporting|report|backup|restore|restoring|verify|verifying|login|log in|logout|log out|filter|search|refresh|comment|publish|unpublish|schedule|create|add|confirm|mark as read)\b/i;
     const confirmations = /\bconfirm\s*\(/i;
     const activeActions = new Set();
+    const authorizedForms = new WeakSet();
     let clickAction = null;
     let submitAction = null;
     let feedback;
@@ -55,21 +56,12 @@
         if (action.busy) return;
         action.busy = true;
         activeActions.add(action);
-        action.slowTimer = window.setTimeout(() => {
-            if (!action.busy) return;
-            announce('This is taking longer than usual. Your change may already be saved.', 'slow');
-        }, 12000);
-        action.watchdogTimer = window.setTimeout(() => {
-            if (!action.busy) return;
-            action.uncertain = true;
-            action.uncertaintyAnnounced = true;
-            clearBusy(action);
-            announce('This is taking longer than usual. Your change may already be saved.', 'uncertain');
-            action.form?.dispatchEvent(new CustomEvent('requestloading:complete', {
-                bubbles: true,
-                detail: { success: false, uncertain: true },
-            }));
-        }, 45000);
+        if (!action.nativeSubmit) {
+            action.slowTimer = window.setTimeout(() => {
+                if (!action.busy) return;
+                announce('This request is still in progress. Please wait; do not submit it again or reload this page.', 'slow');
+            }, 12000);
+        }
 
         const element = action.element;
         if (element instanceof HTMLButtonElement) {
@@ -103,13 +95,16 @@
         if (action.form) {
             action.form.dataset.requestPending = 'true';
             action.form.setAttribute('aria-busy', 'true');
-            if (action.element instanceof HTMLButtonElement || action.element instanceof HTMLInputElement) {
+            if (action.nativeSubmit && action.nativeSubmitter
+                && (action.element instanceof HTMLButtonElement || action.element instanceof HTMLInputElement)) {
                 const name = action.element.name;
                 if (name && action.element.type !== 'image') {
                     action.submitterProxy = document.createElement('input');
                     action.submitterProxy.type = 'hidden';
                     action.submitterProxy.name = name;
-                    action.submitterProxy.value = action.element.value;
+                    action.submitterProxy.value = action.element instanceof HTMLInputElement
+                        ? action.originalValue
+                        : action.element.value;
                     action.form.append(action.submitterProxy);
                 }
             }
@@ -122,9 +117,7 @@
         action.busy = false;
         activeActions.delete(action);
         window.clearTimeout(action.slowTimer);
-        window.clearTimeout(action.watchdogTimer);
         action.slowTimer = null;
-        action.watchdogTimer = null;
 
         const element = action.element;
         if (element instanceof HTMLButtonElement) {
@@ -175,7 +168,7 @@
         } else {
             node.replaceChildren(document.createTextNode(message));
         }
-        if (kind === 'uncertain' || kind === 'slow') {
+        if (kind === 'uncertain') {
             const reload = document.createElement('button');
             reload.type = 'button';
             reload.dataset.noRequestLoading = '';
@@ -255,8 +248,6 @@
     async function submitDownloadForm(form, submitter) {
         const action = makeAction(submitter || formAction(form, null), form);
         setBusy(action);
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 45000);
 
         try {
             const response = await originalFetch(form.action, {
@@ -264,11 +255,13 @@
                 body: ['get', 'head'].includes((form.method || 'get').toLowerCase()) ? undefined : new FormData(form),
                 credentials: 'same-origin',
                 headers: { Accept: 'application/octet-stream, application/zip' },
-                signal: controller.signal,
             });
             const disposition = response.headers.get('Content-Disposition');
             const contentType = response.headers.get('Content-Type') || '';
 
+            if (response.status === 401 || response.status === 419 || isAuthenticationRedirect(response)) {
+                throw new Error('Your session has expired. Sign in again and retry.');
+            }
             if (!response.ok || response.redirected || !disposition || /text\/html/i.test(contentType)) {
                 throw new Error(`The download could not be prepared (${response.status}).`);
             }
@@ -291,11 +284,7 @@
             complete(action, true, 'The backup is ready and the download has started.');
         } catch (error) {
             console.error('Download request failed.', error);
-            complete(action, false, controller.signal.aborted
-                ? 'The connection was interrupted, so we could not confirm whether this change was saved. Check the current record before retrying.'
-                : error.message || 'The download could not be prepared. Please try again.');
-        } finally {
-            window.clearTimeout(timeout);
+            complete(action, false, error.message || 'The download could not be prepared. Please try again.');
         }
     }
 
@@ -307,11 +296,15 @@
             busy: false,
             requests: 0,
             nativeSubmit: false,
+            nativeSubmitter: false,
         };
     }
 
     function requestStarted(action) {
         if (!action) return;
+        if (action.nativeSubmit && action.submitEvent?.defaultPrevented) {
+            action.nativeSubmit = false;
+        }
         action.requests += 1;
         setBusy(action);
     }
@@ -324,6 +317,17 @@
         return !['get', 'head'].includes(method.toLowerCase());
     }
 
+    function isAuthenticationUrl(url) {
+        if (!url) return false;
+        const destination = new URL(url, window.location.href);
+        return destination.origin === window.location.origin
+            && (destination.pathname === '/login' || destination.pathname.startsWith('/login/'));
+    }
+
+    function isAuthenticationRedirect(response) {
+        return response.redirected && isAuthenticationUrl(response.url);
+    }
+
     function requestEnded(action, success, message = '') {
         if (!action) return;
         if (!success) {
@@ -333,6 +337,7 @@
         action.requests = Math.max(0, action.requests - 1);
         if (action.requests !== 0) return;
         if (action.uncertain) {
+            clearBusy(action);
             if (action.uncertaintyAnnounced) return;
             action.uncertaintyAnnounced = true;
             announce(
@@ -351,6 +356,7 @@
     document.addEventListener('click', function(event) {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         const element = event.target.closest('button,a[href],[data-request-loading]');
+        if (element?.closest('.swal2-container, [data-admin-confirm-dialog]')) return;
         if (element?.matches('[aria-busy="true"],[aria-disabled="true"]')) {
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -372,6 +378,10 @@
     document.addEventListener('submit', function(event) {
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || event.defaultPrevented || form.hasAttribute('data-no-request-loading')) return;
+        const requiresConfirmation = form.hasAttribute('data-swal-confirm')
+            || event.submitter?.hasAttribute('data-swal-confirm');
+        if (requiresConfirmation && !authorizedForms.has(form)) return;
+        if (requiresConfirmation) authorizedForms.delete(form);
         if (form.hasAttribute('data-request-download')) {
             if (form.dataset.requestPending === 'true') {
                 event.preventDefault();
@@ -379,7 +389,7 @@
             }
             return;
         }
-        const submitter = event.submitter || formAction(form, null);
+        const submitter = event.submitter;
         if (submitter instanceof HTMLElement && submitter.getAttribute('onclick') && confirmations.test(submitter.getAttribute('onclick'))) {
             if (event.defaultPrevented) return;
         }
@@ -390,16 +400,19 @@
             return;
         }
 
-        const action = makeAction(submitter, form);
+        const action = makeAction(submitter || formAction(form, null), form);
         const isAuthForm = form.hasAttribute('data-auth-form');
         if (isAuthForm) return;
 
         action.nativeSubmit = true;
+        action.nativeSubmitter = submitter instanceof HTMLElement;
+        action.submitEvent = event;
         submitAction = action;
+        form.dataset.requestPending = 'true';
         queueMicrotask(() => {
             if (submitAction === action) submitAction = null;
             if (event.defaultPrevented && action.requests === 0) {
-                clearBusy(action);
+                delete form.dataset.requestPending;
                 return;
             }
             if (!action.busy) setBusy(action);
@@ -420,6 +433,8 @@
     const originalFetch = window.fetch.bind(window);
     window.fetch = async function(...args) {
         const action = clickAction || submitAction;
+        if (!action) return originalFetch(...args);
+
         requestStarted(action);
         const controller = new AbortController();
         const inputSignal = args[1]?.signal
@@ -427,30 +442,36 @@
         const abortFromInput = () => controller.abort();
         if (inputSignal?.aborted) controller.abort();
         else inputSignal?.addEventListener('abort', abortFromInput, { once: true });
-        const timeout = window.setTimeout(() => controller.abort(), 45000);
         const requestOptions = { ...(args[1] || {}), signal: controller.signal };
+        let actionRequestEnded = false;
+        const finishRequest = (success, message = '') => {
+            actionRequestEnded = true;
+            requestEnded(action, success, message);
+        };
 
         try {
             const response = await originalFetch(args[0], requestOptions);
-            if (action) {
-                const isWrite = isWriteRequest(action, args[0], args[1]);
-                if (response.status === 401 || response.status === 419) {
-                    requestEnded(action, false, 'Your session has expired. Sign in again and retry.');
-                } else if (response.status >= 500 && isWrite) {
-                    action.uncertain = true;
-                    requestEnded(action, false, 'The server returned an error, so we could not confirm whether this change was saved. Check the current record before retrying.');
-                } else if (!response.ok) {
-                    requestEnded(action, false, `The request failed (${response.status}). Please review the details and try again.`);
-                } else {
-                    requestEnded(action, true);
-                }
+            const isWrite = isWriteRequest(action, args[0], args[1]);
+            if (response.status === 401 || response.status === 419) {
+                finishRequest(false, 'Your session has expired. Sign in again and retry.');
+            } else if (isAuthenticationRedirect(response)) {
+                const error = new Error('Your session has expired. Sign in again and retry.');
+                finishRequest(false, error.message);
+                throw error;
+            } else if (response.status >= 500 && isWrite) {
+                action.uncertain = true;
+                finishRequest(false, 'The server returned an error, so we could not confirm whether this change was saved. Check the current record before retrying.');
+            } else if (!response.ok) {
+                finishRequest(false, `The request failed (${response.status}). Please review the details and try again.`);
+            } else {
+                finishRequest(true);
             }
             return response;
         } catch (error) {
-            if (action) {
+            if (!actionRequestEnded) {
                 const isWrite = isWriteRequest(action, args[0], args[1]);
                 if (isWrite) action.uncertain = true;
-                requestEnded(action, false, isWrite
+                finishRequest(false, isWrite
                     ? 'The connection was interrupted, so we could not confirm whether this change was saved. Check the current record before retrying.'
                     : controller.signal.aborted
                         ? 'The request timed out. Check your connection and try again.'
@@ -458,7 +479,6 @@
             }
             throw error;
         } finally {
-            window.clearTimeout(timeout);
             inputSignal?.removeEventListener('abort', abortFromInput);
         }
     };
@@ -473,7 +493,6 @@
     XMLHttpRequest.prototype.send = function(...args) {
         const action = clickAction || submitAction;
         requestStarted(action);
-        if (!this.timeout || this.timeout > 45000) this.timeout = 45000;
         if (action && this.upload) {
             this.upload.addEventListener('progress', event => {
                 if (!event.lengthComputable || !action.labelNode || !/\bupload/i.test(action.label)) return;
@@ -483,21 +502,28 @@
         }
         this.addEventListener('loadend', () => {
             if (action) {
-                const success = this.status >= 200 && this.status < 400;
                 const isWrite = !['get', 'head'].includes(this.requestLoadingMethod || 'get');
                 if ((this.status === 0 || this.status >= 500) && isWrite) action.uncertain = true;
-                const message = this.status === 401 || this.status === 419
+                const authenticationExpired = this.status === 401
+                    || this.status === 419
+                    || isAuthenticationUrl(this.responseURL);
+                const success = (this.status >= 200 && this.status < 300) || this.status === 304;
+                const message = authenticationExpired
                     ? 'Your session has expired. Sign in again and retry.'
                     : success
                         ? ''
                         : (this.status === 0 || this.status >= 500) && isWrite
                             ? 'The connection or server was interrupted, so we could not confirm whether this change was saved. Check the current record before retrying.'
                             : `The request failed (${this.status || 'network error'}). Please review the details and try again.`;
-                requestEnded(action, success, message);
+                requestEnded(action, success && !authenticationExpired, message);
             }
         }, { once: true });
         return originalSend.apply(this, args);
     };
+
+    document.addEventListener('requestloading:authorized', event => {
+        if (event.target instanceof HTMLFormElement) authorizedForms.add(event.target);
+    }, true);
 
     window.requestLoading = {
         start(element, form = null) {

@@ -716,8 +716,15 @@
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 })
                     .then(function (response) {
+                        if (response.redirected || response.status === 401 || response.status === 419) {
+                            const failure = new Error(@json(__('Your session has expired. Refresh the page and sign in again.')));
+                            failure.sessionExpired = true;
+                            throw failure;
+                        }
                         if (!response.ok) {
-                            const failure = new Error('Could not mark this notification as read.');
+                            const failure = new Error(response.status >= 500
+                                ? 'The server returned an error. Check whether the notification was updated before trying again.'
+                                : 'Could not mark this notification as read.');
                             failure.uncertain = response.status >= 500;
                             throw failure;
                         }
@@ -730,12 +737,19 @@
                         dismissToast();
                     })
                     .catch(function (failure) {
-                        error.textContent = @json(__('Could not mark this notification as read. Please try again.'));
+                        const message = failure.sessionExpired
+                            ? failure.message
+                            : failure.uncertain
+                                ? failure.message
+                                : failure instanceof TypeError || failure instanceof SyntaxError
+                                    ? 'The connection was interrupted, so we could not confirm whether this notification was marked as read.'
+                                    : @json(__('Could not mark this notification as read. Please try again.'));
+                        error.textContent = message;
                         error.hidden = false;
                         if (failure instanceof TypeError || failure instanceof SyntaxError || failure.uncertain) {
-                            request.uncertain('The connection was interrupted, so we could not confirm whether this notification was marked as read.');
+                            request.uncertain(message);
                         } else {
-                            request.error('Could not mark this notification as read. Please try again.');
+                            request.error(message);
                         }
                     });
             });

@@ -71,6 +71,7 @@ const alerts = {
     },
     authorizeSubmit(form) {
         confirmedSubmissions.add(form);
+        form.dispatchEvent(new CustomEvent('requestloading:authorized', { bubbles: true }));
     },
     toast: {
         success(message) {
@@ -119,7 +120,7 @@ document.addEventListener('submit', async (event) => {
             if (!isConfirmed) return;
             if (!form.noValidate && !submitter?.formNoValidate && !form.reportValidity()) return;
 
-            confirmedSubmissions.add(form);
+            alerts.authorizeSubmit(form);
             if (submitter) {
                 form.requestSubmit(submitter);
             } else {
